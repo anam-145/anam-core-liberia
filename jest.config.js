@@ -19,7 +19,7 @@ const customJestConfig = {
     '!src/server/db/migrations/**',
   ],
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
-  transformIgnorePatterns: ['/node_modules/', '^.+\\.module\\.(css|sass|scss)$'],
+  transformIgnorePatterns: ['node_modules/(?!(@scure|@noble)/)', '^.+\\.module\\.(css|sass|scss)$'],
   modulePaths: ['<rootDir>'],
 };
 
