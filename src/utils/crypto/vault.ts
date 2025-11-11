@@ -127,11 +127,11 @@ export function verifyVaultPassword(vault: Vault, password: string): boolean {
  */
 export function generatePassword(length: number = 16): string {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  const randomBytes = crypto.getRandomValues(new Uint8Array(length));
+  const randomBytesBuffer = randomBytes(length);
   let password = '';
 
   for (let i = 0; i < length; i++) {
-    password += charset[randomBytes[i] % charset.length];
+    password += charset[randomBytesBuffer[i]! % charset.length];
   }
 
   return password;
