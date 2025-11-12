@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { getChallengeService } from '@/services/challenge.memory.service';
+import { apiOk, apiError } from '@/lib/api-response';
 
 /**
  * GET /api/vps/challenge
@@ -29,18 +29,12 @@ export async function GET(_request: NextRequest) {
       throw new Error('Failed to create challenge');
     }
 
-    return NextResponse.json(
-      {
-        challenge,
-        expiresAt: info.expiresAt.toISOString(),
-      },
-      { status: 200 },
-    );
+    return apiOk({
+      challenge,
+      expiresAt: info.expiresAt.toISOString(),
+    });
   } catch (error) {
     console.error('Error in GET /api/vps/challenge:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 },
-    );
+    return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }
 }

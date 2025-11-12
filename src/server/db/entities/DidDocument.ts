@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import type { DIDDocument as DIDDocumentType } from '@/utils/crypto/did';
 
 export enum DIDType {
   USER = 'USER',
@@ -46,7 +47,7 @@ export class DidDocument {
     type: 'json',
     comment: 'Full DID Document',
   })
-  documentJson!: any;
+  documentJson!: DIDDocumentType;
 
   @Column({
     name: 'document_hash',

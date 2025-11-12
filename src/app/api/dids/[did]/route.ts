@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { getDIDDatabaseService } from '@/services/did.db.service';
+import { apiOk, apiError } from '@/lib/api-response';
 
 interface Params {
   params: {
@@ -35,14 +35,14 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const document = await didService.getDIDDocument(did);
 
     if (!document) {
-      return NextResponse.json({ error: 'DID Document not found' }, { status: 404 });
+      return apiError('DID Document not found', 404, 'NOT_FOUND');
     }
 
     // Verify on-chain status (Mock)
     const isVerified = await didService.verifyOnChain(did);
 
     // Return DID Document with verification status
-    return NextResponse.json({
+    return apiOk({
       ...document,
       verified: isVerified, // 온체인 검증 결과
       metadata: {
@@ -51,9 +51,6 @@ export async function GET(_request: NextRequest, { params }: Params) {
     });
   } catch (error) {
     console.error('Error in GET /api/dids/[did]:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 },
-    );
+    return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }
 }

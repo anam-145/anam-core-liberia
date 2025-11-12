@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { getVCDatabaseService } from '@/services/vc.db.service';
+import { apiOk, apiError } from '@/lib/api-response';
 
 /**
  * POST /api/vcs/issue
@@ -27,20 +27,17 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.walletAddress || !body.publicKeyHex || !body.vcType || !body.data) {
-      return NextResponse.json(
-        { error: 'Missing required fields: walletAddress, publicKeyHex, vcType, data' },
-        { status: 400 },
-      );
+      return apiError('Missing required fields: walletAddress, publicKeyHex, vcType, data', 400, 'VALIDATION_ERROR');
     }
 
     // Validate vcType
     if (body.vcType !== 'KYC' && body.vcType !== 'ADMIN') {
-      return NextResponse.json({ error: 'Invalid vcType. Must be "KYC" or "ADMIN"' }, { status: 400 });
+      return apiError('Invalid vcType. Must be "KYC" or "ADMIN"', 400, 'VALIDATION_ERROR');
     }
 
     // Validate data is an object
     if (typeof body.data !== 'object' || Array.isArray(body.data)) {
-      return NextResponse.json({ error: 'data must be an object' }, { status: 400 });
+      return apiError('data must be an object', 400, 'VALIDATION_ERROR');
     }
 
     const vcService = getVCDatabaseService();
@@ -53,26 +50,23 @@ export async function POST(request: NextRequest) {
       data: body.data,
     });
 
-    return NextResponse.json(
+    return apiOk(
       {
         did: result.did,
         vc: result.vc,
         vcHash: result.vcHash,
         txHashes: result.txHashes,
       },
-      { status: 201 },
+      201,
     );
   } catch (error) {
     console.error('Error in POST /api/vcs/issue:', error);
 
     // Handle validation errors
     if (error instanceof Error && error.message.includes('Invalid')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return apiError(error.message, 400, 'VALIDATION_ERROR');
     }
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 },
-    );
+    return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }
 }

@@ -1,5 +1,4 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { getChallengeService } from '@/services/challenge.memory.service';
 import { getVCDatabaseService } from '@/services/vc.db.service';
 import { getDIDDatabaseService } from '@/services/did.db.service';
@@ -9,6 +8,7 @@ import {
   extractAddressFromDIDDocument,
   type VerifiablePresentation,
 } from '@/utils/crypto/did';
+import { apiOk, apiError } from '@/lib/api-response';
 
 /**
  * POST /api/vps/verify
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.vp || !body.challenge) {
-      return NextResponse.json({ error: 'Missing required fields: vp, challenge' }, { status: 400 });
+      return apiError('Missing required fields: vp, challenge', 400, 'VALIDATION_ERROR');
     }
 
     const vp = body.vp as VerifiablePresentation;
@@ -65,14 +65,11 @@ export async function POST(request: NextRequest) {
       !Array.isArray(vp.verifiableCredential) ||
       vp.verifiableCredential.length === 0
     ) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Invalid VP structure',
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason: 'Invalid VP structure',
+      });
     }
     checks.isStructureValid = true;
 
@@ -80,14 +77,11 @@ export async function POST(request: NextRequest) {
     const vc = vp.verifiableCredential[0];
 
     if (!vc) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'No VC found in VP',
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason: 'No VC found in VP',
+      });
     }
 
     // Step 2: Challenge 검증 (일회성 확인 + 매칭)
@@ -105,14 +99,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!checks.isChallengeMatched) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason,
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason,
+      });
     }
 
     // Step 3: VP holder 서명 검증
@@ -120,42 +111,25 @@ export async function POST(request: NextRequest) {
     const holderDocument = await didService.getDIDDocument(vp.holder);
 
     if (!holderDocument) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Holder DID not found',
-        },
-        { status: 404 },
-      );
+      return apiError('Holder DID not found', 404, 'NOT_FOUND');
     }
 
     // Holder의 wallet address 추출 (blockchainAccountId에서)
     const holderWalletAddress = extractAddressFromDIDDocument(holderDocument);
 
     if (!holderWalletAddress) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Holder wallet address not found in DID document',
-        },
-        { status: 400 },
-      );
+      return apiError('Holder wallet address not found in DID document', 400, 'VALIDATION_ERROR');
     }
 
     // VP 서명 검증
     checks.isHolderSignatureValid = verifyVPSignature(vp, holderWalletAddress);
 
     if (!checks.isHolderSignatureValid) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Invalid VP holder signature',
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason: 'Invalid VP holder signature',
+      });
     }
 
     // Step 4: VC issuer 서명 검증
@@ -163,42 +137,25 @@ export async function POST(request: NextRequest) {
     const issuerDocument = await didService.getDIDDocument(issuerDid);
 
     if (!issuerDocument) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Issuer DID not found',
-        },
-        { status: 404 },
-      );
+      return apiError('Issuer DID not found', 404, 'NOT_FOUND');
     }
 
     // Issuer의 wallet address 추출 (blockchainAccountId에서)
     const issuerWalletAddress = extractAddressFromDIDDocument(issuerDocument);
 
     if (!issuerWalletAddress) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Issuer wallet address not found in DID document',
-        },
-        { status: 400 },
-      );
+      return apiError('Issuer wallet address not found in DID document', 400, 'VALIDATION_ERROR');
     }
 
     // VC 서명 검증
     checks.isIssuerSignatureValid = verifyVCSignature(vc, issuerWalletAddress);
 
     if (!checks.isIssuerSignatureValid) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: 'Invalid VC issuer signature',
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason: 'Invalid VC issuer signature',
+      });
     }
 
     // Step 5: VC 만료 확인
@@ -208,14 +165,11 @@ export async function POST(request: NextRequest) {
     checks.isNotExpired = !expirationDate || now < expirationDate;
 
     if (!checks.isNotExpired) {
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: `VC expired at ${expirationDate?.toISOString()}`,
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason: `VC expired at ${expirationDate?.toISOString()}`,
+      });
     }
 
     // Step 6: VC 온체인 상태 확인
@@ -226,30 +180,21 @@ export async function POST(request: NextRequest) {
 
     if (!checks.isActiveOnChain) {
       const status = await vcService.getVCStatus(vcId);
-      return NextResponse.json(
-        {
-          valid: false,
-          checks,
-          reason: status === 'REVOKED' ? 'VC has been revoked' : 'VC not found or inactive on-chain',
-        },
-        { status: 400 },
-      );
+      return apiOk({
+        valid: false,
+        checks,
+        reason: status === 'REVOKED' ? 'VC has been revoked' : 'VC not found or inactive on-chain',
+      });
     }
 
     // All checks passed
-    return NextResponse.json(
-      {
-        valid: true,
-        checks,
-        credentialSubject: vc.credentialSubject,
-      },
-      { status: 200 },
-    );
+    return apiOk({
+      valid: true,
+      checks,
+      credentialSubject: vc.credentialSubject,
+    });
   } catch (error) {
     console.error('Error in POST /api/vps/verify:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 },
-    );
+    return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }
 }

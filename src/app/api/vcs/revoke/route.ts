@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
 import { getVCDatabaseService } from '@/services/vc.db.service';
+import { apiOk, apiError } from '@/lib/api-response';
 
 /**
  * POST /api/vcs/revoke
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.vcId) {
-      return NextResponse.json({ error: 'Missing required field: vcId' }, { status: 400 });
+      return apiError('Missing required field: vcId', 400, 'VALIDATION_ERROR');
     }
 
     const vcService = getVCDatabaseService();
@@ -33,23 +33,20 @@ export async function POST(request: NextRequest) {
       reason: body.reason,
     });
 
-    return NextResponse.json(result, { status: 200 });
+    return apiOk(result);
   } catch (error) {
     console.error('Error in POST /api/vcs/revoke:', error);
 
     // Handle not found error
     if (error instanceof Error && error.message.includes('not found')) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return apiError(error.message, 404, 'NOT_FOUND');
     }
 
     // Handle already revoked error
     if (error instanceof Error && error.message.includes('already revoked')) {
-      return NextResponse.json({ error: error.message }, { status: 409 }); // Conflict
+      return apiError(error.message, 409, 'CONFLICT');
     }
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 },
-    );
+    return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }
 }
