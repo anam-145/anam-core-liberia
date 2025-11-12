@@ -213,7 +213,7 @@ describe('DID Utilities', () => {
         const vc = createVC(issuerDID, subjectDID, 'UndpKycCredential', {}, vcId, 365);
 
         const issuanceDate = new Date(vc.issuanceDate);
-        const expiryDate = new Date(vc.validUntil!);
+        const expiryDate = new Date(vc.expirationDate!);
         const diffDays = Math.round((expiryDate.getTime() - issuanceDate.getTime()) / (1000 * 60 * 60 * 24));
 
         expect(diffDays).toBe(365);
@@ -230,10 +230,10 @@ describe('DID Utilities', () => {
         const signedVC = await signVC(vc, testPrivateKey, verificationMethod);
 
         expect(signedVC.proof).toBeDefined();
-        expect(signedVC.proof.type).toBe('EcdsaSecp256k1Signature2019');
-        expect(signedVC.proof.verificationMethod).toBe(verificationMethod);
-        expect(signedVC.proof.proofPurpose).toBe('assertionMethod');
-        expect(signedVC.proof.proofValue).toBeDefined();
+        expect(signedVC.proof!.type).toBe('EcdsaSecp256k1Signature2019');
+        expect(signedVC.proof!.verificationMethod).toBe(verificationMethod);
+        expect(signedVC.proof!.proofPurpose).toBe('assertionMethod');
+        expect(signedVC.proof!.proofValue).toBeDefined();
 
         // Verify signature with correct address
         const isValid = verifyVCSignature(signedVC, testAddress);
@@ -277,9 +277,9 @@ describe('DID Utilities', () => {
         expect(vp.type).toContain('VerifiablePresentation');
         expect(vp.holder).toBe(holderDID);
         expect(vp.verifiableCredential).toHaveLength(1);
-        expect(vp.proof.challenge).toBe(challenge);
-        expect(vp.proof.proofPurpose).toBe('authentication');
-        expect(vp.proof.verificationMethod).toBe(`${holderDID}#keys-1`);
+        expect(vp.proof!.challenge).toBe(challenge);
+        expect(vp.proof!.proofPurpose).toBe('authentication');
+        expect(vp.proof!.verificationMethod).toBe(`${holderDID}#keys-1`);
       });
     });
 
@@ -298,7 +298,7 @@ describe('DID Utilities', () => {
 
         const signedVP = await signVP(vp, testPrivateKey);
 
-        expect(signedVP.proof.jws).toBeDefined();
+        expect(signedVP.proof!.jws).toBeDefined();
 
         // Verify signature with correct address
         const isValid = verifyVPSignature(signedVP, testAddress);

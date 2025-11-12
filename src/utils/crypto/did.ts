@@ -42,6 +42,24 @@ export interface VerificationMethod {
 }
 
 // VC/VP related interfaces
+export interface VCProof {
+  type: string;
+  verificationMethod: string;
+  proofPurpose: string;
+  created: string;
+  proofValue: string;
+}
+
+export interface VPProof {
+  type: string;
+  verificationMethod: string;
+  proofPurpose: string;
+  created: string;
+  challenge: string;
+  domain?: string;
+  jws?: string;
+}
+
 export interface VerifiableCredential {
   '@context': string[];
   id: string;
@@ -53,12 +71,13 @@ export interface VerifiableCredential {
   issuanceDate: string;
   validFrom?: string;
   validUntil?: string;
-  credentialSubject: any;
+  credentialSubject: Record<string, unknown>;
   credentialStatus?: {
     id: string;
     type: string;
   };
-  proof?: any;
+  proof?: VCProof;
+  expirationDate?: string;
 }
 
 export interface VerifiablePresentation {
@@ -66,7 +85,7 @@ export interface VerifiablePresentation {
   type: string[];
   holder: string;
   verifiableCredential: VerifiableCredential[];
-  proof?: any;
+  proof?: VPProof;
 }
 
 /**
@@ -75,7 +94,7 @@ export interface VerifiablePresentation {
  * @param obj - Object to stringify
  * @returns Canonicalized JSON string
  */
-function canonicalStringify(obj: any): string {
+export function canonicalStringify(obj: unknown): string {
   // Handle primitives and null
   if (obj === null || typeof obj !== 'object') {
     return JSON.stringify(obj);
@@ -88,9 +107,10 @@ function canonicalStringify(obj: any): string {
   }
 
   // Handle objects - sort keys and recursively stringify values
-  const sortedKeys = Object.keys(obj).sort();
+  const record = obj as Record<string, unknown>;
+  const sortedKeys = Object.keys(record).sort();
   const pairs = sortedKeys.map((key) => {
-    const value = obj[key];
+    const value = record[key];
     const stringifiedValue = canonicalStringify(value);
     return JSON.stringify(key) + ':' + stringifiedValue;
   });
@@ -246,7 +266,7 @@ export function createVC(
   issuerDID: string,
   subjectDID: string,
   credentialType: string,
-  credentialSubject: any,
+  credentialSubject: Record<string, unknown>,
   vcId: string,
   validityPeriodDays: number = 730,
 ): VerifiableCredential {
@@ -263,8 +283,7 @@ export function createVC(
       name: 'UNDP Liberia',
     },
     issuanceDate: now.toISOString(),
-    validFrom: now.toISOString(),
-    validUntil: expiryDate.toISOString(),
+    expirationDate: expiryDate.toISOString(), // W3C 표준 필드
     credentialSubject: {
       id: subjectDID,
       ...credentialSubject,
@@ -445,6 +464,27 @@ export function verifyVPSignature(vp: VerifiablePresentation, holderAddress: str
  */
 export function generateChallenge(length: number = 32): string {
   return '0x' + randomBytes(length).toString('hex');
+}
+
+/**
+ * Extract Ethereum address from DID Document's blockchainAccountId
+ * @param didDocument - DID Document
+ * @returns Ethereum address (0x...) or null if not found
+ */
+export function extractAddressFromDIDDocument(didDocument: DIDDocument): string | null {
+  const blockchainAccountId = didDocument.verificationMethod?.[0]?.blockchainAccountId;
+  if (!blockchainAccountId) {
+    return null;
+  }
+
+  // blockchainAccountId format: "eip155:8453:0x1234..."
+  // Extract address after second colon
+  const parts = blockchainAccountId.split(':');
+  if (parts.length !== 3 || !parts[2] || !parts[2].startsWith('0x')) {
+    return null;
+  }
+
+  return parts[2];
 }
 
 // Legacy support for migration (maps to new format)

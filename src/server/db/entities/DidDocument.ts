@@ -65,14 +65,6 @@ export class DidDocument {
   })
   onChainTxHash?: string;
 
-  @Column({
-    name: 'is_active',
-    type: 'boolean',
-    default: true,
-    comment: 'Whether this DID is active',
-  })
-  isActive!: boolean;
-
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

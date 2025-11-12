@@ -98,7 +98,6 @@ export class DIDDatabaseService {
     didEntity.documentJson = document;
     didEntity.documentHash = documentHash;
     didEntity.onChainTxHash = mockTxHash;
-    didEntity.isActive = true;
 
     await this.dataSource.manager.save(didEntity);
 
@@ -119,7 +118,7 @@ export class DIDDatabaseService {
     await this.ensureInitialized();
 
     const didEntity = await this.dataSource.manager.findOne(DidDocument, {
-      where: { did, isActive: true },
+      where: { did },
     });
 
     return didEntity ? didEntity.documentJson : null;
@@ -136,7 +135,7 @@ export class DIDDatabaseService {
     }
 
     const didEntity = await this.dataSource.manager.findOne(DidDocument, {
-      where: { walletAddress, isActive: true },
+      where: { walletAddress },
     });
 
     return didEntity ? didEntity.did : null;
@@ -155,12 +154,10 @@ export class DIDDatabaseService {
   > {
     await this.ensureInitialized();
 
-    const query = this.dataSource.manager
-      .createQueryBuilder(DidDocument, 'did')
-      .where('did.isActive = :isActive', { isActive: true });
+    const query = this.dataSource.manager.createQueryBuilder(DidDocument, 'did');
 
     if (type) {
-      query.andWhere('did.didType = :type', { type: type.toUpperCase() });
+      query.where('did.didType = :type', { type: type.toUpperCase() });
     }
 
     const entities = await query.getMany();
@@ -180,9 +177,10 @@ export class DIDDatabaseService {
     await this.ensureInitialized();
 
     const didEntity = await this.dataSource.manager.findOne(DidDocument, {
-      where: { did, isActive: true },
+      where: { did },
     });
 
+    // TODO: Implement actual blockchain verification
     // Mock verification - in real implementation, check blockchain
     return !!didEntity;
   }

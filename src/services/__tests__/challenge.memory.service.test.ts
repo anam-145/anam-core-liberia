@@ -93,14 +93,14 @@ describe('Memory-based Challenge Service', () => {
         static now() {
           return mockNow.getTime();
         }
-      } as any;
+      } as unknown as DateConstructor;
 
       const challenge = service.create();
 
       // Restore Date and move forward 10 minutes (past expiry)
       global.Date = realDate;
       const futureDate = new Date(mockNow.getTime() + 10 * 60 * 1000);
-      jest.spyOn(global, 'Date').mockImplementation(() => futureDate as any);
+      jest.spyOn(global, 'Date').mockImplementation(() => futureDate as unknown as Date);
 
       expect(() => service.verify(challenge)).toThrow('Challenge expired');
 

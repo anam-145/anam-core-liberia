@@ -1,114 +1,250 @@
 #!/usr/bin/env ts-node
 
 /**
- * Script to test DID API endpoints
+ * Script to test DID Service API endpoints
  * Run with: npx ts-node scripts/test-did-api.ts
  */
 
 import { ethers } from 'ethers';
+import { createVP, signVP, type VerifiableCredential } from '../src/utils/crypto/did';
 
 const API_BASE = 'http://localhost:3000/api';
 
 async function testDIDAPI() {
-  console.log('🧪 Testing DID API...\n');
+  console.log('🧪 Testing DID Service API...\n');
 
-  // Generate test wallet
-  const testWallet = ethers.Wallet.createRandom();
-  console.log('Generated test wallet:');
-  console.log('  Address:', testWallet.address);
-  console.log('  Public Key:', testWallet.publicKey);
+  // Generate test wallets
+  const userWallet = ethers.Wallet.createRandom();
+  const issuerWallet = ethers.Wallet.createRandom();
+
+  console.log('Generated test wallets:');
+  console.log('  User Address:', userWallet.address);
+  console.log('  User Public Key:', userWallet.publicKey);
+  console.log('  Issuer Address:', issuerWallet.address);
+  console.log('  Issuer Public Key:', issuerWallet.publicKey);
   console.log();
 
-  // Test 1: Create User DID
-  console.log('1️⃣ Creating User DID...');
+  let userDid = '';
+  let userVc: VerifiableCredential | null = null;
+
+  // Test 1: Register User DID
+  console.log('1️⃣  Registering User DID...');
   try {
-    const createResponse = await fetch(`${API_BASE}/did`, {
+    const registerResponse = await fetch(`${API_BASE}/dids/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        walletAddress: testWallet.address,
-        publicKeyHex: testWallet.publicKey,
+        walletAddress: userWallet.address,
+        publicKeyHex: userWallet.publicKey,
         type: 'user',
       }),
     });
 
-    const createResult = await createResponse.json();
+    const registerResult = await registerResponse.json();
 
-    if (!createResponse.ok) {
-      console.error('❌ Failed to create DID:', createResult.error);
+    if (!registerResponse.ok) {
+      console.error('❌ Failed to register DID:', registerResult.error);
       return;
     }
 
-    console.log('✅ DID created successfully:');
-    console.log('  DID:', createResult.did);
-    console.log('  Document Hash:', createResult.documentHash);
-    console.log('  Mock TX Hash:', createResult.txHash);
+    userDid = registerResult.did;
+    console.log('✅ User DID registered:');
+    console.log('  DID:', registerResult.did);
+    console.log('  Document Hash:', registerResult.documentHash);
+    console.log('  TX Hash:', registerResult.txHash);
     console.log();
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+    return;
+  }
 
-    const createdDID = createResult.did;
+  // Test 2: Get DID Document
+  console.log('2️⃣  Getting DID Document...');
+  try {
+    const getDocResponse = await fetch(`${API_BASE}/dids/${encodeURIComponent(userDid)}`);
+    const docResult = await getDocResponse.json();
 
-    // Test 2: Get DID by address
-    console.log('2️⃣ Getting DID by wallet address...');
-    const getByAddressResponse = await fetch(`${API_BASE}/did?address=${testWallet.address}`);
-    const getByAddressResult = await getByAddressResponse.json();
-
-    if (!getByAddressResponse.ok) {
-      console.error('❌ Failed to get DID by address:', getByAddressResult.error);
-    } else {
-      console.log('✅ Found DID:', getByAddressResult.did);
-    }
-    console.log();
-
-    // Test 3: Get DID Document
-    console.log('3️⃣ Getting DID Document...');
-    const getDocumentResponse = await fetch(`${API_BASE}/did?did=${encodeURIComponent(createdDID)}`);
-    const documentResult = await getDocumentResponse.json();
-
-    if (!getDocumentResponse.ok) {
-      console.error('❌ Failed to get DID Document:', documentResult.error);
+    if (!getDocResponse.ok) {
+      console.error('❌ Failed to get DID Document:', docResult.error);
     } else {
       console.log('✅ DID Document retrieved:');
-      console.log(JSON.stringify(documentResult, null, 2));
+      console.log('  DID:', docResult.id);
+      console.log('  Type:', docResult.type);
+      console.log('  Verified:', docResult.verified);
     }
     console.log();
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+  }
 
-    // Test 4: Get DID via dynamic route
-    console.log('4️⃣ Getting DID via dynamic route...');
-    const dynamicRouteResponse = await fetch(`${API_BASE}/did/${encodeURIComponent(createdDID)}`);
-    const dynamicResult = await dynamicRouteResponse.json();
-
-    if (!dynamicRouteResponse.ok) {
-      console.error('❌ Failed to get DID via dynamic route:', dynamicResult.error);
-    } else {
-      console.log('✅ DID retrieved via dynamic route:');
-      console.log('  Verified:', dynamicResult.verified);
-      console.log('  Retrieved At:', dynamicResult.metadata.retrievedAt);
-    }
-    console.log();
-
-    // Test 5: List all DIDs
-    console.log('5️⃣ Listing all DIDs...');
-    const listResponse = await fetch(`${API_BASE}/did`);
-    const listResult = await listResponse.json();
-
-    if (!listResponse.ok) {
-      console.error('❌ Failed to list DIDs:', listResult.error);
-    } else {
-      console.log('✅ Total DIDs:', listResult.dids.length);
-      listResult.dids.forEach((did: { did: string; type: string }, index: number) => {
-        console.log(`  ${index + 1}. ${did.did} (${did.type})`);
-      });
-    }
-    console.log();
-
-    // Test 6: Duplicate DID creation (should fail)
-    console.log('6️⃣ Testing duplicate DID prevention...');
-    const duplicateResponse = await fetch(`${API_BASE}/did`, {
+  // Test 3: Issue VC (KYC)
+  console.log('3️⃣  Issuing KYC VC...');
+  try {
+    const issueResponse = await fetch(`${API_BASE}/vcs/issue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        walletAddress: testWallet.address,
-        publicKeyHex: testWallet.publicKey,
+        walletAddress: userWallet.address,
+        publicKeyHex: userWallet.publicKey,
+        vcType: 'KYC',
+        data: {
+          name: 'John Doe',
+          role: 'participant',
+          kycLevel: 'basic',
+        },
+      }),
+    });
+
+    const issueResult = await issueResponse.json();
+
+    if (!issueResponse.ok) {
+      console.error('❌ Failed to issue VC:', issueResult.error);
+    } else {
+      userVc = issueResult.vc; // VC 저장
+      console.log('✅ VC issued successfully:');
+      console.log('  DID:', issueResult.did);
+      console.log('  VC ID:', issueResult.vc.id);
+      console.log('  VC Hash:', issueResult.vcHash);
+      console.log('  TX Hashes:');
+      console.log('    DID Registry:', issueResult.txHashes.didRegistry);
+      console.log('    VC Registry:', issueResult.txHashes.vcRegistry);
+    }
+    console.log();
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+  }
+
+  // Test 4: Get VP Challenge
+  console.log('4️⃣  Getting VP Challenge...');
+  let challenge = '';
+  try {
+    const challengeResponse = await fetch(`${API_BASE}/vps/challenge`);
+    const challengeResult = await challengeResponse.json();
+
+    if (!challengeResponse.ok) {
+      console.error('❌ Failed to get challenge:', challengeResult.error);
+    } else {
+      challenge = challengeResult.challenge;
+      console.log('✅ Challenge generated:');
+      console.log('  Challenge:', challengeResult.challenge);
+      console.log('  Expires At:', challengeResult.expiresAt);
+    }
+    console.log();
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+  }
+
+  // Test 5: Create and Verify VP
+  console.log('5️⃣  Creating and Verifying VP...');
+  if (!userVc || !challenge) {
+    console.log('⚠️  Skipped: VC or challenge not available');
+    console.log();
+  } else {
+    try {
+      // Create VP (user wallet signs with their private key)
+      const unsignedVP = createVP(userDid, [userVc], challenge);
+      const signedVP = await signVP(unsignedVP, userWallet.privateKey);
+
+      console.log('✅ VP created and signed');
+      console.log('  Holder:', signedVP.holder);
+      console.log('  Challenge:', signedVP.proof?.challenge);
+
+      // Verify VP
+      const verifyResponse = await fetch(`${API_BASE}/vps/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vp: signedVP,
+          challenge: challenge,
+        }),
+      });
+
+      const verifyResult = await verifyResponse.json();
+
+      if (!verifyResponse.ok) {
+        console.error('❌ VP verification failed:', verifyResult.error || verifyResult.reason);
+        if (verifyResult.checks) {
+          console.log('  Checks:', JSON.stringify(verifyResult.checks, null, 2));
+        }
+      } else {
+        console.log('✅ VP verified successfully:');
+        console.log('  Valid:', verifyResult.valid);
+        console.log('  Checks:', JSON.stringify(verifyResult.checks, null, 2));
+      }
+      console.log();
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+    }
+  }
+
+  // Test 6: Revoke VC
+  console.log('6️⃣  Revoking VC...');
+  if (!userVc) {
+    console.log('⚠️  Skipped: VC not available');
+    console.log();
+  } else {
+    try {
+      const revokeResponse = await fetch(`${API_BASE}/vcs/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vcId: userVc.id,
+          reason: 'Testing revocation',
+        }),
+      });
+
+      const revokeResult = await revokeResponse.json();
+
+      if (!revokeResponse.ok) {
+        console.error('❌ Failed to revoke VC:', revokeResult.error);
+      } else {
+        console.log('✅ VC revoked successfully:');
+        console.log('  VC ID:', revokeResult.vcId);
+        console.log('  Status:', revokeResult.status);
+        console.log('  TX Hash:', revokeResult.txHash);
+        console.log('  Revoked At:', revokeResult.revokedAt);
+      }
+      console.log();
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+    }
+  }
+
+  // Test 7: Register Issuer DID
+  console.log('7️⃣  Registering Issuer DID...');
+  try {
+    const issuerRegisterResponse = await fetch(`${API_BASE}/dids/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: issuerWallet.address,
+        publicKeyHex: issuerWallet.publicKey,
+        type: 'issuer',
+      }),
+    });
+
+    const issuerRegisterResult = await issuerRegisterResponse.json();
+
+    if (!issuerRegisterResponse.ok) {
+      console.error('❌ Failed to register Issuer DID:', issuerRegisterResult.error);
+    } else {
+      console.log('✅ Issuer DID registered:');
+      console.log('  DID:', issuerRegisterResult.did);
+    }
+    console.log();
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+  }
+
+  // Test 8: Duplicate DID prevention
+  console.log('8️⃣  Testing duplicate DID prevention...');
+  try {
+    const duplicateResponse = await fetch(`${API_BASE}/dids/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: userWallet.address,
+        publicKeyHex: userWallet.publicKey,
         type: 'user',
       }),
     });
@@ -121,34 +257,12 @@ async function testDIDAPI() {
       console.log('✅ Duplicate prevention working:', duplicateResult.error);
     }
     console.log();
-
-    // Test 7: Create Issuer DID
-    console.log('7️⃣ Creating Issuer DID...');
-    const issuerWallet = ethers.Wallet.createRandom();
-    const issuerResponse = await fetch(`${API_BASE}/did`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress: issuerWallet.address,
-        publicKeyHex: issuerWallet.publicKey,
-        type: 'issuer',
-      }),
-    });
-
-    const issuerResult = await issuerResponse.json();
-
-    if (!issuerResponse.ok) {
-      console.error('❌ Failed to create Issuer DID:', issuerResult.error);
-    } else {
-      console.log('✅ Issuer DID created:');
-      console.log('  DID:', issuerResult.did);
-    }
-    console.log();
-
-    console.log('✨ All tests completed!');
   } catch (error) {
-    console.error('❌ Test failed with error:', error);
+    console.error('❌ Test failed:', error);
   }
+
+  console.log('✨ All tests completed!');
+  console.log('\n📝 Note: Full VP verification requires Wallet Service integration');
 }
 
 // Run the test

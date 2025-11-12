@@ -23,6 +23,8 @@ import {
   verifyVCSignature,
   verifyVPSignature,
   generateChallenge,
+  type VerifiableCredential,
+  type VerifiablePresentation,
 } from '../did';
 
 // VC/VP 전체 흐름 통합 테스트 (User → Issuer → Verifier)
@@ -74,8 +76,8 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
 
   // Step 3-4: VC 발급 및 서명
   describe('VC Issuance and Signing', () => {
-    let unsignedVC: any;
-    let signedVC: any;
+    let unsignedVC: VerifiableCredential;
+    let signedVC: VerifiableCredential;
 
     // Issuer가 VC를 생성할 수 있어야 함
     it('should create VC by issuer', () => {
@@ -104,11 +106,11 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
       signedVC = await signVC(unsignedVC, issuerWallet.privateKey, verificationMethod);
 
       expect(signedVC.proof).toBeDefined();
-      expect(signedVC.proof.type).toBe('EcdsaSecp256k1Signature2019');
-      expect(signedVC.proof.verificationMethod).toBe(verificationMethod);
-      expect(signedVC.proof.proofPurpose).toBe('assertionMethod');
-      expect(signedVC.proof.proofValue).toBeDefined();
-      expect(signedVC.proof.proofValue).toMatch(/^0x[0-9a-fA-F]+$/);
+      expect(signedVC.proof!.type).toBe('EcdsaSecp256k1Signature2019');
+      expect(signedVC.proof!.verificationMethod).toBe(verificationMethod);
+      expect(signedVC.proof!.proofPurpose).toBe('assertionMethod');
+      expect(signedVC.proof!.proofValue).toBeDefined();
+      expect(signedVC.proof!.proofValue).toMatch(/^0x[0-9a-fA-F]+$/);
     });
 
     // Issuer의 VC 서명을 검증할 수 있어야 함
@@ -128,9 +130,9 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
   // Step 5-6: VP 생성 및 서명
   describe('VP Creation and Signing', () => {
     let challenge: string;
-    let unsignedVP: any;
-    let signedVP: any;
-    let signedVC: any;
+    let unsignedVP: VerifiablePresentation;
+    let signedVP: VerifiablePresentation;
+    let signedVC: VerifiableCredential;
 
     beforeAll(async () => {
       // Prepare test VC
@@ -159,17 +161,17 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
 
       expect(unsignedVP.holder).toBe(userDID);
       expect(unsignedVP.verifiableCredential).toHaveLength(1);
-      expect(unsignedVP.verifiableCredential[0].id).toBe(signedVC.id);
-      expect(unsignedVP.proof.challenge).toBe(challenge);
-      expect(unsignedVP.proof.domain).toBe('anam.liberia');
+      expect(unsignedVP.verifiableCredential[0]!.id).toBe(signedVC.id);
+      expect(unsignedVP.proof!.challenge).toBe(challenge);
+      expect(unsignedVP.proof!.domain).toBe('anam.liberia');
     });
 
     // User가 VP에 서명할 수 있어야 함
     it('should sign VP by user', async () => {
       signedVP = await signVP(unsignedVP, userWallet.privateKey);
 
-      expect(signedVP.proof.jws).toBeDefined();
-      expect(signedVP.proof.jws).toMatch(/^0x[0-9a-fA-F]+$/);
+      expect(signedVP.proof!.jws).toBeDefined();
+      expect(signedVP.proof!.jws).toMatch(/^0x[0-9a-fA-F]+$/);
     });
 
     // User의 VP 서명을 검증할 수 있어야 함
@@ -189,8 +191,8 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
   // Step 7-8: 전체 검증 흐름
   describe('Complete Verification Flow', () => {
     let challenge: string;
-    let signedVC: any;
-    let signedVP: any;
+    let signedVC: VerifiableCredential;
+    let signedVP: VerifiablePresentation;
 
     beforeAll(async () => {
       // Prepare complete flow
@@ -220,10 +222,10 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
       expect(isVPValid).toBe(true);
 
       // 2. Verify challenge
-      expect(signedVP.proof.challenge).toBe(challenge);
+      expect(signedVP.proof!.challenge).toBe(challenge);
 
       // 3. Extract VC from VP
-      const vcInVP = signedVP.verifiableCredential[0];
+      const vcInVP = signedVP.verifiableCredential[0]!;
       expect(vcInVP).toBeDefined();
 
       // 4. Verify VC signature (signed by Issuer)
@@ -232,8 +234,8 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
 
       // 5. Verify VC expiration
       const now = new Date();
-      const validUntil = new Date(vcInVP.validUntil);
-      expect(now.getTime()).toBeLessThan(validUntil.getTime());
+      const expirationDate = new Date(vcInVP.expirationDate!);
+      expect(now.getTime()).toBeLessThan(expirationDate.getTime());
 
       // 6. Verify VC subject matches VP holder
       expect(vcInVP.credentialSubject.id).toBe(signedVP.holder);
@@ -270,8 +272,8 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
       const signedVPWithWrongChallenge = await signVP(vpWithWrongChallenge, userWallet.privateKey);
 
       // Challenge is different
-      expect(signedVPWithWrongChallenge.proof.challenge).not.toBe(challenge);
-      expect(signedVPWithWrongChallenge.proof.challenge).toBe(wrongChallenge);
+      expect(signedVPWithWrongChallenge.proof!.challenge).not.toBe(challenge);
+      expect(signedVPWithWrongChallenge.proof!.challenge).toBe(wrongChallenge);
     });
 
     // 만료된 VC가 포함된 VP는 검증 실패해야 함
@@ -295,9 +297,9 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
       // Verify expiration
       const vcInVP = signedVPWithExpiredVC.verifiableCredential[0]!;
       const now = new Date();
-      const validUntil = new Date(vcInVP.validUntil!);
+      const expirationDate = new Date(vcInVP.expirationDate!);
 
-      expect(now.getTime()).toBeGreaterThan(validUntil.getTime());
+      expect(now.getTime()).toBeGreaterThan(expirationDate.getTime());
     });
   });
 
@@ -330,7 +332,7 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
       const tamperedVC = {
         ...signedVC,
         proof: {
-          ...signedVC.proof,
+          ...signedVC.proof!,
           proofValue: '0x' + '0'.repeat(130), // Fake signature
         },
       };
