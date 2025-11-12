@@ -52,7 +52,4 @@ next-env.d.ts
 # Documentation (auto-generated)
 docs/
 
-# Temporary files
-datasource.ts
-
 CLAUDE.md

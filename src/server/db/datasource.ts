@@ -3,10 +3,11 @@ import { DataSource } from 'typeorm';
 // Direct imports to avoid ESM/CJS issues
 import { VcRegistry } from './entities/VcRegistry';
 import { DidDocument } from './entities/DidDocument';
+import { CustodyWallet } from './entities/CustodyWallet';
 
 // DataSource configuration for MariaDB
 // - Handles DID, VC, and VP related entities
-// - Configured for production use (synchronize: false)
+// - Auto-sync schema in development (MVP stage)
 // - Uses environment variables for connection settings
 
 export const AppDataSource = new DataSource({
@@ -16,14 +17,8 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '1234',
   database: process.env.DB_NAME || 'anam_core_liberia',
-  entities: [
-    VcRegistry,
-    DidDocument,
-  ],
-  // Skip migrations in development mode to avoid ESM/CJS issues
-  migrations: process.env.NODE_ENV === 'production' ? ['dist/server/db/migrations/*.js'] : [],
-  migrationsTableName: 'migrations',
-  synchronize: process.env.NODE_ENV === 'development', // Only in development
+  entities: [VcRegistry, DidDocument, CustodyWallet],
+  synchronize: true, // Auto-sync schema in development (MVP)
   logging: process.env.NODE_ENV === 'development',
 });
 
