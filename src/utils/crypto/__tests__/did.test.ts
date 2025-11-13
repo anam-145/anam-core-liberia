@@ -128,7 +128,7 @@ describe('DID Utilities', () => {
       expect(doc.verificationMethod).toHaveLength(1);
       expect(doc.verificationMethod[0]!.type).toBe('EcdsaSecp256k1VerificationKey2019');
       expect(doc.verificationMethod[0]!.publicKeyHex).toBe(testPublicKey);
-      expect(doc.verificationMethod[0]!.blockchainAccountId).toBe(`eip155:8453:${ethers.getAddress(testAddress)}`);
+      expect(doc.verificationMethod[0]!.blockchainAccountId).toBe(`eip155:84532:${ethers.getAddress(testAddress)}`);
       expect(doc.authentication).toContain(`${testDID}#keys-1`);
       expect(doc.assertionMethod).toBeUndefined();
     });

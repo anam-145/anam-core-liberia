@@ -224,7 +224,7 @@ export function createDIDDocument(
         id: verificationMethodId,
         type: 'EcdsaSecp256k1VerificationKey2019',
         controller: controllerDID,
-        blockchainAccountId: `eip155:8453:${checksumAddress}`,
+        blockchainAccountId: `eip155:${process.env.BASE_CHAIN_ID || '84532'}:${checksumAddress}`,
         publicKeyHex: publicKeyHex,
       },
     ],
@@ -289,7 +289,7 @@ export function createVC(
       ...credentialSubject,
     },
     credentialStatus: {
-      id: `eip155:8453:0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/${vcId}`,
+      id: `eip155:${process.env.BASE_CHAIN_ID || '84532'}:${process.env.VC_STATUS_REGISTRY_ADDRESS}/${vcId}`,
       type: 'EthereumRevocationRegistry2023',
     },
   };
@@ -477,7 +477,7 @@ export function extractAddressFromDIDDocument(didDocument: DIDDocument): string 
     return null;
   }
 
-  // blockchainAccountId format: "eip155:8453:0x1234..."
+  // blockchainAccountId format: "eip155:{chainId}:0x1234..."
   // Extract address after second colon
   const parts = blockchainAccountId.split(':');
   if (parts.length !== 3 || !parts[2] || !parts[2].startsWith('0x')) {
