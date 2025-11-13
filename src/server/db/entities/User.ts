@@ -40,7 +40,6 @@ export class User {
     unique: true,
     comment: 'UUID unique identifier',
   })
-  @Index()
   userId!: string;
 
   @Column({
@@ -172,7 +171,6 @@ export class User {
     nullable: true,
     comment: 'Ethereum Address',
   })
-  @Index()
   walletAddress!: string | null;
 
   @Column({

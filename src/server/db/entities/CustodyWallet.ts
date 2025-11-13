@@ -47,7 +47,6 @@ export class CustodyWallet {
     nullable: true,
     comment: 'USSD user phone number',
   })
-  @Index()
   phoneNumber!: string | null;
 
   @Column({

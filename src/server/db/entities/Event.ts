@@ -32,7 +32,6 @@ export class Event {
     unique: true,
     comment: 'UUID unique identifier',
   })
-  @Index()
   eventId!: string;
 
   @Column({
@@ -123,7 +122,6 @@ export class Event {
     nullable: true,
     comment: 'Event Contract Address',
   })
-  @Index()
   eventContractAddress!: string | null;
 
   @Column({

@@ -18,7 +18,6 @@ export class Admin {
     unique: true,
     comment: 'Unique Admin ID (UUID)',
   })
-  @Index()
   adminId!: string;
 
   @Column({
@@ -27,7 +26,6 @@ export class Admin {
     unique: true,
     comment: 'Admin username (unique)',
   })
-  @Index()
   username!: string;
 
   @Column({
@@ -88,7 +86,6 @@ export class Admin {
     nullable: true,
     comment: 'Ethereum Address',
   })
-  @Index()
   walletAddress!: string | null;
 
   @Column({
