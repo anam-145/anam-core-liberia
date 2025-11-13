@@ -1,10 +1,16 @@
 import type { NextRequest } from 'next/server';
 import { getVCDatabaseService } from '@/services/vc.db.service';
 import { apiOk, apiError } from '@/lib/api-response';
+import { getSystemAdminWallet } from '@/services/system-init.service';
+import { requireRole } from '@/lib/auth-middleware';
+import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
  * POST /api/vcs/issue
  * DID 등록 + KYC VC 발급 통합 엔드포인트
+ *
+ * Authentication: Requires SYSTEM_ADMIN, APPROVER, or VERIFIER role
+ * (참가자 등록 권한을 가진 모든 역할이 VC 발급 가능)
  *
  * Request Body:
  * - walletAddress: string (required) - 지갑 주소
@@ -22,6 +28,11 @@ import { apiOk, apiError } from '@/lib/api-response';
  *   - vcRegistry: string - VC 등록 tx
  */
 export async function POST(request: NextRequest) {
+  // 🔒 Authentication: SYSTEM_ADMIN, APPROVER, and VERIFIER can issue VCs
+  // (참가자 등록 시 VC 발급이 필요하므로, 참가자 등록 권한과 동일)
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER, AdminRole.VERIFIER]);
+  if (authCheck) return authCheck;
+
   try {
     const body = await request.json();
 
@@ -42,12 +53,16 @@ export async function POST(request: NextRequest) {
 
     const vcService = getVCDatabaseService();
 
+    // Get System Admin wallet for issuer private key
+    const issuerWallet = getSystemAdminWallet();
+
     // Issue VC (통합 프로세스: DID 등록 + VC 발급)
     const result = await vcService.issueVC({
       walletAddress: body.walletAddress,
       publicKeyHex: body.publicKeyHex,
       vcType: body.vcType,
       data: body.data,
+      issuerPrivateKey: issuerWallet.privateKey,
     });
 
     return apiOk(

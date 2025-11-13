@@ -1,10 +1,13 @@
 import type { NextRequest } from 'next/server';
 import { custodyService } from '@/services/custody.db.service';
 import { apiOk, apiError } from '@/lib/api-response';
+import { requireAuth } from '@/lib/auth-middleware';
 
 /**
  * PUT /api/custody/wallets/[custodyId]/vc
  * Add or update VC for existing custody
+ *
+ * Authentication: Requires authentication (모든 로그인한 Admin 가능)
  *
  * Request Body:
  * - vc: VerifiableCredential (required) - Verifiable Credential object
@@ -14,6 +17,10 @@ import { apiOk, apiError } from '@/lib/api-response';
  * - custodyId: string
  */
 export async function PUT(request: NextRequest, { params }: { params: { custodyId: string } }) {
+  // 🔒 Authentication: Internal API - requires authentication
+  const authCheck = await requireAuth(request);
+  if (authCheck) return authCheck;
+
   try {
     const { custodyId } = params;
     const body = await request.json();

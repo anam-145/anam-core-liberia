@@ -1,6 +1,7 @@
 /**
  * VC Service - Database Implementation
  * Handles VC issuance, revocation, and status management
+ * Integrated with Base Network blockchain
  */
 
 import 'reflect-metadata';
@@ -10,12 +11,14 @@ import { randomBytes, hexlify, keccak256 } from 'ethers';
 import { VcRegistry, VCStatus } from '../server/db/entities/VcRegistry';
 import AppDataSource from '../server/db/datasource';
 import { getDIDDatabaseService } from './did.db.service';
+import { blockchainService } from './blockchain.service';
 
 export interface IssueVCRequest {
   walletAddress: string;
   publicKeyHex: string;
   vcType: 'KYC' | 'ADMIN';
   data: Record<string, unknown>;
+  issuerPrivateKey: string; // Required: Issuer's private key for signing VC and blockchain transactions
 }
 
 export interface IssueVCResponse {
@@ -23,21 +26,24 @@ export interface IssueVCResponse {
   vc: VerifiableCredential;
   vcHash: string;
   txHashes: {
-    didRegistry: string;
-    vcRegistry: string;
+    didRegistry?: string;
+    vcRegistry?: string;
   };
+  onChainRegistered: boolean;
 }
 
 export interface RevokeVCRequest {
   vcId: string;
   reason?: string;
+  issuerPrivateKey: string; // Required: Issuer's private key for blockchain transaction
 }
 
 export interface RevokeVCResponse {
   vcId: string;
   status: 'REVOKED';
-  txHash: string;
+  txHash?: string;
   revokedAt: string;
+  onChainRevoked: boolean;
 }
 
 /**
@@ -103,13 +109,12 @@ export class VCDatabaseService {
         type: request.vcType === 'ADMIN' ? 'issuer' : 'user',
       });
       did = didResult.did;
-      didTxHash = didResult.mockTxHash;
+      didTxHash = didResult.txHash || 'unknown';
       console.log(`[VC Service] Created new DID: ${did}`);
     }
 
     // Step 2: Issuer DID 가져오기 (환경변수 또는 기본값)
     const issuerDid = process.env.ISSUER_DID || 'did:anam:undp-lr:issuer:system';
-    const issuerPrivateKey = process.env.ISSUER_PRIVATE_KEY || '0x' + '0'.repeat(64); // TODO: 실제 issuer 개인키 필요
 
     // Step 3: VC 생성 (unsigned)
     const vcId = this.generateVCId(request.vcType);
@@ -127,15 +132,33 @@ export class VCDatabaseService {
 
     // Step 4: VC 서명
     const verificationMethod = `${issuerDid}#keys-1`;
-    const vc = await signVC(unsignedVC, issuerPrivateKey, verificationMethod);
+    const vc = await signVC(unsignedVC, request.issuerPrivateKey, verificationMethod);
 
     // Step 5: VC 해시 계산
     const vcHash = this.calculateVCHash(vc);
 
-    // Step 6: 온체인 VC 등록 (Mock)
-    const vcTxHash = this.generateMockTxHash();
-    // TODO: Implement actual blockchain registration
-    console.log(`[VC Service] TODO: Register VC on VCStatusRegistry - txHash: ${vcTxHash}`);
+    // Step 6: 온체인 VC 등록
+    let vcTxHash: string | undefined;
+    let onChainRegistered = false;
+
+    if (blockchainService.isAvailable()) {
+      try {
+        console.log(`[VC Service] Registering VC on blockchain: ${vcId}`);
+        const result = await blockchainService.registerVC(vcId, request.issuerPrivateKey);
+        vcTxHash = result.txHash;
+        onChainRegistered = true;
+        console.log(`[VC Service] ✅ On-chain VC registration successful: ${vcTxHash}`);
+      } catch (error) {
+        console.error('[VC Service] ⚠️  Failed to register VC on blockchain:', error);
+        console.log('[VC Service] Continuing with off-chain registration only');
+        vcTxHash = this.generateMockTxHash();
+        onChainRegistered = false;
+      }
+    } else {
+      console.log('[VC Service] Blockchain unavailable - off-chain registration only');
+      vcTxHash = this.generateMockTxHash();
+      onChainRegistered = false;
+    }
 
     // Step 7: DB에 VC 메타데이터 저장 (VC 원본은 저장하지 않음)
     const vcEntity = new VcRegistry();
@@ -151,7 +174,7 @@ export class VCDatabaseService {
 
     await this.dataSource.manager.save(vcEntity);
 
-    console.log(`[VC Service] VC issued: ${vcId}`);
+    console.log(`[VC Service] VC issued: ${vcId} (on-chain: ${onChainRegistered})`);
 
     return {
       did,
@@ -161,6 +184,7 @@ export class VCDatabaseService {
         didRegistry: didTxHash,
         vcRegistry: vcTxHash,
       },
+      onChainRegistered,
     };
   }
 
@@ -185,10 +209,27 @@ export class VCDatabaseService {
       throw new Error(`VC already revoked: ${request.vcId}`);
     }
 
-    // Step 2: 온체인 폐기 (Mock)
-    const txHash = this.generateMockTxHash();
-    // TODO: Implement actual blockchain revocation
-    console.log(`[VC Service] TODO: Revoke VC on VCStatusRegistry - txHash: ${txHash}`);
+    // Step 2: 온체인 폐기
+    let txHash: string | undefined;
+    let onChainRevoked = false;
+
+    if (blockchainService.isAvailable()) {
+      try {
+        console.log(`[VC Service] Revoking VC on blockchain: ${request.vcId}`);
+        txHash = await blockchainService.revokeVC(request.vcId, request.issuerPrivateKey);
+        onChainRevoked = true;
+        console.log(`[VC Service] ✅ On-chain VC revocation successful: ${txHash}`);
+      } catch (error) {
+        console.error('[VC Service] ⚠️  Failed to revoke VC on blockchain:', error);
+        console.log('[VC Service] Continuing with off-chain revocation only');
+        txHash = this.generateMockTxHash();
+        onChainRevoked = false;
+      }
+    } else {
+      console.log('[VC Service] Blockchain unavailable - off-chain revocation only');
+      txHash = this.generateMockTxHash();
+      onChainRevoked = false;
+    }
 
     // Step 3: DB 업데이트
     const revokedAt = new Date();
@@ -198,13 +239,14 @@ export class VCDatabaseService {
 
     await this.dataSource.manager.save(vcEntity);
 
-    console.log(`[VC Service] VC revoked: ${request.vcId}`);
+    console.log(`[VC Service] VC revoked: ${request.vcId} (on-chain: ${onChainRevoked})`);
 
     return {
       vcId: request.vcId,
       status: 'REVOKED',
       txHash,
       revokedAt: revokedAt.toISOString(),
+      onChainRevoked,
     };
   }
 
@@ -224,17 +266,26 @@ export class VCDatabaseService {
   }
 
   /**
-   * Verify VC status on blockchain (Mock)
+   * Verify VC status on blockchain
    * @param vcId VC ID
-   * @returns true if ACTIVE, false if REVOKED or not found
+   * @returns true if ACTIVE on blockchain, false if REVOKED or not found
    */
   async verifyVCOnChain(vcId: string): Promise<boolean> {
     await this.ensureInitialized();
 
-    // TODO: Implement actual blockchain verification
-    // For now, check DB status
-    const status = await this.getVCStatus(vcId);
+    if (blockchainService.isAvailable()) {
+      try {
+        const vcStatus = await blockchainService.getVCStatus(vcId);
+        // Check if VC status is ACTIVE (enum value 1)
+        return vcStatus.status === 1; // VCStatus.ACTIVE
+      } catch (error) {
+        console.error('[VC Service] Failed to verify VC on blockchain:', error);
+        console.log('[VC Service] Falling back to DB status check');
+      }
+    }
 
+    // Fallback: Check DB status if blockchain is unavailable
+    const status = await this.getVCStatus(vcId);
     if (!status) {
       return false; // VC not found
     }
@@ -265,8 +316,8 @@ export class VCDatabaseService {
   }
 
   /**
-   * Generate mock transaction hash
-   * @returns Mock tx hash
+   * Generate fallback transaction hash
+   * Used when blockchain registration fails or is unavailable
    */
   private generateMockTxHash(): string {
     const bytes = randomBytes(32);

@@ -1,6 +1,14 @@
 /**
  * DID Service - Database Implementation
  * Using TypeORM with MariaDB
+ * Integrated with Ethereum Sepolia blockchain
+ *
+ * Blockchain Integration:
+ * - ON-CHAIN: When privateKey is provided (internal services only)
+ *   - system-init.service.ts: System Admin DID registration
+ *   - vc.db.service.ts: User DID registration during VC issuance
+ * - OFF-CHAIN: When privateKey is not provided (external API calls)
+ *   - POST /api/dids/register: Only saves to DB (for security)
  */
 
 import 'reflect-metadata';
@@ -14,18 +22,22 @@ import {
 import { isAddress, randomBytes, hexlify } from 'ethers';
 import { DidDocument, DIDType } from '../server/db/entities/DidDocument';
 import AppDataSource from '../server/db/datasource';
+import { blockchainService } from './blockchain.service';
 
 export interface CreateDIDRequest {
   walletAddress: string;
   publicKeyHex: string;
   type: 'user' | 'issuer';
+  privateKey?: string; // Optional: for on-chain registration
 }
 
 export interface CreateDIDResponse {
   did: string;
   document: DIDDocumentType;
   documentHash: string;
-  mockTxHash: string;
+  txHash?: string; // Optional: only present if registered on-chain
+  blockNumber?: number; // Optional: only present if registered on-chain
+  onChainRegistered: boolean;
 }
 
 /**
@@ -64,6 +76,14 @@ export class DIDDatabaseService {
 
   /**
    * Create and register a new DID
+   *
+   * Blockchain Registration:
+   * - If privateKey is provided: Attempts on-chain registration (Ethereum Sepolia)
+   * - If privateKey is missing: Only DB registration (off-chain)
+   * - If blockchain fails: Gracefully falls back to DB-only with mock txHash
+   *
+   * Note: External API (/api/dids/register) does NOT provide privateKey for security.
+   * On-chain registration only happens in internal services.
    */
   async createAndRegisterDID(request: CreateDIDRequest): Promise<CreateDIDResponse> {
     await this.ensureInitialized();
@@ -87,7 +107,36 @@ export class DIDDatabaseService {
     const did = createDID(request.type);
     const document = createDIDDocument(did, request.walletAddress, request.publicKeyHex);
     const documentHash = hashDIDDocument(document);
-    const mockTxHash = this.generateMockTxHash();
+
+    // Register on blockchain if privateKey is provided and blockchain is available
+    let txHash: string | undefined;
+    let blockNumber: number | undefined;
+    let onChainRegistered = false;
+
+    if (request.privateKey && blockchainService.isAvailable()) {
+      try {
+        console.log(`[DID Service] Registering DID on blockchain: ${did}`);
+        const result = await blockchainService.registerDID(
+          request.walletAddress,
+          did,
+          documentHash,
+          request.privateKey,
+        );
+        txHash = result.txHash;
+        blockNumber = result.blockNumber;
+        onChainRegistered = true;
+        console.log(`[DID Service] ✅ On-chain registration successful: ${txHash}`);
+      } catch (error) {
+        console.error('[DID Service] ⚠️  Failed to register on blockchain:', error);
+        console.log('[DID Service] Continuing with off-chain registration only');
+        txHash = this.generateMockTxHash();
+        onChainRegistered = false;
+      }
+    } else {
+      console.log('[DID Service] Off-chain registration only (no privateKey or blockchain unavailable)');
+      txHash = this.generateMockTxHash();
+      onChainRegistered = false;
+    }
 
     // Save to database
     const didEntity = new DidDocument();
@@ -97,17 +146,19 @@ export class DIDDatabaseService {
     didEntity.didType = request.type === 'user' ? DIDType.USER : DIDType.ISSUER;
     didEntity.documentJson = document;
     didEntity.documentHash = documentHash;
-    didEntity.onChainTxHash = mockTxHash;
+    didEntity.onChainTxHash = txHash;
 
     await this.dataSource.manager.save(didEntity);
 
-    console.log(`[DB] DID created: ${did}`);
+    console.log(`[DB] DID created: ${did} (on-chain: ${onChainRegistered})`);
 
     return {
       did,
       document,
       documentHash,
-      mockTxHash,
+      txHash,
+      blockNumber,
+      onChainRegistered,
     };
   }
 
@@ -171,22 +222,53 @@ export class DIDDatabaseService {
   }
 
   /**
-   * Mock blockchain verification
+   * Verify DID on blockchain
+   * Checks if DID exists and document hash matches
    */
   async verifyOnChain(did: string): Promise<boolean> {
     await this.ensureInitialized();
 
-    const didEntity = await this.dataSource.manager.findOne(DidDocument, {
-      where: { did },
-    });
+    if (!blockchainService.isAvailable()) {
+      console.log('[DID Service] Blockchain unavailable - falling back to DB check');
+      const didEntity = await this.dataSource.manager.findOne(DidDocument, {
+        where: { did },
+      });
+      return !!didEntity;
+    }
 
-    // TODO: Implement actual blockchain verification
-    // Mock verification - in real implementation, check blockchain
-    return !!didEntity;
+    try {
+      // Get address from blockchain
+      const address = await blockchainService.getAddressByDID(did);
+
+      // Check if address is not zero address (0x0000...)
+      const isRegistered = address !== '0x0000000000000000000000000000000000000000';
+
+      if (isRegistered) {
+        // Verify document hash matches
+        const onChainHash = await blockchainService.getDocumentHashByDID(did);
+        const dbEntity = await this.dataSource.manager.findOne(DidDocument, {
+          where: { did },
+        });
+
+        if (dbEntity && dbEntity.documentHash === onChainHash) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('[DID Service] Failed to verify DID on blockchain:', error);
+      // Fallback to DB check
+      const didEntity = await this.dataSource.manager.findOne(DidDocument, {
+        where: { did },
+      });
+      return !!didEntity;
+    }
   }
 
   /**
-   * Generate mock transaction hash
+   * Generate fallback transaction hash
+   * Used when blockchain registration fails or is unavailable
    */
   private generateMockTxHash(): string {
     const bytes = randomBytes(32);

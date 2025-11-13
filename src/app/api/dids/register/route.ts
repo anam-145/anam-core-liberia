@@ -4,7 +4,11 @@ import { apiOk, apiError } from '@/lib/api-response';
 
 /**
  * POST /api/dids/register
- * DID 생성 및 온체인 등록 (VC 없이)
+ * DID 생성 및 DB 등록 (오프체인)
+ *
+ * Note: 온체인 등록은 내부 서비스에서만 수행됩니다 (보안상 privateKey를 외부에서 받지 않음)
+ * - System Admin 초기화 시: system-init.service.ts
+ * - VC 발급 시: vc.db.service.ts
  *
  * Request Body:
  * - walletAddress: string (required) - 지갑 주소
@@ -14,7 +18,6 @@ import { apiOk, apiError } from '@/lib/api-response';
  * Response:
  * - did: string - 생성된 DID
  * - documentHash: string - DID Document 해시
- * - txHash: string - 블록체인 트랜잭션 해시
  */
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +46,6 @@ export async function POST(request: NextRequest) {
       {
         did: result.did,
         documentHash: result.documentHash,
-        txHash: result.mockTxHash, // TODO: Replace with actual blockchain tx hash
       },
       201,
     );

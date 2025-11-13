@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
+import { systemInitService } from '@/services/system-init.service';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
 
@@ -18,6 +19,9 @@ import { apiOk, apiError } from '@/lib/api-response';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Initialize system if needed (first-time setup)
+    await systemInitService.initializeSystemIfNeeded();
+
     const body = await request.json();
 
     // Validate required fields

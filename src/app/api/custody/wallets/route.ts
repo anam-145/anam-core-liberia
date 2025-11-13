@@ -1,10 +1,13 @@
 import type { NextRequest } from 'next/server';
 import { custodyService } from '@/services/custody.db.service';
 import { apiOk, apiError } from '@/lib/api-response';
+import { requireAuth } from '@/lib/auth-middleware';
 
 /**
  * POST /api/custody/wallets
  * Create and store custody wallet
+ *
+ * Authentication: Requires authentication (모든 로그인한 Admin 가능)
  *
  * Request Body:
  * - userId: string (required) - User ID
@@ -17,6 +20,10 @@ import { apiOk, apiError } from '@/lib/api-response';
  * - custodyId: string - Generated custody ID
  */
 export async function POST(request: NextRequest) {
+  // 🔒 Authentication: Internal API - requires authentication
+  const authCheck = await requireAuth(request);
+  if (authCheck) return authCheck;
+
   try {
     const body = await request.json();
 
