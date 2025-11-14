@@ -38,7 +38,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
       return apiError('DID Document not found', 404, 'NOT_FOUND');
     }
 
-    // Verify on-chain status (Mock)
+    // Verify on-chain status
     const isVerified = await didService.verifyOnChain(did);
 
     // Return DID Document with verification status

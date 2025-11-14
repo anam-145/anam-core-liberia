@@ -19,7 +19,7 @@ import {
   hashDIDDocument,
   type DIDDocument as DIDDocumentType,
 } from '../utils/crypto/did';
-import { isAddress, randomBytes, hexlify } from 'ethers';
+import { isAddress } from 'ethers';
 import { DidDocument, DIDType } from '../server/db/entities/DidDocument';
 import AppDataSource from '../server/db/datasource';
 import { blockchainService } from './blockchain.service';
@@ -77,10 +77,11 @@ export class DIDDatabaseService {
   /**
    * Create and register a new DID
    *
-   * Blockchain Registration:
-   * - If privateKey is provided: Attempts on-chain registration (Ethereum Sepolia)
-   * - If privateKey is missing: Only DB registration (off-chain)
-   * - If blockchain fails: Gracefully falls back to DB-only with mock txHash
+   * Blockchain Registration (REQUIRED):
+   * - privateKey must be provided
+   * - Blockchain must be available
+   * - Registration must succeed
+   * - If any step fails, entire operation fails
    *
    * Note: External API (/api/dids/register) does NOT provide privateKey for security.
    * On-chain registration only happens in internal services.
@@ -108,37 +109,23 @@ export class DIDDatabaseService {
     const document = createDIDDocument(did, request.walletAddress, request.publicKeyHex);
     const documentHash = hashDIDDocument(document);
 
-    // Register on blockchain if privateKey is provided and blockchain is available
-    let txHash: string | undefined;
-    let blockNumber: number | undefined;
-    let onChainRegistered = false;
-
-    if (request.privateKey && blockchainService.isAvailable()) {
-      try {
-        console.log(`[DID Service] Registering DID on blockchain: ${did}`);
-        const result = await blockchainService.registerDID(
-          request.walletAddress,
-          did,
-          documentHash,
-          request.privateKey,
-        );
-        txHash = result.txHash;
-        blockNumber = result.blockNumber;
-        onChainRegistered = true;
-        console.log(`[DID Service] ✅ On-chain registration successful: ${txHash}`);
-      } catch (error) {
-        console.error('[DID Service] ⚠️  Failed to register on blockchain:', error);
-        console.log('[DID Service] Continuing with off-chain registration only');
-        txHash = this.generateMockTxHash();
-        onChainRegistered = false;
-      }
-    } else {
-      console.log('[DID Service] Off-chain registration only (no privateKey or blockchain unavailable)');
-      txHash = this.generateMockTxHash();
-      onChainRegistered = false;
+    // Blockchain registration is REQUIRED
+    if (!request.privateKey) {
+      throw new Error('Private key required for DID registration');
     }
 
-    // Save to database
+    if (!blockchainService.isAvailable()) {
+      throw new Error('Blockchain unavailable. DID registration requires blockchain.');
+    }
+
+    // Register on blockchain (MUST succeed)
+    console.log(`[DID Service] Registering DID on blockchain: ${did}`);
+    const result = await blockchainService.registerDID(request.walletAddress, did, documentHash, request.privateKey);
+
+    console.log(`[DID Service] ✅ On-chain registration successful: ${result.txHash}`);
+    console.log(`[DID Service] Block Number: ${result.blockNumber}`);
+
+    // Save to database (only after blockchain success)
     const didEntity = new DidDocument();
     didEntity.did = did;
     didEntity.walletAddress = request.walletAddress;
@@ -146,19 +133,19 @@ export class DIDDatabaseService {
     didEntity.didType = request.type === 'user' ? DIDType.USER : DIDType.ISSUER;
     didEntity.documentJson = document;
     didEntity.documentHash = documentHash;
-    didEntity.onChainTxHash = txHash;
+    didEntity.onChainTxHash = result.txHash;
 
     await this.dataSource.manager.save(didEntity);
 
-    console.log(`[DB] DID created: ${did} (on-chain: ${onChainRegistered})`);
+    console.log(`[DB] DID created: ${did} (on-chain: ${result.txHash})`);
 
     return {
       did,
       document,
       documentHash,
-      txHash,
-      blockNumber,
-      onChainRegistered,
+      txHash: result.txHash,
+      blockNumber: result.blockNumber,
+      onChainRegistered: true,
     };
   }
 
@@ -264,15 +251,6 @@ export class DIDDatabaseService {
       });
       return !!didEntity;
     }
-  }
-
-  /**
-   * Generate fallback transaction hash
-   * Used when blockchain registration fails or is unavailable
-   */
-  private generateMockTxHash(): string {
-    const bytes = randomBytes(32);
-    return hexlify(bytes);
   }
 
   /**

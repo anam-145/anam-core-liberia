@@ -178,26 +178,18 @@ class SystemInitService {
     const didRepository = AppDataSource.getRepository(DidDocument);
     const documentHash = hashDIDDocument(didDocument);
 
-    // Step 4a: Register DID on blockchain
-    let onChainTxHash: string | undefined;
-
-    if (blockchainService.isAvailable()) {
-      try {
-        console.log('[SystemInit] Registering System Admin DID on blockchain...');
-        const result = await blockchainService.registerDID(wallet.address, issuerDID, documentHash, wallet.privateKey);
-        onChainTxHash = result.txHash;
-        console.log(`[SystemInit] ✅ System Admin DID registered on-chain: ${onChainTxHash}`);
-        console.log(`  Block Number: ${result.blockNumber}`);
-      } catch (error) {
-        console.error('[SystemInit] ⚠️  Failed to register System Admin DID on blockchain:', error);
-        console.log('[SystemInit] Continuing with off-chain registration only');
-        onChainTxHash = undefined;
-      }
-    } else {
-      console.log('[SystemInit] Blockchain unavailable - off-chain registration only');
-      onChainTxHash = undefined;
+    // Step 4a: Register DID on blockchain (REQUIRED)
+    if (!blockchainService.isAvailable()) {
+      throw new Error('Blockchain unavailable. System initialization requires blockchain for DID registration.');
     }
 
+    console.log('[SystemInit] Registering System Admin DID on blockchain...');
+    const result = await blockchainService.registerDID(wallet.address, issuerDID, documentHash, wallet.privateKey);
+
+    console.log(`[SystemInit] ✅ System Admin DID registered on-chain: ${result.txHash}`);
+    console.log(`  Block Number: ${result.blockNumber}`);
+
+    // Save to database (only after blockchain success)
     const didEntity = didRepository.create({
       did: issuerDID,
       walletAddress: wallet.address,
@@ -205,7 +197,7 @@ class SystemInitService {
       didType: DIDType.ISSUER,
       documentJson: didDocument,
       documentHash,
-      onChainTxHash,
+      onChainTxHash: result.txHash,
     });
 
     await didRepository.save(didEntity);
