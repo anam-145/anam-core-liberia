@@ -11,15 +11,9 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   coveragePathIgnorePatterns: ['/node_modules/', '/.next/'],
-  collectCoverageFrom: [
-    'src/**/*.{js,jsx,ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/index.ts',
-    '!src/**/*.stories.{js,jsx,ts,tsx}',
-    '!src/server/db/migrations/**',
-  ],
+  collectCoverageFrom: ['src/**/*.{js,jsx,ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
-  transformIgnorePatterns: ['node_modules/(?!(@scure|@noble)/)', '^.+\\.module\\.(css|sass|scss)$'],
+  transformIgnorePatterns: ['^.+\\.module\\.(css|sass|scss)$'],
   modulePaths: ['<rootDir>'],
 };
 
