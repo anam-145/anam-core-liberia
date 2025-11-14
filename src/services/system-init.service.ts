@@ -178,16 +178,73 @@ class SystemInitService {
     const didRepository = AppDataSource.getRepository(DidDocument);
     const documentHash = hashDIDDocument(didDocument);
 
-    // Step 4a: Register DID on blockchain (REQUIRED)
+    // Step 4a: Check blockchain availability (REQUIRED)
     if (!blockchainService.isAvailable()) {
       throw new Error('Blockchain unavailable. System initialization requires blockchain for DID registration.');
     }
 
-    console.log('[SystemInit] Registering System Admin DID on blockchain...');
-    const result = await blockchainService.registerDID(wallet.address, issuerDID, documentHash, wallet.privateKey);
+    // Step 4b: Check if DID already registered on blockchain (DB recovery scenario)
+    console.log('[SystemInit] Checking if DID already exists on blockchain...');
+    let result: { txHash: string; did: string; documentHash: string; blockNumber: number };
 
-    console.log(`[SystemInit] ✅ System Admin DID registered on-chain: ${result.txHash}`);
-    console.log(`  Block Number: ${result.blockNumber}`);
+    try {
+      const existingDID = await blockchainService.getDIDByAddress(wallet.address);
+
+      if (existingDID && existingDID !== '' && existingDID !== '0x') {
+        // DID already registered on blockchain (DB recovery mode)
+        console.log(`[SystemInit] ✅ DID already registered on-chain: ${existingDID}`);
+        console.log(`[SystemInit] Skipping blockchain registration (DB recovery mode)`);
+
+        // Verify it matches expected DID (deterministic check)
+        if (existingDID !== issuerDID) {
+          throw new Error(
+            `DID mismatch! Blockchain has ${existingDID} but expected ${issuerDID}. ` +
+              `This indicates a problem with deterministic DID generation.`,
+          );
+        }
+
+        // Create result object for DB storage (recovered from blockchain)
+        result = {
+          txHash: 'recovered-from-blockchain',
+          did: issuerDID,
+          documentHash,
+          blockNumber: 0, // Exact block number unknown in recovery mode
+        };
+
+        console.log(`[SystemInit] Using existing on-chain registration`);
+      } else {
+        // DID not found on blockchain - perform new registration
+        console.log('[SystemInit] DID not found on blockchain. Registering new DID...');
+        result = await blockchainService.registerDID(wallet.address, issuerDID, documentHash, wallet.privateKey);
+
+        console.log(`[SystemInit] ✅ System Admin DID registered on-chain: ${result.txHash}`);
+        console.log(`  Block Number: ${result.blockNumber}`);
+      }
+    } catch (error) {
+      // If blockchain read fails, attempt registration
+      console.log('[SystemInit] Cannot verify blockchain status, attempting registration...');
+      console.log(`  Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      try {
+        result = await blockchainService.registerDID(wallet.address, issuerDID, documentHash, wallet.privateKey);
+
+        console.log(`[SystemInit] ✅ System Admin DID registered on-chain: ${result.txHash}`);
+        console.log(`  Block Number: ${result.blockNumber}`);
+      } catch (registerError) {
+        // Registration failed - could be duplicate or other error
+        if (registerError instanceof Error && registerError.message.includes('already')) {
+          console.log('[SystemInit] Registration failed: DID already exists. Continuing with DB recovery...');
+          result = {
+            txHash: 'recovered-after-duplicate-error',
+            did: issuerDID,
+            documentHash,
+            blockNumber: 0,
+          };
+        } else {
+          throw registerError;
+        }
+      }
+    }
 
     // Save to database (only after blockchain success)
     const didEntity = didRepository.create({

@@ -15,10 +15,6 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
     "format:write": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "format:check:staged": "lint-staged",
-    "typeorm": "typeorm-ts-node-commonjs",
-    "migration:generate": "npm run typeorm -- migration:generate",
-    "migration:run": "npm run typeorm -- migration:run",
-    "migration:revert": "npm run typeorm -- migration:revert",
     "prepare": "husky"
   },
   "dependencies": {

@@ -126,7 +126,7 @@ class BlockchainService {
    * Register DID on blockchain
    *
    * @param userAddress - Wallet address that owns this DID
-   * @param did - DID string (e.g., "did:anam:undp-lr:issuer:...")
+   * @param did - DID string (e.g., "did:anam:issuer:0x...")
    * @param documentHash - Hash of DID Document (bytes32)
    * @param signerPrivateKey - Private key of the wallet that owns this DID
    * @returns Transaction result

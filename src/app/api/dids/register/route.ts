@@ -22,7 +22,7 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * - publicKeyHex: string (required) - 공개키 (65바이트 hex)
  *
  * Response:
- * - did: string - 생성된 DID (항상 did:anam:undp-lr:user:...)
+ * - did: string - 생성된 DID (항상 did:anam:user:0x...)
  * - documentHash: string - DID Document 해시
  * - txHash: string - 블록체인 트랜잭션 해시
  * - blockNumber: number - 블록 번호

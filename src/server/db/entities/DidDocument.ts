@@ -15,7 +15,7 @@ export class DidDocument {
     type: 'varchar',
     length: 255,
     unique: true,
-    comment: 'Full DID string (did:anam:undp-lr:type:identifier)',
+    comment: 'Full DID string (did:anam:type:address)',
   })
   did!: string;
 

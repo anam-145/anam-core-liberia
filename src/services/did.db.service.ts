@@ -14,7 +14,7 @@
 import 'reflect-metadata';
 import type { DataSource } from 'typeorm';
 import {
-  createDID,
+  createDIDWithAddress,
   createDIDDocument,
   hashDIDDocument,
   type DIDDocument as DIDDocumentType,
@@ -104,8 +104,8 @@ export class DIDDatabaseService {
       throw new Error(`Wallet already has a DID: ${existingDid}`);
     }
 
-    // Create DID and Document
-    const did = createDID(request.type);
+    // Create DID and Document (deterministic based on wallet address)
+    const { did } = createDIDWithAddress(request.type, request.walletAddress);
     const document = createDIDDocument(did, request.walletAddress, request.publicKeyHex);
     const documentHash = hashDIDDocument(document);
 
@@ -118,12 +118,79 @@ export class DIDDatabaseService {
       throw new Error('Blockchain unavailable. DID registration requires blockchain.');
     }
 
-    // Register on blockchain (MUST succeed)
-    console.log(`[DID Service] Registering DID on blockchain: ${did}`);
-    const result = await blockchainService.registerDID(request.walletAddress, did, documentHash, request.privateKey);
+    // Check if DID already registered on blockchain (DB recovery scenario)
+    console.log(`[DID Service] Checking if DID already exists on blockchain: ${did}`);
+    let result: { txHash: string; blockNumber: number };
 
-    console.log(`[DID Service] ✅ On-chain registration successful: ${result.txHash}`);
-    console.log(`[DID Service] Block Number: ${result.blockNumber}`);
+    try {
+      const existingDID = await blockchainService.getDIDByAddress(request.walletAddress);
+
+      if (existingDID && existingDID !== '' && existingDID !== '0x') {
+        // DID already registered on blockchain
+        console.log(`[DID Service] ✅ DID already registered on-chain: ${existingDID}`);
+
+        // Verify deterministic match
+        if (existingDID !== did) {
+          throw new Error(
+            `DID mismatch! Blockchain has ${existingDID} but expected ${did}. ` +
+              `This indicates a problem with deterministic DID generation.`,
+          );
+        }
+
+        console.log(`[DID Service] Skipping blockchain registration (already exists)`);
+        result = {
+          txHash: 'recovered-from-blockchain',
+          blockNumber: 0,
+        };
+      } else {
+        // Register on blockchain
+        console.log(`[DID Service] Registering DID on blockchain: ${did}`);
+        const registerResult = await blockchainService.registerDID(
+          request.walletAddress,
+          did,
+          documentHash,
+          request.privateKey,
+        );
+
+        console.log(`[DID Service] ✅ On-chain registration successful: ${registerResult.txHash}`);
+        console.log(`[DID Service] Block Number: ${registerResult.blockNumber}`);
+
+        result = {
+          txHash: registerResult.txHash,
+          blockNumber: registerResult.blockNumber,
+        };
+      }
+    } catch (error) {
+      // If read fails, attempt registration
+      console.log(`[DID Service] Cannot verify blockchain status, attempting registration...`);
+      console.log(`  Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      try {
+        const registerResult = await blockchainService.registerDID(
+          request.walletAddress,
+          did,
+          documentHash,
+          request.privateKey,
+        );
+
+        console.log(`[DID Service] ✅ On-chain registration successful: ${registerResult.txHash}`);
+
+        result = {
+          txHash: registerResult.txHash,
+          blockNumber: registerResult.blockNumber,
+        };
+      } catch (registerError) {
+        if (registerError instanceof Error && registerError.message.includes('already')) {
+          console.log(`[DID Service] Registration failed: DID already exists. Continuing...`);
+          result = {
+            txHash: 'recovered-after-duplicate-error',
+            blockNumber: 0,
+          };
+        } else {
+          throw registerError;
+        }
+      }
+    }
 
     // Save to database (only after blockchain success)
     const didEntity = new DidDocument();

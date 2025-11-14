@@ -6,12 +6,19 @@
 
 import 'reflect-metadata';
 import type { DataSource } from 'typeorm';
-import { createVC, signVC, canonicalStringify, type VerifiableCredential } from '../utils/crypto/did';
+import {
+  createVC,
+  signVC,
+  canonicalStringify,
+  createDIDWithAddress,
+  type VerifiableCredential,
+} from '../utils/crypto/did';
 import { randomBytes, keccak256 } from 'ethers';
 import { VcRegistry, VCStatus } from '../server/db/entities/VcRegistry';
 import AppDataSource from '../server/db/datasource';
 import { getDIDDatabaseService } from './did.db.service';
 import { blockchainService } from './blockchain.service';
+import { getSystemAdminWallet } from './system-init.service';
 
 export interface IssueVCRequest {
   walletAddress: string;
@@ -114,8 +121,9 @@ export class VCDatabaseService {
       console.log(`[VC Service] Created new DID: ${did}`);
     }
 
-    // Step 2: Issuer DID 가져오기 (환경변수 또는 기본값)
-    const issuerDid = process.env.ISSUER_DID || 'did:anam:undp-lr:issuer:system';
+    // Step 2: Issuer DID 가져오기 (System Admin wallet으로부터 결정론적 계산)
+    const adminWallet = getSystemAdminWallet();
+    const { did: issuerDid } = createDIDWithAddress('issuer', adminWallet.address);
 
     // Step 3: VC 생성 (unsigned)
     const vcId = this.generateVCId(request.vcType);

@@ -4,7 +4,6 @@
 
 import { ethers } from 'ethers';
 import {
-  generateDIDIdentifier,
   createDID,
   createDIDWithAddress,
   parseDID,
@@ -25,40 +24,43 @@ describe('DID Utilities', () => {
   const testWallet = ethers.Wallet.createRandom();
   const testAddress = testWallet.address;
   const testPublicKey = testWallet.signingKey.publicKey;
-  const testPrivateKey = testWallet.privateKey;
 
-  // Base58 식별자 생성 로직 검증
-  describe('generateDIDIdentifier', () => {
-    // Base58 포맷과 길이 확인
-    it('should generate a valid Base58 identifier', () => {
-      const identifier = generateDIDIdentifier();
-      expect(identifier).toBeTruthy();
-      expect(identifier.length).toBeGreaterThan(0);
-      // Base58 should only contain alphanumeric characters (no 0, O, I, l)
-      expect(identifier).toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/);
-    });
-
-    // 서로 다른 식별자 생성 여부 확인
-    it('should generate unique identifiers', () => {
-      const id1 = generateDIDIdentifier();
-      const id2 = generateDIDIdentifier();
-      expect(id1).not.toBe(id2);
-    });
-  });
-
-  // DID 문자열 생성 규칙 검증
+  // DID 문자열 생성 규칙 검증 (ethr-did style)
   describe('createDID', () => {
-    // 사용자 DID 자동 식별자 생성 확인
-    it('should create a user DID with generated identifier', () => {
-      const did = createDID('user');
-      expect(did).toMatch(/^did:anam:undp-lr:user:[1-9A-HJ-NP-Za-km-z]+$/);
+    // Ethereum 주소로 user DID 생성 확인
+    it('should create a user DID with Ethereum address', () => {
+      const did = createDID('user', testAddress);
+      expect(did).toBe(`did:anam:user:${ethers.getAddress(testAddress)}`);
+      expect(did).toMatch(/^did:anam:user:0x[a-fA-F0-9]{40}$/);
     });
 
-    // 지정한 식별자 사용 여부 확인
-    it('should create an issuer DID with provided identifier', () => {
-      const identifier = 'TestIdentifier123';
-      const did = createDID('issuer', identifier);
-      expect(did).toBe(`did:anam:undp-lr:issuer:${identifier}`);
+    // Ethereum 주소로 issuer DID 생성 확인
+    it('should create an issuer DID with Ethereum address', () => {
+      const did = createDID('issuer', testAddress);
+      expect(did).toBe(`did:anam:issuer:${ethers.getAddress(testAddress)}`);
+      expect(did).toMatch(/^did:anam:issuer:0x[a-fA-F0-9]{40}$/);
+    });
+
+    // 같은 주소에서 같은 DID 생성 확인 (결정론적)
+    it('should generate same DID for same address (deterministic)', () => {
+      const did1 = createDID('user', testAddress);
+      const did2 = createDID('user', testAddress);
+      expect(did1).toBe(did2);
+    });
+
+    // 다른 주소에서 다른 DID 생성 확인
+    it('should generate different DIDs for different addresses', () => {
+      const wallet2 = ethers.Wallet.createRandom();
+      const did1 = createDID('user', testAddress);
+      const did2 = createDID('user', wallet2.address);
+      expect(did1).not.toBe(did2);
+    });
+
+    // 체크섬 주소 자동 변환 확인
+    it('should checksum lowercase addresses', () => {
+      const lowercaseAddress = testAddress.toLowerCase();
+      const did = createDID('user', lowercaseAddress);
+      expect(did).toBe(`did:anam:user:${ethers.getAddress(testAddress)}`);
     });
   });
 
@@ -67,7 +69,7 @@ describe('DID Utilities', () => {
     // 체크섬 주소가 유지되는지 확인
     it('should create DID with checksummed address', () => {
       const result = createDIDWithAddress('user', testAddress);
-      expect(result.did).toMatch(/^did:anam:undp-lr:user:/);
+      expect(result.did).toBe(`did:anam:user:${ethers.getAddress(testAddress)}`);
       expect(result.address).toBe(ethers.getAddress(testAddress));
     });
 
@@ -76,6 +78,7 @@ describe('DID Utilities', () => {
       const lowercaseAddress = testAddress.toLowerCase();
       const result = createDIDWithAddress('user', lowercaseAddress);
       expect(result.address).toBe(ethers.getAddress(testAddress));
+      expect(result.did).toBe(`did:anam:user:${ethers.getAddress(testAddress)}`);
     });
   });
 
@@ -83,39 +86,36 @@ describe('DID Utilities', () => {
   describe('parseDID', () => {
     // 사용자 DID 파싱 결과 확인
     it('should parse a valid user DID', () => {
-      const identifier = 'TestUser123';
-      const did = `did:anam:undp-lr:user:${identifier}`;
+      const did = `did:anam:user:${testAddress}`;
       const parsed = parseDID(did);
 
       expect(parsed.method).toBe('anam');
-      expect(parsed.namespace).toBe('undp-lr');
       expect(parsed.type).toBe('user');
-      expect(parsed.identifier).toBe(identifier);
+      expect(parsed.address).toBe(ethers.getAddress(testAddress));
     });
 
     // 발행자 DID 파싱 결과 확인
     it('should parse a valid issuer DID', () => {
-      const identifier = 'TestIssuer456';
-      const did = `did:anam:undp-lr:issuer:${identifier}`;
+      const did = `did:anam:issuer:${testAddress}`;
       const parsed = parseDID(did);
 
       expect(parsed.method).toBe('anam');
-      expect(parsed.namespace).toBe('undp-lr');
       expect(parsed.type).toBe('issuer');
-      expect(parsed.identifier).toBe(identifier);
+      expect(parsed.address).toBe(ethers.getAddress(testAddress));
     });
 
     // 잘못된 DID 형식 처리 확인
     it('should throw error for invalid DID format', () => {
       expect(() => parseDID('did:ethr:0x123')).toThrow('Invalid DID format');
-      expect(() => parseDID('did:anam:wrong-namespace:user:123')).toThrow('Invalid DID format');
-      expect(() => parseDID('did:anam:undp-lr:invalid:123')).toThrow('Invalid DID type');
+      expect(() => parseDID('did:anam:invalid:0x123')).toThrow('Invalid DID type');
+      expect(() => parseDID('did:anam:user:invalid')).toThrow('Invalid DID address');
+      expect(() => parseDID('did:anam:user:0xZZZ')).toThrow('Invalid Ethereum address');
     });
   });
 
   // DID Document 구성과 컨트롤러 설정 검증
   describe('createDIDDocument', () => {
-    const testDID = 'did:anam:undp-lr:user:TestUser123';
+    const testDID = `did:anam:user:${testAddress}`;
 
     // 사용자 DID 문서에 authentication 포함 여부 확인
     it('should create a user DID Document with authentication', () => {
@@ -135,8 +135,9 @@ describe('DID Utilities', () => {
 
     // 발행자 DID 문서에 assertionMethod 포함 여부 확인
     it('should create an issuer DID Document with assertionMethod', () => {
-      const issuerDID = 'did:anam:undp-lr:issuer:TestIssuer456';
-      const doc = createDIDDocument(issuerDID, testAddress, testPublicKey);
+      const wallet2 = ethers.Wallet.createRandom();
+      const issuerDID = `did:anam:issuer:${wallet2.address}`;
+      const doc = createDIDDocument(issuerDID, wallet2.address, wallet2.signingKey.publicKey);
 
       expect(doc.id).toBe(issuerDID);
       expect(doc.type).toBe('ISSUER');
@@ -146,7 +147,8 @@ describe('DID Utilities', () => {
 
     // 커스텀 컨트롤러 지정 동작 확인
     it('should allow custom controller', () => {
-      const controllerDID = 'did:anam:undp-lr:issuer:Controller789';
+      const wallet2 = ethers.Wallet.createRandom();
+      const controllerDID = `did:anam:issuer:${wallet2.address}`;
       const doc = createDIDDocument(testDID, testAddress, testPublicKey, controllerDID);
 
       expect(doc.controller).toBe(controllerDID);
@@ -158,7 +160,7 @@ describe('DID Utilities', () => {
   describe('hashDIDDocument', () => {
     // 동일 문서 해시 일관성 확인
     it('should generate consistent hash for same document', () => {
-      const doc = createDIDDocument('did:anam:undp-lr:user:Test123', testAddress, testPublicKey);
+      const doc = createDIDDocument(`did:anam:user:${testAddress}`, testAddress, testPublicKey);
       const hash1 = hashDIDDocument(doc);
       const hash2 = hashDIDDocument(doc);
 
@@ -168,8 +170,9 @@ describe('DID Utilities', () => {
 
     // 다른 문서 해시 분리 여부 확인
     it('should generate different hashes for different documents', () => {
-      const doc1 = createDIDDocument('did:anam:undp-lr:user:Test123', testAddress, testPublicKey);
-      const doc2 = createDIDDocument('did:anam:undp-lr:user:Test456', testAddress, testPublicKey);
+      const wallet2 = ethers.Wallet.createRandom();
+      const doc1 = createDIDDocument(`did:anam:user:${testAddress}`, testAddress, testPublicKey);
+      const doc2 = createDIDDocument(`did:anam:user:${wallet2.address}`, wallet2.address, wallet2.signingKey.publicKey);
 
       const hash1 = hashDIDDocument(doc1);
       const hash2 = hashDIDDocument(doc2);
@@ -180,8 +183,10 @@ describe('DID Utilities', () => {
 
   // Verifiable Credential 생성·서명 흐름 검증
   describe('VC Operations', () => {
-    const issuerDID = 'did:anam:undp-lr:issuer:TestIssuer';
-    const subjectDID = 'did:anam:undp-lr:user:TestSubject';
+    const issuerWallet = ethers.Wallet.createRandom();
+    const subjectWallet = ethers.Wallet.createRandom();
+    const issuerDID = `did:anam:issuer:${issuerWallet.address}`;
+    const subjectDID = `did:anam:user:${subjectWallet.address}`;
     const vcId = 'vc_kyc_12345';
 
     // VC 생성 시 필드 구성 검증
@@ -227,7 +232,7 @@ describe('DID Utilities', () => {
         const vc = createVC(issuerDID, subjectDID, 'UndpKycCredential', { name: 'Test' }, vcId);
         const verificationMethod = `${issuerDID}#keys-1`;
 
-        const signedVC = await signVC(vc, testPrivateKey, verificationMethod);
+        const signedVC = await signVC(vc, issuerWallet.privateKey, verificationMethod);
 
         expect(signedVC.proof).toBeDefined();
         expect(signedVC.proof!.type).toBe('EcdsaSecp256k1Signature2019');
@@ -236,7 +241,7 @@ describe('DID Utilities', () => {
         expect(signedVC.proof!.proofValue).toBeDefined();
 
         // Verify signature with correct address
-        const isValid = verifyVCSignature(signedVC, testAddress);
+        const isValid = verifyVCSignature(signedVC, issuerWallet.address);
         expect(isValid).toBe(true);
 
         // Verify signature with wrong address should fail
@@ -248,7 +253,7 @@ describe('DID Utilities', () => {
       // 서명 없는 VC 검증 실패 확인
       it('should return false for unsigned VC', () => {
         const vc = createVC(issuerDID, subjectDID, 'UndpKycCredential', {}, vcId);
-        const isValid = verifyVCSignature(vc, testAddress);
+        const isValid = verifyVCSignature(vc, issuerWallet.address);
         expect(isValid).toBe(false);
       });
     });
@@ -256,20 +261,17 @@ describe('DID Utilities', () => {
 
   // Verifiable Presentation 생성·서명 흐름 검증
   describe('VP Operations', () => {
-    const holderDID = 'did:anam:undp-lr:user:TestHolder';
+    const holderWallet = ethers.Wallet.createRandom();
+    const issuerWallet = ethers.Wallet.createRandom();
+    const holderDID = `did:anam:user:${holderWallet.address}`;
+    const issuerDID = `did:anam:issuer:${issuerWallet.address}`;
     const challenge = generateChallenge();
 
     // VP 생성 구조 검증
     describe('createVP', () => {
       // VP 구조 필수 필드 확인
       it('should create a valid VP structure', () => {
-        const vc = createVC(
-          'did:anam:undp-lr:issuer:TestIssuer',
-          holderDID,
-          'UndpKycCredential',
-          { name: 'Test' },
-          'vc_123',
-        );
+        const vc = createVC(issuerDID, holderDID, 'UndpKycCredential', { name: 'Test' }, 'vc_123');
 
         const vp = createVP(holderDID, [vc], challenge);
 
@@ -287,21 +289,15 @@ describe('DID Utilities', () => {
     describe('signVP and verifyVPSignature', () => {
       // VP 서명 후 검증 성공 확인
       it('should sign VP and verify signature', async () => {
-        const vc = createVC(
-          'did:anam:undp-lr:issuer:TestIssuer',
-          holderDID,
-          'UndpKycCredential',
-          { name: 'Test' },
-          'vc_123',
-        );
+        const vc = createVC(issuerDID, holderDID, 'UndpKycCredential', { name: 'Test' }, 'vc_123');
         const vp = createVP(holderDID, [vc], challenge);
 
-        const signedVP = await signVP(vp, testPrivateKey);
+        const signedVP = await signVP(vp, holderWallet.privateKey);
 
         expect(signedVP.proof!.jws).toBeDefined();
 
         // Verify signature with correct address
-        const isValid = verifyVPSignature(signedVP, testAddress);
+        const isValid = verifyVPSignature(signedVP, holderWallet.address);
         expect(isValid).toBe(true);
 
         // Verify signature with wrong address should fail
@@ -312,16 +308,10 @@ describe('DID Utilities', () => {
 
       // 서명 없는 VP 검증 실패 확인
       it('should return false for unsigned VP', () => {
-        const vc = createVC(
-          'did:anam:undp-lr:issuer:TestIssuer',
-          holderDID,
-          'UndpKycCredential',
-          { name: 'Test' },
-          'vc_123',
-        );
+        const vc = createVC(issuerDID, holderDID, 'UndpKycCredential', { name: 'Test' }, 'vc_123');
         const vp = createVP(holderDID, [vc], challenge);
 
-        const isValid = verifyVPSignature(vp, testAddress);
+        const isValid = verifyVPSignature(vp, holderWallet.address);
         expect(isValid).toBe(false);
       });
     });

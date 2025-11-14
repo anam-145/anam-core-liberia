@@ -1,25 +1,23 @@
 /**
  * DID (Decentralized Identifier) Utilities
  *
- * Implements did:anam:undp-lr DID creation and management
+ * Implements did:anam DID creation and management (ethr-did style)
  * as specified in section 5.4.2 of the system design document
  *
- * DID Format: did:anam:undp-lr:<type>:<identifier>
+ * DID Format: did:anam:<type>:<address>
  * - type: 'user' or 'issuer'
- * - identifier: Base58 encoded 20-byte random value
+ * - address: Ethereum address (0x...)
  */
 
 import { ethers } from 'ethers';
-import bs58 from 'bs58';
 import { randomBytes } from 'crypto';
 import { getAddressFromPrivateKey } from './wallet';
 
 // DID Types as defined in system design
 export type DIDType = 'user' | 'issuer';
 
-// DID Method and Namespace constants
+// DID Method constant
 const DID_METHOD = 'anam';
-const DID_NAMESPACE = 'undp-lr';
 
 export interface DIDDocument {
   '@context': string | string[];
@@ -119,41 +117,26 @@ export function canonicalStringify(obj: unknown): string {
 }
 
 /**
- * Generates a random DID identifier
- * @returns Base58 encoded 20-byte identifier
- */
-export function generateDIDIdentifier(): string {
-  // Generate 20 bytes of random data (160 bits)
-  const randomData = randomBytes(20);
-  // Encode to Base58 for human-readable format
-  return bs58.encode(randomData);
-}
-
-/**
  * Creates a DID using the anam method
  * @param type - Type of DID (user or issuer)
- * @param identifier - Optional identifier, generates random if not provided
- * @returns DID string in did:anam:undp-lr format
+ * @param address - Ethereum wallet address
+ * @returns DID string in did:anam:<type>:<address> format
  */
-export function createDID(type: DIDType, identifier?: string): string {
-  const didIdentifier = identifier || generateDIDIdentifier();
-  return `did:${DID_METHOD}:${DID_NAMESPACE}:${type}:${didIdentifier}`;
+export function createDID(type: DIDType, address: string): string {
+  const checksumAddress = ethers.getAddress(address);
+  return `did:${DID_METHOD}:${type}:${checksumAddress}`;
 }
 
 /**
- * Creates a DID with associated wallet address
+ * Creates a deterministic DID with associated wallet address
+ * Same wallet address always produces the same DID (deterministic)
  * @param type - Type of DID
  * @param walletAddress - Ethereum wallet address
- * @param identifier - Optional identifier
  * @returns Object with DID and wallet address
  */
-export function createDIDWithAddress(
-  type: DIDType,
-  walletAddress: string,
-  identifier?: string,
-): { did: string; address: string } {
+export function createDIDWithAddress(type: DIDType, walletAddress: string): { did: string; address: string } {
   const checksumAddress = ethers.getAddress(walletAddress);
-  const did = createDID(type, identifier);
+  const did = createDID(type, checksumAddress);
   return { did, address: checksumAddress };
 }
 
@@ -164,30 +147,35 @@ export function createDIDWithAddress(
  */
 export function parseDID(did: string): {
   method: string;
-  namespace: string;
   type: DIDType;
-  identifier: string;
+  address: string;
 } {
   const parts = did.split(':');
-  if (parts.length !== 5 || parts[0] !== 'did' || parts[1] !== DID_METHOD || parts[2] !== DID_NAMESPACE) {
-    throw new Error(`Invalid DID format. Expected did:${DID_METHOD}:${DID_NAMESPACE}:<type>:<identifier>`);
+  if (parts.length !== 4 || parts[0] !== 'did' || parts[1] !== DID_METHOD) {
+    throw new Error(`Invalid DID format. Expected did:${DID_METHOD}:<type>:<address>`);
   }
 
-  const type = parts[3];
+  const type = parts[2];
   if (type !== 'user' && type !== 'issuer') {
     throw new Error('Invalid DID type. Must be "user" or "issuer"');
   }
 
-  const identifier = parts[4];
-  if (!identifier) {
-    throw new Error('Missing DID identifier');
+  const address = parts[3];
+  if (!address || !address.startsWith('0x')) {
+    throw new Error('Invalid DID address format');
+  }
+
+  // Validate address format
+  try {
+    ethers.getAddress(address);
+  } catch {
+    throw new Error('Invalid Ethereum address in DID');
   }
 
   return {
     method: parts[1],
-    namespace: parts[2],
     type: type as DIDType,
-    identifier,
+    address,
   };
 }
 

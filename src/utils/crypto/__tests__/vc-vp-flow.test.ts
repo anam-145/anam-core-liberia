@@ -14,7 +14,7 @@
 
 import { ethers } from 'ethers';
 import {
-  createDID,
+  createDIDWithAddress,
   createDIDDocument,
   createVC,
   signVC,
@@ -45,12 +45,13 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
 
   // Step 1-2: DID 생성
   describe('DID Creation', () => {
-    // User DID를 생성할 수 있어야 함
+    // User DID를 생성할 수 있어야 함 (deterministic)
     it('should create user DID', () => {
-      userDID = createDID('user');
+      const { did } = createDIDWithAddress('user', userWallet.address);
+      userDID = did;
 
       expect(userDID).toBeDefined();
-      expect(userDID).toMatch(/^did:anam:undp-lr:user:/);
+      expect(userDID).toMatch(/^did:anam:user:0x[a-fA-F0-9]{40}$/);
 
       const userDIDDoc = createDIDDocument(userDID, userWallet.address, userPublicKeyHex);
 
@@ -59,12 +60,13 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
       expect(userDIDDoc.authentication).toBeDefined();
     });
 
-    // Issuer DID를 생성할 수 있어야 함
+    // Issuer DID를 생성할 수 있어야 함 (deterministic)
     it('should create issuer DID', () => {
-      issuerDID = createDID('issuer');
+      const { did } = createDIDWithAddress('issuer', issuerWallet.address);
+      issuerDID = did;
 
       expect(issuerDID).toBeDefined();
-      expect(issuerDID).toMatch(/^did:anam:undp-lr:issuer:/);
+      expect(issuerDID).toMatch(/^did:anam:issuer:0x[a-fA-F0-9]{40}$/);
 
       const issuerDIDDoc = createDIDDocument(issuerDID, issuerWallet.address, issuerPublicKeyHex);
 
@@ -245,7 +247,7 @@ describe('VC/VP End-to-End Flow Integration Test', () => {
     it('should fail to verify VP with forged VC', async () => {
       // Create forged VC by fake issuer
       const fakeIssuerWallet = new ethers.Wallet('0x' + '7'.repeat(64));
-      const fakeIssuerDID = createDID('issuer');
+      const { did: fakeIssuerDID } = createDIDWithAddress('issuer', fakeIssuerWallet.address);
 
       const fakeVC = createVC(fakeIssuerDID, userDID, 'FakeCredential', { fake: true }, 'vc_fake_12345', 730);
 
