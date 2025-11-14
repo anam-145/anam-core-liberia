@@ -1,5 +1,8 @@
-# 포맷 체크
+# Lint
+pnpm lint --max-warnings 0
+
+# Format check (staged files only)
 pnpm format:check:staged
 
-# 테스트 실행
+# Run tests
 pnpm test --passWithNoTests
