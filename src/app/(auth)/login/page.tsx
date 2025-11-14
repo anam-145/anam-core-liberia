@@ -94,9 +94,6 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" /> <span style={{ fontSize: 13, color: '#475467' }}>Remember me</span>
-              </label>
             </div>
           </CardBody>
           <CardFooter>

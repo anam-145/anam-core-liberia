@@ -1,12 +1,14 @@
 'use client';
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Logo from '../icons/Logo';
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = React.useState(false);
 
   // 바디 스크롤 잠금 (모바일 드로어 열렸을 때)
   React.useEffect(() => {
@@ -123,7 +125,22 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <div style={{ fontWeight: 700 }}>Admin Dashboard</div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
             <div className="badge badge--brand">System Admin</div>
-            <button className="btn btn--secondary btn--sm">로그아웃</button>
+            <button
+              className="btn btn--secondary btn--sm"
+              onClick={async () => {
+                if (loggingOut) return;
+                try {
+                  setLoggingOut(true);
+                  await fetch('/api/admin/auth/logout', { method: 'POST' });
+                  router.push('/login');
+                } finally {
+                  setLoggingOut(false);
+                }
+              }}
+              disabled={loggingOut}
+            >
+              {loggingOut ? '로그아웃 중…' : '로그아웃'}
+            </button>
           </div>
         </header>
 
