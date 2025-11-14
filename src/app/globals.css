@@ -1,4 +1,10 @@
 /* globals.css - Design System for Admin Dashboard */
+
+/* Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* Brand Colors - Deep Burgundy */
   --brand: #8a1e1e;
@@ -193,28 +199,7 @@ a {
 }
 
 /* ====== Admin Shell ====== */
-.shell {
-  min-height: 100dvh;
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    'sidebar header'
-    'sidebar main';
-}
-.shell--collapsed {
-  grid-template-columns: 84px 1fr;
-}
-.shell__sidebar {
-  grid-area: sidebar;
-  background: #fff;
-  border-right: 1px solid var(--line);
-  position: sticky;
-  top: 0;
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
+/* Note: Layout is now handled by Tailwind in AdminShell.tsx */
 .brand {
   display: flex;
   align-items: center;
@@ -262,7 +247,6 @@ a {
   box-shadow: inset 0 0 0 1px rgba(138, 30, 30, 0.18);
 }
 .shell__header {
-  grid-area: header;
   background: #fff;
   border-bottom: 1px solid var(--line);
   display: flex;
@@ -271,21 +255,5 @@ a {
   padding: 10px 16px;
 }
 .shell__main {
-  grid-area: main;
   padding: 24px;
-}
-
-/* Collapsed labels 숨김 */
-.shell--collapsed .nav a span,
-.shell--collapsed .brand__text {
-  display: none;
-}
-.shell--collapsed .brand {
-  justify-content: center;
-}
-
-@media (max-width: 960px) {
-  .shell {
-    grid-template-columns: 84px 1fr;
-  }
 }
