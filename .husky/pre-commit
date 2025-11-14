@@ -1,8 +1,5 @@
-# Lint
-pnpm lint --max-warnings 0
-
-# Format check (staged files only)
-pnpm format:check:staged
+# Lint and format staged files only
+lint-staged
 
 # Run tests
 pnpm test --passWithNoTests
