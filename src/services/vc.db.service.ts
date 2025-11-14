@@ -102,11 +102,12 @@ export class VCDatabaseService {
       didTxHash = 'existing'; // 기존 DID는 이미 등록됨
       console.log(`[VC Service] Using existing DID: ${did}`);
     } else {
-      // 새 DID 생성 및 등록
+      // 새 DID 생성 및 등록 (Issuer가 대신 등록)
       const didResult = await didService.createAndRegisterDID({
         walletAddress: request.walletAddress,
         publicKeyHex: request.publicKeyHex,
-        type: request.vcType === 'ADMIN' ? 'issuer' : 'user',
+        type: 'user', // VC를 받는 모든 대상은 user DID (참가자, Approver, Verifier)
+        privateKey: request.issuerPrivateKey, // Issuer의 privateKey로 블록체인 등록
       });
       did = didResult.did;
       didTxHash = didResult.txHash || 'unknown';

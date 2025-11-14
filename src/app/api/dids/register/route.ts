@@ -1,51 +1,66 @@
 import type { NextRequest } from 'next/server';
 import { getDIDDatabaseService } from '@/services/did.db.service';
 import { apiOk, apiError } from '@/lib/api-response';
+import { getSystemAdminWallet } from '@/services/system-init.service';
+import { requireRole } from '@/lib/auth-middleware';
+import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
  * POST /api/dids/register
- * DID 생성 및 DB 등록 (오프체인)
+ * DID 생성 및 블록체인 등록 (참가자용)
  *
- * Note: 온체인 등록은 내부 서비스에서만 수행됩니다 (보안상 privateKey를 외부에서 받지 않음)
- * - System Admin 초기화 시: system-init.service.ts
- * - VC 발급 시: vc.db.service.ts
+ * Authentication: Requires SYSTEM_ADMIN, APPROVER, or VERIFIER role
+ * (Register Participant 권한을 가진 모든 역할이 사용 가능)
+ *
+ * Note: System Admin의 privateKey를 사용하여 블록체인에 등록합니다.
+ * - 보안: 외부에서 privateKey를 받지 않고 ENV에서 가져옴
+ * - 권한: 블록체인 레벨에서 System Admin만 등록 가능
+ * - 제한: 이 API로는 user DID만 생성 가능 (issuer DID는 시스템 초기화에서만)
  *
  * Request Body:
  * - walletAddress: string (required) - 지갑 주소
  * - publicKeyHex: string (required) - 공개키 (65바이트 hex)
- * - type: 'user' | 'issuer' (required) - DID 타입
  *
  * Response:
- * - did: string - 생성된 DID
+ * - did: string - 생성된 DID (항상 did:anam:undp-lr:user:...)
  * - documentHash: string - DID Document 해시
+ * - txHash: string - 블록체인 트랜잭션 해시
+ * - blockNumber: number - 블록 번호
  */
 export async function POST(request: NextRequest) {
+  // 🔒 Authentication: SYSTEM_ADMIN, APPROVER, and VERIFIER can register participant DIDs
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER, AdminRole.VERIFIER]);
+  if (authCheck) return authCheck;
+
   try {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.walletAddress || !body.publicKeyHex || !body.type) {
-      return apiError('Missing required fields: walletAddress, publicKeyHex, type', 400, 'VALIDATION_ERROR');
-    }
-
-    // Validate type field
-    if (body.type !== 'user' && body.type !== 'issuer') {
-      return apiError('Invalid type. Must be "user" or "issuer"', 400, 'VALIDATION_ERROR');
+    if (!body.walletAddress || !body.publicKeyHex) {
+      return apiError('Missing required fields: walletAddress, publicKeyHex', 400, 'VALIDATION_ERROR');
     }
 
     const didService = getDIDDatabaseService();
 
-    // Create and register DID
+    // Get System Admin wallet for blockchain registration
+    const issuerWallet = getSystemAdminWallet();
+
+    // Create and register DID (on-chain)
+    // Force type to 'user' - issuer DIDs can only be created during system initialization
     const result = await didService.createAndRegisterDID({
       walletAddress: body.walletAddress,
       publicKeyHex: body.publicKeyHex,
-      type: body.type,
+      type: 'user', // 항상 user DID 생성 (참가자, Approver, Verifier)
+      privateKey: issuerWallet.privateKey,
     });
 
     return apiOk(
       {
         did: result.did,
         documentHash: result.documentHash,
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        onChainRegistered: result.onChainRegistered,
       },
       201,
     );
