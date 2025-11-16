@@ -42,6 +42,8 @@ class AdminService {
     email: string;
     role: AdminRole;
     createdBy?: string;
+    did?: string | null;
+    walletAddress?: string | null;
   }): Promise<Admin> {
     await this.initialize();
 
@@ -78,6 +80,8 @@ class AdminService {
       role: data.role,
       isActive: true,
       createdBy: data.createdBy || null,
+      did: data.did ?? null,
+      walletAddress: data.walletAddress ?? null,
     });
 
     await adminRepository.save(admin);

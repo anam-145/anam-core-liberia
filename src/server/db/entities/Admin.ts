@@ -2,8 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 
 export enum AdminRole {
   SYSTEM_ADMIN = 'SYSTEM_ADMIN',
-  APPROVER = 'APPROVER',
-  VERIFIER = 'VERIFIER',
+  STAFF = 'STAFF',
 }
 
 @Entity('admins')
@@ -65,7 +64,7 @@ export class Admin {
   @Column({
     type: 'enum',
     enum: AdminRole,
-    comment: 'SYSTEM_ADMIN, APPROVER, or VERIFIER',
+    comment: 'SYSTEM_ADMIN or STAFF (event-scoped roles live in EventStaff)',
   })
   @Index()
   role!: AdminRole;

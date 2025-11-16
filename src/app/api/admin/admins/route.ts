@@ -14,7 +14,7 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * - password: string (required)
  * - fullName: string (required)
  * - email: string (required)
- * - role: 'SYSTEM_ADMIN' | 'APPROVER' | 'VERIFIER' (required)
+ * - role: 'SYSTEM_ADMIN' | 'STAFF' (required)
  *
  * Response:
  * - admin: Admin object (without passwordHash)
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate role
-    if (!['SYSTEM_ADMIN', 'APPROVER', 'VERIFIER'].includes(body.role)) {
-      return apiError('Invalid role. Must be SYSTEM_ADMIN, APPROVER, or VERIFIER', 400, 'VALIDATION_ERROR');
+    if (!['SYSTEM_ADMIN', 'STAFF'].includes(body.role)) {
+      return apiError('Invalid role. Must be SYSTEM_ADMIN or STAFF', 400, 'VALIDATION_ERROR');
     }
 
     // Get current admin for audit trail

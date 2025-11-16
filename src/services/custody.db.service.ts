@@ -3,7 +3,13 @@
  * Using TypeORM with MariaDB
  *
  * Manages custody wallets for USSD users (required) and
- * optional backups for AnamWallet/Paper Voucher users
+ * optional backups for AnamWallet/Paper Voucher users.
+ *
+ * Note:
+ * - Storing a VC together with the wallet vault is supported (vc?: VerifiableCredential).
+ * - In practice, "no VC" custody generally applies only to the Issuer/System Admin account
+ *   created during system initialization. Staff onboarding stores both wallet vault and the
+ *   signed ADMIN VC together in a single call (see POST /api/admin/admins/onboard).
  */
 
 import 'reflect-metadata';
@@ -20,6 +26,7 @@ export interface CreateCustodyRequest {
   phoneNumber?: string;
   vault: Vault;
   isBackup: boolean;
+  vc?: VerifiableCredential; // Optional: store VC together
 }
 
 export interface CreateCustodyResponse {
@@ -139,7 +146,7 @@ export class CustodyDatabaseService {
     custodyEntity.walletType = WalletType[request.walletType];
     custodyEntity.phoneNumber = request.phoneNumber || null;
     custodyEntity.vault = request.vault;
-    custodyEntity.vc = null; // VC will be added later
+    custodyEntity.vc = request.vc || null; // Optionally set VC now
     custodyEntity.isBackup = request.isBackup;
 
     // Save to database

@@ -19,6 +19,7 @@ import AppDataSource from '../server/db/datasource';
 import { getDIDDatabaseService } from './did.db.service';
 import { blockchainService } from './blockchain.service';
 import { getSystemAdminWallet } from './system-init.service';
+import bs58 from 'bs58';
 
 export interface IssueVCRequest {
   walletAddress: string;
@@ -165,8 +166,8 @@ export class VCDatabaseService {
     vcEntity.vcType = vcType;
     vcEntity.vcHash = vcHash;
     vcEntity.status = VCStatus.ACTIVE;
-    vcEntity.issuedAt = new Date(vc.issuanceDate);
-    vcEntity.expiresAt = vc.expirationDate ? new Date(vc.expirationDate) : undefined;
+    vcEntity.issuedAt = vc.validFrom ? new Date(vc.validFrom) : new Date();
+    vcEntity.expiresAt = vc.validUntil ? new Date(vc.validUntil) : undefined;
     vcEntity.onChainTxHash = vcTxHash;
 
     await this.dataSource.manager.save(vcEntity);
@@ -283,10 +284,11 @@ export class VCDatabaseService {
    * @param vcType VC type (KYC or ADMIN)
    * @returns VC ID (e.g., vc_kyc_12345)
    */
-  private generateVCId(vcType: 'KYC' | 'ADMIN'): string {
-    const prefix = vcType === 'KYC' ? 'vc_kyc' : 'vc_admin';
-    const randomId = randomBytes(4).reduce((acc, byte) => acc + byte.toString(16).padStart(2, '0'), '');
-    return `${prefix}_${randomId}`;
+  private generateVCId(_vcType: 'KYC' | 'ADMIN'): string {
+    // Scheme: vc_undp_ + Base58(20 bytes)
+    const bytes = randomBytes(20);
+    const b58 = bs58.encode(bytes);
+    return `vc_undp_${b58}`;
   }
 
   /**
