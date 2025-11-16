@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 
-type EventStatus = 'DRAFT' | 'SCHEDULED' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
+type EventStatus = 'PENDING' | 'ONGOING' | 'COMPLETED';
 
 interface Props {
   params: { eventId: string };
@@ -30,8 +30,7 @@ export default function EventDetailPage({ params }: Props) {
   const event = {
     eventId: params.eventId,
     name: 'Workshop 2025',
-    status: 'SCHEDULED' as EventStatus,
-    location: 'Monrovia',
+    status: 'PENDING' as EventStatus,
     startDate: '2025-12-01',
     endDate: '2025-12-02',
     createdAt: '2025-11-10T00:00:00Z',
@@ -42,11 +41,9 @@ export default function EventDetailPage({ params }: Props) {
 
   const statusBadge = (status: EventStatus) => {
     const map: Record<EventStatus, string> = {
-      DRAFT: 'bg-gray-50 text-gray-700 border-gray-200',
-      SCHEDULED: 'bg-blue-50 text-blue-700 border-blue-200',
+      PENDING: 'bg-blue-50 text-blue-700 border-blue-200',
       ONGOING: 'bg-amber-50 text-amber-700 border-amber-200',
       COMPLETED: 'bg-green-50 text-green-700 border-green-200',
-      CANCELLED: 'bg-red-50 text-red-700 border-red-200',
     };
     return map[status];
   };
@@ -66,8 +63,7 @@ export default function EventDetailPage({ params }: Props) {
               </span>
             </div>
             <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
-              ID: {event.eventId} · {event.location || '(위치 미정)'} · {formatDate(event.startDate)} ~{' '}
-              {formatDate(event.endDate)}
+              ID: {event.eventId} · {formatDate(event.startDate)} ~ {formatDate(event.endDate)}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -111,7 +107,7 @@ export default function EventDetailPage({ params }: Props) {
             <div className="card__body">
               <div className="space-y-3 text-sm text-[var(--muted)]">
                 <div>이벤트 ID: {event.eventId}</div>
-                <div>위치: {event.location || '(위치 미정)'}</div>
+                {/* 위치 필드는 MVP에서 제거됨 */}
                 <div>
                   기간: {formatDate(event.startDate)} ~ {formatDate(event.endDate)}
                 </div>

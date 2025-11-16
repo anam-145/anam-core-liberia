@@ -1,11 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
-import { requireAuth, requireRole } from '@/lib/auth-middleware';
+import { requireRole } from '@/lib/auth-middleware';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
-import type { EventType, EventStatus } from '@/server/db/entities/Event';
 import { AdminRole } from '@/server/db/entities/Admin';
 import { randomUUID } from 'crypto';
+import { createEventOnChain } from '@/services/event-factory.service';
 
 /**
  * POST /api/admin/events
@@ -18,13 +18,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // Validate required fields (MVP: tokenType/tokenAddress/amountPerDay required for blockchain)
-    if (!body.name || !body.startDate || !body.endDate || !body.tokenType || !body.tokenAddress || !body.amountPerDay) {
-      return apiError(
-        'Missing required fields: name, startDate, endDate, tokenType, tokenAddress, amountPerDay',
-        400,
-        'VALIDATION_ERROR',
-      );
+    // Validate required fields (token is fixed to USDC via env; no token fields in body)
+    if (!body.name || !body.startDate || !body.endDate || !body.amountPerDay) {
+      return apiError('Missing required fields: name, startDate, endDate, amountPerDay', 400, 'VALIDATION_ERROR');
     }
 
     const session = await getSession();
@@ -34,33 +30,34 @@ export async function POST(request: NextRequest) {
         eventId: randomUUID(),
         name: body.name,
         description: body.description,
-        eventType: body.eventType as EventType,
-        location: body.location,
         startDate: new Date(body.startDate),
         endDate: new Date(body.endDate),
-        tokenType: body.tokenType,
-        tokenAddress: body.tokenAddress,
         amountPerDay: body.amountPerDay,
         maxParticipants: body.maxParticipants,
-        registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : undefined,
-        paymentRequired: body.paymentRequired || false,
-        paymentAmount: body.paymentAmount,
       },
       session.adminId,
     );
 
-    // TODO: Blockchain Integration - Deploy Event Smart Contract
-    // 설계서 요구사항 (system-design.md:2448-2470):
-    // 1. 이벤트 생성 시 스마트 컨트랙트를 블록체인에 배포
-    // 2. Response에 다음 필드 추가 필요:
-    //    - eventContractAddress: 배포된 컨트랙트 주소
-    //    - deploymentTxHash: 배포 트랜잭션 해시
-    // 구현 필요:
-    //    - Blockchain Service 연동
-    //    - Event 컨트랙트 배포 로직
-    //    - 배포 결과를 event 레코드에 업데이트 (eventContractAddress, deploymentTxHash)
+    // TODO: Blockchain Integration - Deploy Event Smart Contract via EventFactory
+    // 1) 실제 구현 시 signer(issuer) privateKey와 factory 주소/ABI 사용
+    // 2) approvers/verifiers 목록은 EventStaff(초기 배정)에서 가져와 전달
+    // 3) 아래 스텁 호출은 고정 address/txHash를 반환 (임시)
+    const { address, txHash } = await createEventOnChain({
+      usdcAddress: process.env.BASE_USDC_ADDRESS || '0x0000000000000000000000000000000000000000',
+      startTime: event.startDate,
+      endTime: event.endDate,
+      amountPerDay: event.amountPerDay,
+      maxParticipants: event.maxParticipants,
+      approvers: [],
+      verifiers: [],
+    });
 
-    return apiOk({ event }, 201);
+    const updated = await adminService.updateEvent(event.id, {
+      eventContractAddress: address,
+      deploymentTxHash: txHash,
+    });
+
+    return apiOk({ event: updated ?? event }, 201);
   } catch (error) {
     console.error('Error in POST /api/admin/events:', error);
     if (error instanceof Error && error.message.includes('already exists')) {
@@ -75,25 +72,32 @@ export async function POST(request: NextRequest) {
  * List events with pagination and filters
  */
 export async function GET(request: NextRequest) {
-  const authCheck = await requireAuth(request);
+  const authCheck = await requireRole(AdminRole.SYSTEM_ADMIN);
   if (authCheck) return authCheck;
 
   try {
     const { searchParams } = new URL(request.url);
 
-    const status = searchParams.get('status') as EventStatus | undefined;
-    const eventType = searchParams.get('eventType') as EventType | undefined;
+    // derived status from dates (PENDING/ONGOING/COMPLETED)
+    const derived = (searchParams.get('derivedStatus') || searchParams.get('status') || '').toUpperCase();
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
-    const { events, total } = await adminService.getEvents({
-      status,
-      eventType,
-      limit,
-      offset,
+    const { events, total } = await adminService.getEvents({ limit, offset });
+
+    const now = new Date();
+    const withDerived = events.map((e) => {
+      const start = new Date(e.startDate);
+      const end = new Date(e.endDate);
+      const derivedStatus = now < start ? 'PENDING' : now > end ? 'COMPLETED' : 'ONGOING';
+      return { ...e, derivedStatus } as unknown as Record<string, unknown>;
     });
 
-    return apiOk({ events, total });
+    const filtered = ['PENDING', 'ONGOING', 'COMPLETED'].includes(derived)
+      ? withDerived.filter((e: any) => e.derivedStatus === derived)
+      : withDerived;
+
+    return apiOk({ events: filtered, total });
   } catch (error) {
     console.error('Error in GET /api/admin/events:', error);
     return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');

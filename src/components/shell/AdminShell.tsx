@@ -9,6 +9,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const router = useRouter();
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [role, setRole] = React.useState<'SYSTEM_ADMIN' | 'STAFF' | null>(null);
+  const [sessionLoaded, setSessionLoaded] = React.useState(false);
 
   // 바디 스크롤 잠금 (모바일 드로어 열렸을 때)
   React.useEffect(() => {
@@ -32,6 +34,27 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [sidebarOpen]);
+
+  // Load session role for role-aware navigation
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/auth/session', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled) {
+          setRole(data.isLoggedIn ? (data.role as 'SYSTEM_ADMIN' | 'STAFF') : null);
+        }
+      } catch {
+        if (!cancelled) setRole(null);
+      } finally {
+        if (!cancelled) setSessionLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -74,27 +97,35 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <span>대시보드</span>
           </Link>
-          <Link
-            href="/admins"
-            className={pathname?.startsWith('/admins') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>관리자</span>
-          </Link>
-          <Link
-            href="/users"
-            className={pathname?.startsWith('/users') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>참가자</span>
-          </Link>
-          <Link
-            href="/events"
-            className={pathname?.startsWith('/events') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>이벤트</span>
-          </Link>
+          {/* 관리자/이벤트는 SYSTEM_ADMIN 전용 네비 */}
+          {sessionLoaded && role === 'SYSTEM_ADMIN' && (
+            <>
+              <Link
+                href="/admins"
+                className={pathname?.startsWith('/admins') ? 'active' : ''}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span>관리자</span>
+              </Link>
+              <Link
+                href="/events"
+                className={pathname?.startsWith('/events') ? 'active' : ''}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span>이벤트</span>
+              </Link>
+            </>
+          )}
+          {/* 참가자는 SYSTEM_ADMIN/STAFF 모두 */}
+          {sessionLoaded && role && (
+            <Link
+              href="/users"
+              className={pathname?.startsWith('/users') ? 'active' : ''}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span>참가자</span>
+            </Link>
+          )}
         </nav>
       </aside>
 
@@ -124,7 +155,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
           <div style={{ fontWeight: 700 }}>Admin Dashboard</div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div className="badge badge--brand">System Admin</div>
+            {sessionLoaded && (
+              <div className="badge badge--brand">{role === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'}</div>
+            )}
             <button
               className="btn btn--secondary btn--sm"
               onClick={async () => {

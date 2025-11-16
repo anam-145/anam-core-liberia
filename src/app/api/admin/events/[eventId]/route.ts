@@ -24,7 +24,11 @@ export async function GET(_request: NextRequest, { params }: { params: { eventId
       return apiError('Event not found', 404, 'NOT_FOUND');
     }
 
-    return apiOk({ event });
+    const now = new Date();
+    const start = event.startDate as unknown as Date;
+    const end = event.endDate as unknown as Date;
+    const derivedStatus = now < start ? 'PENDING' : now > end ? 'COMPLETED' : 'ONGOING';
+    return apiOk({ event: { ...event, derivedStatus } });
   } catch (error) {
     console.error('Error in GET /api/admin/events/[eventId]:', error);
     return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
@@ -50,14 +54,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { eventI
     const event = await adminService.updateEvent(id, {
       name: body.name,
       description: body.description,
-      location: body.location,
       startDate: body.startDate ? new Date(body.startDate) : undefined,
       endDate: body.endDate ? new Date(body.endDate) : undefined,
       maxParticipants: body.maxParticipants,
-      registrationDeadline: body.registrationDeadline ? new Date(body.registrationDeadline) : undefined,
-      paymentRequired: body.paymentRequired,
-      paymentAmount: body.paymentAmount,
       status: body.status as EventStatus | undefined,
+      isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
     });
 
     if (!event) {

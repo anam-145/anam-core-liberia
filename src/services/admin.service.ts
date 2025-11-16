@@ -3,7 +3,6 @@ import type { AdminRole } from '@/server/db/entities/Admin';
 import { Admin, OnboardingStatus } from '@/server/db/entities/Admin';
 import type { KycType } from '@/server/db/entities/User';
 import { User, KycStatus, WalletType, UserStatus } from '@/server/db/entities/User';
-import type { EventType, TokenType } from '@/server/db/entities/Event';
 import { Event, EventStatus } from '@/server/db/entities/Event';
 import type { EventRole } from '@/server/db/entities/EventStaff';
 import { EventStaff } from '@/server/db/entities/EventStaff';
@@ -432,17 +431,10 @@ class AdminService {
       eventId: string;
       name: string;
       description?: string;
-      eventType: EventType;
-      location: string;
       startDate: Date;
       endDate: Date;
-      tokenType: string;
-      tokenAddress: string;
       amountPerDay: string;
       maxParticipants?: number;
-      registrationDeadline?: Date;
-      paymentRequired: boolean;
-      paymentAmount?: string;
     },
     createdBy: string,
   ): Promise<Event> {
@@ -462,19 +454,12 @@ class AdminService {
       eventId: data.eventId,
       name: data.name,
       description: data.description || null,
-      eventType: data.eventType || null,
-      location: data.location || null,
       startDate: data.startDate,
       endDate: data.endDate,
-      tokenType: data.tokenType as TokenType,
-      tokenAddress: data.tokenAddress,
       amountPerDay: data.amountPerDay,
       maxParticipants: data.maxParticipants || 100,
-      registrationDeadline: data.registrationDeadline || null,
-      paymentRequired: data.paymentRequired,
-      paymentAmount: data.paymentAmount || null,
       isActive: true,
-      status: EventStatus.DRAFT,
+      status: EventStatus.PENDING,
       createdBy,
     });
 
@@ -490,14 +475,15 @@ class AdminService {
     data: {
       name?: string;
       description?: string;
-      location?: string;
       startDate?: Date;
       endDate?: Date;
       maxParticipants?: number;
-      registrationDeadline?: Date;
-      paymentRequired?: boolean;
-      paymentAmount?: string;
       status?: EventStatus;
+      // Factory integration
+      eventContractAddress?: string | null;
+      deploymentTxHash?: string | null;
+      // 운영 토글 (일시중지/재개)
+      isActive?: boolean;
     },
   ): Promise<Event | null> {
     await this.initialize();
@@ -519,7 +505,6 @@ class AdminService {
    */
   async getEvents(options: {
     status?: EventStatus;
-    eventType?: EventType;
     limit?: number;
     offset?: number;
   }): Promise<{ events: Event[]; total: number }> {
@@ -532,9 +517,7 @@ class AdminService {
       query.andWhere('event.status = :status', { status: options.status });
     }
 
-    if (options.eventType) {
-      query.andWhere('event.event_type = :eventType', { eventType: options.eventType });
-    }
+    // eventType removed in MVP simplification
 
     const total = await query.getCount();
 

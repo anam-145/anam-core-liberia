@@ -1,23 +1,9 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-export enum EventType {
-  WORKSHOP = 'WORKSHOP',
-  TRAINING = 'TRAINING',
-  DISTRIBUTION = 'DISTRIBUTION',
-}
-
 export enum EventStatus {
-  DRAFT = 'DRAFT',
-  SCHEDULED = 'SCHEDULED',
+  PENDING = 'PENDING',
   ONGOING = 'ONGOING',
   COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum TokenType {
-  CUSTOM_ERC20 = 'CUSTOM_ERC20',
-  USDC = 'USDC',
-  USDT = 'USDT',
 }
 
 @Entity('events')
@@ -50,23 +36,6 @@ export class Event {
   description!: string | null;
 
   @Column({
-    name: 'event_type',
-    type: 'enum',
-    enum: EventType,
-    nullable: true,
-    comment: 'WORKSHOP, TRAINING, or DISTRIBUTION',
-  })
-  eventType!: EventType | null;
-
-  @Column({
-    type: 'varchar',
-    length: 255,
-    nullable: true,
-    comment: 'Event location',
-  })
-  location!: string | null;
-
-  @Column({
     name: 'start_date',
     type: 'date',
     comment: 'Event start date',
@@ -80,22 +49,6 @@ export class Event {
     comment: 'Event end date',
   })
   endDate!: Date;
-
-  @Column({
-    name: 'token_type',
-    type: 'enum',
-    enum: TokenType,
-    comment: 'CUSTOM_ERC20, USDC, or USDT',
-  })
-  tokenType!: TokenType;
-
-  @Column({
-    name: 'token_address',
-    type: 'varchar',
-    length: 42,
-    comment: 'Token Contract Address',
-  })
-  tokenAddress!: string;
 
   @Column({
     name: 'amount_per_day',
@@ -134,32 +87,6 @@ export class Event {
   deploymentTxHash!: string | null;
 
   @Column({
-    name: 'registration_deadline',
-    type: 'timestamp',
-    nullable: true,
-    comment: 'Registration deadline (deprecated, for backward compatibility)',
-  })
-  registrationDeadline!: Date | null;
-
-  @Column({
-    name: 'payment_required',
-    type: 'boolean',
-    default: false,
-    comment: 'Whether payment is required (deprecated, for backward compatibility)',
-  })
-  paymentRequired!: boolean;
-
-  @Column({
-    name: 'payment_amount',
-    type: 'decimal',
-    precision: 10,
-    scale: 2,
-    nullable: true,
-    comment: 'Payment amount (deprecated, for backward compatibility)',
-  })
-  paymentAmount!: string | null;
-
-  @Column({
     name: 'is_active',
     type: 'boolean',
     default: true,
@@ -170,7 +97,7 @@ export class Event {
   @Column({
     type: 'enum',
     enum: EventStatus,
-    default: EventStatus.DRAFT,
+    default: EventStatus.PENDING,
     comment: 'Event status (for admin UI)',
   })
   @Index()
