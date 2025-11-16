@@ -62,9 +62,7 @@ export async function POST(request: NextRequest) {
 
     // 3) Create vaults using SAME password
     const walletVault = encryptVault(wallet.mnemonic, password);
-    // NOTE: 현재 스키마는 Custody.vc에 평문 VC(JSON)를 저장합니다.
-    // 추후 스키마 변경 시 암호문(vcVault)을 저장하도록 마이그레이션 예정.
-    // const vcVault = encryptVault(JSON.stringify(signedVC), password);
+    const vcVault = encryptVault(JSON.stringify(signedVC), password);
 
     // 4) Create Admin record (role: STAFF by default, did/walletAddress set)
     const admin = await adminService.createAdmin({
@@ -83,7 +81,7 @@ export async function POST(request: NextRequest) {
       walletType: 'ANAMWALLET',
       vault: walletVault,
       isBackup: false,
-      vc: signedVC,
+      vc: { id: signedVC.id, ...vcVault },
     });
 
     return apiOk(

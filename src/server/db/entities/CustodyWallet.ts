@@ -1,6 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import type { Vault } from '@/utils/crypto/vault';
-import type { VerifiableCredential } from '@/utils/crypto/did';
+
+// Encrypted VC payload: VC JSON encrypted with AES-GCM + plain vc.id for indexing
+type EncryptedVC = Vault & { id: string };
 
 export enum WalletType {
   ANAMWALLET = 'ANAMWALLET',
@@ -58,9 +60,9 @@ export class CustodyWallet {
   @Column({
     type: 'json',
     nullable: true,
-    comment: 'Verifiable Credential',
+    comment: 'Encrypted VC vault (ciphertext, iv, salt, authTag) with plain id',
   })
-  vc!: VerifiableCredential | null;
+  vc!: EncryptedVC | null;
 
   @Column({
     name: 'is_backup',

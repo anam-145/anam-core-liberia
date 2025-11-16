@@ -17,7 +17,6 @@ import type { DataSource } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { CustodyWallet, WalletType } from '../server/db/entities/CustodyWallet';
 import type { Vault } from '../utils/crypto/vault';
-import type { VerifiableCredential } from '../utils/crypto/did';
 import AppDataSource from '../server/db/datasource';
 
 export interface CreateCustodyRequest {
@@ -26,7 +25,7 @@ export interface CreateCustodyRequest {
   phoneNumber?: string;
   vault: Vault;
   isBackup: boolean;
-  vc?: VerifiableCredential; // Optional: store VC together
+  vc?: Vault & { id: string }; // Optional: encrypted VC vault with id
 }
 
 export interface CreateCustodyResponse {
@@ -34,7 +33,7 @@ export interface CreateCustodyResponse {
 }
 
 export interface UpdateVCRequest {
-  vc: VerifiableCredential;
+  vc: Vault & { id: string };
 }
 
 export interface CustodyData {
@@ -43,7 +42,7 @@ export interface CustodyData {
   walletType: string;
   phoneNumber?: string | null;
   vault: Vault;
-  vc: VerifiableCredential | null;
+  vc: (Vault & { id: string }) | null;
   isBackup: boolean;
   createdAt: Date;
   updatedAt: Date;
