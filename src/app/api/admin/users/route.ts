@@ -8,7 +8,7 @@ import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
  * GET /api/admin/users
- * List users with pagination and filters (SYSTEM_ADMIN, APPROVER only)
+ * List users with pagination and filters (SYSTEM_ADMIN, STAFF)
  *
  * Query Parameters:
  * - kycStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -21,7 +21,7 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * - total: number
  */
 export async function GET(request: NextRequest) {
-  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER]);
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/admin/users
- * Register new user (SYSTEM_ADMIN, APPROVER, VERIFIER)
+ * Register new user (SYSTEM_ADMIN, STAFF)
  *
  * Request Body:
  * - name: string
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
  * - user: User object
  */
 export async function POST(request: NextRequest) {
-  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER, AdminRole.VERIFIER]);
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {

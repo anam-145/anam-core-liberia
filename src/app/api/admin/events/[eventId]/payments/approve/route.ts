@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
-import { requireRole } from '@/lib/auth-middleware';
+import { requireEventRole } from '@/lib/auth-middleware';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
-import { AdminRole } from '@/server/db/entities/Admin';
+import { EventRole } from '@/server/db/entities/EventStaff';
 import { PaymentMethod } from '@/server/db/entities/EventPayment';
 
 /**
@@ -19,7 +19,7 @@ import { PaymentMethod } from '@/server/db/entities/EventPayment';
  * - payment: EventPayment object
  */
 export async function POST(request: NextRequest, { params }: { params: { eventId: string } }) {
-  const authCheck = await requireRole(AdminRole.APPROVER);
+  const authCheck = await requireEventRole(params.eventId, EventRole.APPROVER);
   if (authCheck) return authCheck;
 
   try {

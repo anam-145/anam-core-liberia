@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
-import { requireRole } from '@/lib/auth-middleware';
+import { requireEventRole } from '@/lib/auth-middleware';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
-import { AdminRole } from '@/server/db/entities/Admin';
+import { EventRole } from '@/server/db/entities/EventStaff';
 
 /**
  * POST /api/admin/events/[eventId]/checkins/approve
@@ -17,7 +17,7 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * - checkin: EventCheckin object
  */
 export async function POST(request: NextRequest, { params }: { params: { eventId: string } }) {
-  const authCheck = await requireRole(AdminRole.VERIFIER);
+  const authCheck = await requireEventRole(params.eventId, EventRole.VERIFIER);
   if (authCheck) return authCheck;
 
   try {

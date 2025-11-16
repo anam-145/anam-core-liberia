@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
-import { requireRole } from '@/lib/auth-middleware';
+import { requireRole, requireEventRole } from '@/lib/auth-middleware';
+import { EventRole as EventRoleEnum } from '@/server/db/entities/EventStaff';
 import { apiOk, apiError } from '@/lib/api-response';
 import { AdminRole } from '@/server/db/entities/Admin';
 import { EventRole } from '@/server/db/entities/EventStaff';
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
  * - staff: EventStaff[]
  */
 export async function GET(_request: NextRequest, { params }: { params: { eventId: string } }) {
-  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER]);
+  const authCheck = await requireEventRole(params.eventId, EventRoleEnum.APPROVER);
   if (authCheck) return authCheck;
 
   try {
