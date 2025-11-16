@@ -1,6 +1,6 @@
 import { AppDataSource } from '@/server/db/datasource';
 import type { AdminRole } from '@/server/db/entities/Admin';
-import { Admin } from '@/server/db/entities/Admin';
+import { Admin, OnboardingStatus } from '@/server/db/entities/Admin';
 import type { KycType } from '@/server/db/entities/User';
 import { User, KycStatus, WalletType, UserStatus } from '@/server/db/entities/User';
 import type { EventType, TokenType } from '@/server/db/entities/Event';
@@ -41,7 +41,6 @@ class AdminService {
     fullName: string;
     email: string;
     role: AdminRole;
-    createdBy?: string;
     did?: string | null;
     walletAddress?: string | null;
   }): Promise<Admin> {
@@ -79,7 +78,7 @@ class AdminService {
       email: data.email || null,
       role: data.role,
       isActive: true,
-      createdBy: data.createdBy || null,
+      onboardingStatus: OnboardingStatus.ACTIVE,
       did: data.did ?? null,
       walletAddress: data.walletAddress ?? null,
     });
@@ -109,10 +108,7 @@ class AdminService {
       return null;
     }
 
-    // Update last login
-    admin.lastLogin = new Date();
-    await adminRepository.save(admin);
-
+    // No lastLogin tracking (removed)
     return admin;
   }
 

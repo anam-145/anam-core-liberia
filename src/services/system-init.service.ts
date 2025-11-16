@@ -1,5 +1,5 @@
 import { AppDataSource } from '@/server/db/datasource';
-import { Admin, AdminRole } from '@/server/db/entities/Admin';
+import { Admin, AdminRole, OnboardingStatus } from '@/server/db/entities/Admin';
 import { DidDocument, DIDType } from '@/server/db/entities/DidDocument';
 import { createWalletFromMnemonic } from '@/utils/crypto/wallet';
 import { createDIDWithAddress, createDIDDocument, hashDIDDocument } from '@/utils/crypto/did';
@@ -282,7 +282,7 @@ class SystemInitService {
       did: issuerDID,
       walletAddress: wallet.address,
       isActive: true,
-      createdBy: null, // Self-created
+      onboardingStatus: OnboardingStatus.ACTIVE,
     });
 
     await adminRepository.save(admin);

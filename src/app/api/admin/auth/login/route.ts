@@ -1,8 +1,14 @@
 import type { NextRequest } from 'next/server';
-import { adminService } from '@/services/admin.service';
-import { systemInitService } from '@/services/system-init.service';
+import { getVCDatabaseService } from '@/services/vc.db.service';
+import { custodyService } from '@/services/custody.db.service';
+import { getSystemAdminWallet, systemInitService } from '@/services/system-init.service';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
+import { generateWallet } from '@/utils/crypto/wallet';
+import { encryptVault } from '@/utils/crypto/vault';
+import AppDataSource from '@/server/db/datasource';
+import { Admin, OnboardingStatus } from '@/server/db/entities/Admin';
+import { compare } from 'bcryptjs';
 
 /**
  * POST /api/admin/auth/login
@@ -29,11 +35,67 @@ export async function POST(request: NextRequest) {
       return apiError('Missing required fields: username, password', 400, 'VALIDATION_ERROR');
     }
 
-    // Authenticate admin
-    const admin = await adminService.authenticateAdmin(body.username, body.password);
+    // Authenticate admin (allow APPROVED + inactive)
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const repo = AppDataSource.getRepository(Admin);
+    const admin = await repo.findOne({ where: { username: body.username } });
+    if (!admin) return apiError('Invalid username or password', 401, 'UNAUTHORIZED');
+    const ok = await compare(body.password, admin.passwordHash);
+    if (!ok) return apiError('Invalid username or password', 401, 'UNAUTHORIZED');
 
-    if (!admin) {
-      return apiError('Invalid username or password', 401, 'UNAUTHORIZED');
+    // Handle onboarding status branches
+    if (admin.onboardingStatus === OnboardingStatus.PENDING_REVIEW) {
+      return apiError('Your signup is pending review', 403, 'FORBIDDEN');
+    }
+    if (admin.onboardingStatus === OnboardingStatus.REJECTED) {
+      return apiError('Your signup has been rejected', 403, 'FORBIDDEN');
+    }
+
+    // Conditional activation on login (no separate setup route)
+    let activated = false;
+    let did = admin.did;
+    let walletAddress = admin.walletAddress;
+
+    if (admin.onboardingStatus === OnboardingStatus.APPROVED && admin.isActive === false) {
+      // 1) Generate wallet from scratch
+      const wallet = generateWallet();
+
+      // 2) Issue ADMIN VC (this will also register DID on-chain if absent)
+      const vcService = getVCDatabaseService();
+      const issuer = getSystemAdminWallet();
+      const issued = await vcService.issueVC({
+        walletAddress: wallet.address,
+        publicKeyHex: wallet.publicKey,
+        vcType: 'ADMIN',
+        data: { username: admin.username, fullName: admin.fullName },
+        issuerPrivateKey: issuer.privateKey,
+      });
+
+      // 3) Encrypt wallet mnemonic and VC JSON into vaults
+      const walletVault = encryptVault(wallet.mnemonic, body.password);
+      const vcVault = encryptVault(JSON.stringify(issued.vc), body.password);
+
+      // 4) Store custody with both vaults
+      await custodyService.createCustody({
+        adminId: admin.adminId,
+        walletType: 'ANAMWALLET',
+        vault: walletVault,
+        vc: { id: issued.vc.id, ...vcVault },
+      });
+
+      // 5) Update admin record
+      // Save updates
+      admin.did = issued.did;
+      admin.walletAddress = wallet.address;
+      admin.isActive = true;
+      admin.onboardingStatus = OnboardingStatus.ACTIVE;
+      await repo.save(admin);
+
+      did = admin.did;
+      walletAddress = admin.walletAddress;
+      activated = true;
     }
 
     // Create session
@@ -48,6 +110,11 @@ export async function POST(request: NextRequest) {
       adminId: admin.adminId,
       username: admin.username,
       role: admin.role,
+      onboardingStatus: admin.onboardingStatus,
+      isActive: admin.isActive,
+      did,
+      walletAddress,
+      activated,
     });
   } catch (error) {
     console.error('Error in POST /api/admin/auth/login:', error);

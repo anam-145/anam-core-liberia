@@ -1,5 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import type { Vault } from '@/utils/crypto/vault';
+import { User } from './User';
+import { Admin } from './Admin';
 
 // Encrypted VC payload: VC JSON encrypted with AES-GCM + plain vc.id for indexing
 type EncryptedVC = Vault & { id: string };
@@ -28,10 +39,32 @@ export class CustodyWallet {
     name: 'user_id',
     type: 'varchar',
     length: 36,
-    comment: 'User ID',
+    nullable: true,
+    comment: 'User ID (UUID) — nullable, either user_id or admin_id must be set',
   })
   @Index()
-  userId!: string;
+  @Index('UQ_custody_user_id', { unique: true })
+  userId!: string | null;
+
+  @Column({
+    name: 'admin_id',
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+    comment: 'Owner Admin ID (UUID) — nullable, either admin_id or user_id must be set',
+  })
+  @Index()
+  @Index('UQ_custody_admin_id', { unique: true })
+  adminId!: string | null;
+
+  // Relations (DB-level foreign keys)
+  @ManyToOne(() => User, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id', referencedColumnName: 'userId' })
+  user?: User | null;
+
+  @ManyToOne(() => Admin, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'admin_id', referencedColumnName: 'adminId' })
+  admin?: Admin | null;
 
   @Column({
     name: 'wallet_type',
@@ -41,15 +74,7 @@ export class CustodyWallet {
   })
   walletType!: WalletType;
 
-  @Column({
-    name: 'phone_number',
-    type: 'varchar',
-    length: 20,
-    unique: true,
-    nullable: true,
-    comment: 'USSD user phone number',
-  })
-  phoneNumber!: string | null;
+  // phone_number removed — identification moved to user/admin relations
 
   @Column({
     type: 'json',
@@ -64,13 +89,7 @@ export class CustodyWallet {
   })
   vc!: EncryptedVC | null;
 
-  @Column({
-    name: 'is_backup',
-    type: 'boolean',
-    default: false,
-    comment: 'Backup flag (required for USSD, optional for others)',
-  })
-  isBackup!: boolean;
+  // is_backup removed — backup handling is out of scope for MVP
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 
 type AdminRole = 'SYSTEM_ADMIN' | 'STAFF';
 type VCStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
+type OnboardingStatus = 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'REJECTED';
 type AdminStatus = 'ALL' | VCStatus;
 
 interface AdminData {
@@ -15,72 +16,49 @@ interface AdminData {
   fullName: string;
   email: string | null;
   role: AdminRole;
-  // DB 필드 (계정 상태)
   isActive: boolean;
-  // VC 기반 권한 상태 (옵션: 백엔드 DTO에서 포함)
+  onboardingStatus?: OnboardingStatus;
   vcId?: string;
   vcStatus?: VCStatus;
   did: string | null;
-  lastLogin: string | null;
   createdAt: string;
 }
 
-// Mock data for UI skeleton
-const MOCK_ADMINS: AdminData[] = [
-  {
-    id: 1,
-    adminId: '1',
-    username: 'john.doe',
-    fullName: 'John Doe',
-    email: 'john@undp.org',
-    role: 'STAFF',
-    isActive: true,
-    vcStatus: 'ACTIVE',
-    did: 'did:anam:issuer:0x1234...5678',
-    lastLogin: '2025-01-13T10:30:00Z',
-    createdAt: '2025-01-01T00:00:00Z',
-  },
-  {
-    id: 2,
-    adminId: '2',
-    username: 'jane.smith',
-    fullName: 'Jane Smith',
-    email: 'jane@undp.org',
-    role: 'STAFF',
-    isActive: true,
-    vcStatus: 'SUSPENDED',
-    did: 'did:anam:issuer:0xabcd...ef01',
-    lastLogin: '2025-01-12T14:20:00Z',
-    createdAt: '2025-01-02T00:00:00Z',
-  },
-  {
-    id: 3,
-    adminId: '3',
-    username: 'bob.wilson',
-    fullName: 'Bob Wilson',
-    email: 'bob@undp.org',
-    role: 'STAFF',
-    isActive: false,
-    vcStatus: 'REVOKED',
-    did: null,
-    lastLogin: '2025-01-10T09:15:00Z',
-    createdAt: '2025-01-03T00:00:00Z',
-  },
-];
-
 export default function AdminsPage() {
-  const [admins, setAdmins] = useState<AdminData[]>(MOCK_ADMINS);
+  const [admins, setAdmins] = useState<AdminData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdminStatus>('ALL');
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<AdminData | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
-  // Mock loading/empty/error states
-  const isLoading = false;
-  const isEmpty = false;
-  const hasError = false;
+  // Loading/empty/error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      setHasError(false);
+      try {
+        const res = await fetch('/api/admin/admins');
+        if (!res.ok) {
+          setHasError(true);
+          setErrorStatus(res.status);
+        } else {
+          const data = (await res.json()) as { admins: AdminData[] };
+          setAdmins(data.admins || []);
+        }
+      } catch {
+        setHasError(true);
+        setErrorStatus(500);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   // Filter admins (simple client-side filtering)
   const getEffectiveStatus = (a: AdminData): VCStatus => {
@@ -128,20 +106,6 @@ export default function AdminsPage() {
     }
   };
 
-  const formatRelativeTime = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -165,6 +129,15 @@ export default function AdminsPage() {
           return a;
         }),
       );
+      // Also reflect in details modal immediately
+      setSelectedAdmin((cur) => {
+        if (!cur) return cur;
+        if (cur.id !== selectedAdmin.id) return cur;
+        if (pendingAction === 'suspend') return { ...cur, vcStatus: 'SUSPENDED', isActive: false } as AdminData;
+        if (pendingAction === 'activate') return { ...cur, vcStatus: 'ACTIVE' } as AdminData;
+        if (pendingAction === 'revoke') return { ...cur, vcStatus: 'REVOKED', isActive: false } as AdminData;
+        return cur;
+      });
     } finally {
       setBusy(false);
       setShowConfirmDialog(false);
@@ -181,7 +154,7 @@ export default function AdminsPage() {
             <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">관리자</h1>
             <p className="text-sm lg:text-base text-[var(--muted)] mt-1">스태프 계정 관리 (역할은 이벤트별 할당)</p>
           </div>
-          <Button onClick={() => setShowCreateModal(true)}>+ 새 관리자</Button>
+          <div />
         </div>
       </div>
 
@@ -222,11 +195,10 @@ export default function AdminsPage() {
       )}
 
       {/* Empty State */}
-      {isEmpty && !isLoading && (
+      {admins.length === 0 && !isLoading && !hasError && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-[var(--muted)] mb-4">아직 관리자가 없습니다.</p>
-            <Button onClick={() => setShowCreateModal(true)}>+ 새 관리자 만들기</Button>
+            <p className="text-[var(--muted)]">아직 관리자가 없습니다.</p>
           </div>
         </div>
       )}
@@ -235,24 +207,32 @@ export default function AdminsPage() {
       {hasError && !isLoading && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-red-600 mb-4">문제가 발생했어요.</p>
-            <Button variant="secondary" onClick={() => window.location.reload()}>
-              다시 시도
-            </Button>
+            <p className="text-red-600 mb-4">
+              {errorStatus === 401 || errorStatus === 403 ? '접근 권한이 없습니다.' : '문제가 발생했어요.'}
+            </p>
+            {errorStatus === 401 || errorStatus === 403 ? (
+              <Button variant="secondary" onClick={() => (window.location.href = '/dashboard')}>
+                대시보드로 이동
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                다시 시도
+              </Button>
+            )}
           </div>
         </div>
       )}
 
       {/* Desktop Table */}
-      {!isLoading && !isEmpty && !hasError && (
+      {!isLoading && admins.length > 0 && !hasError && (
         <>
           <div className="hidden lg:block overflow-x-auto">
             <table className="table min-w-[720px]">
               <thead>
                 <tr>
                   <th>이름 / DID</th>
+                  <th>상태</th>
                   <th>VC 상태</th>
-                  <th>마지막 로그인</th>
                   <th>생성일</th>
                   <th>액션</th>
                 </tr>
@@ -267,6 +247,11 @@ export default function AdminsPage() {
                       </div>
                     </td>
                     <td>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border">
+                        {admin.onboardingStatus || 'ACTIVE'}
+                      </span>
+                    </td>
+                    <td>
                       {(() => {
                         const s = getEffectiveStatus(admin);
                         return (
@@ -278,67 +263,18 @@ export default function AdminsPage() {
                         );
                       })()}
                     </td>
-                    <td style={{ fontSize: 13, color: 'var(--muted)' }}>{formatRelativeTime(admin.lastLogin)}</td>
                     <td style={{ fontSize: 13, color: 'var(--muted)' }}>{formatDate(admin.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        {getEffectiveStatus(admin) === 'ACTIVE' && (
-                          <>
-                            <button
-                              className="btn btn--danger btn--sm"
-                              onClick={() => {
-                                setSelectedAdmin(admin);
-                                setPendingAction('suspend');
-                                setShowConfirmDialog(true);
-                              }}
-                              disabled={busy && selectedAdmin?.id === admin.id}
-                            >
-                              비활성화
-                            </button>
-                            <button
-                              className="btn btn--secondary btn--sm"
-                              onClick={() => {
-                                setSelectedAdmin(admin);
-                                setPendingAction('revoke');
-                                setShowConfirmDialog(true);
-                              }}
-                              disabled={busy && selectedAdmin?.id === admin.id}
-                            >
-                              폐기
-                            </button>
-                          </>
-                        )}
-                        {getEffectiveStatus(admin) === 'SUSPENDED' && (
-                          <>
-                            <button
-                              className="btn btn--primary btn--sm"
-                              onClick={() => {
-                                setSelectedAdmin(admin);
-                                setPendingAction('activate');
-                                setShowConfirmDialog(true);
-                              }}
-                              disabled={busy && selectedAdmin?.id === admin.id}
-                            >
-                              활성화
-                            </button>
-                            <button
-                              className="btn btn--secondary btn--sm"
-                              onClick={() => {
-                                setSelectedAdmin(admin);
-                                setPendingAction('revoke');
-                                setShowConfirmDialog(true);
-                              }}
-                              disabled={busy && selectedAdmin?.id === admin.id}
-                            >
-                              폐기
-                            </button>
-                          </>
-                        )}
-                        {getEffectiveStatus(admin) === 'REVOKED' && (
-                          <button className="btn btn--ghost btn--sm" disabled>
-                            폐기됨
-                          </button>
-                        )}
+                        <button
+                          className="btn btn--secondary btn--sm"
+                          onClick={() => {
+                            setSelectedAdmin(admin);
+                            setShowDetails(true);
+                          }}
+                        >
+                          상세
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -380,66 +316,19 @@ export default function AdminsPage() {
                     </button>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-                    <div>마지막 로그인: {formatRelativeTime(admin.lastLogin)}</div>
+                    <div>상태: {admin.onboardingStatus || 'ACTIVE'}</div>
                     <div>생성일: {formatDate(admin.createdAt)}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {getEffectiveStatus(admin) === 'ACTIVE' && (
-                      <>
-                        <Button
-                          variant="danger"
-                          onClick={() => {
-                            setSelectedAdmin(admin);
-                            setPendingAction('suspend');
-                            setShowConfirmDialog(true);
-                          }}
-                          disabled={busy && selectedAdmin?.id === admin.id}
-                        >
-                          비활성화
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setSelectedAdmin(admin);
-                            setPendingAction('revoke');
-                            setShowConfirmDialog(true);
-                          }}
-                          disabled={busy && selectedAdmin?.id === admin.id}
-                        >
-                          폐기
-                        </Button>
-                      </>
-                    )}
-                    {getEffectiveStatus(admin) === 'SUSPENDED' && (
-                      <>
-                        <Button
-                          onClick={() => {
-                            setSelectedAdmin(admin);
-                            setPendingAction('activate');
-                            setShowConfirmDialog(true);
-                          }}
-                          disabled={busy && selectedAdmin?.id === admin.id}
-                        >
-                          활성화
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setSelectedAdmin(admin);
-                            setPendingAction('revoke');
-                            setShowConfirmDialog(true);
-                          }}
-                          disabled={busy && selectedAdmin?.id === admin.id}
-                        >
-                          폐기
-                        </Button>
-                      </>
-                    )}
-                    {getEffectiveStatus(admin) === 'REVOKED' && (
-                      <Button variant="secondary" disabled>
-                        폐기됨
-                      </Button>
-                    )}
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedAdmin(admin);
+                        setShowDetails(true);
+                      }}
+                    >
+                      상세
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -448,53 +337,11 @@ export default function AdminsPage() {
         </>
       )}
 
-      {/* Create Admin Modal */}
-      {showCreateModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-modal-title"
-          className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4"
-          onClick={() => setShowCreateModal(false)}
-        >
-          <div className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="card__header">
-              <h2 id="create-modal-title" style={{ fontWeight: 700 }}>
-                새 관리자 만들기
-              </h2>
-            </div>
-            <div className="card__body">
-              <div className="space-y-4">
-                <Input label="이름" type="text" placeholder="John Doe" required />
-                <Input label="아이디 (username)" type="text" placeholder="john.doe" required />
-                <Input label="이메일" type="email" placeholder="john@undp.org" />
-                {/** 활성화 토글 제거 (VC 기반 상태로 관리) **/}
-                <div
-                  style={{
-                    padding: '12px',
-                    background: '#f6f7f9',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    color: 'var(--muted)',
-                  }}
-                >
-                  💡 역할(APPROVER/VERIFIER)은 이벤트별로 할당됩니다.
-                </div>
-              </div>
-            </div>
-            <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
-                취소
-              </Button>
-              <Button onClick={() => setShowCreateModal(false)}>생성</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Create Admin Modal removed */}
 
       {/* Edit modal removed: only suspend/reactivate supported */}
 
-      {/* Confirm Dialog (Activate/Deactivate/Revoke) */}
+      {/* Confirm Dialog (VC suspend/activate/revoke) */}
       {showConfirmDialog && selectedAdmin && (
         <div
           role="dialog"
@@ -506,19 +353,19 @@ export default function AdminsPage() {
           <div className="card w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
             <div className="card__header">
               <h2 id="confirm-dialog-title" style={{ fontWeight: 700 }}>
-                {pendingAction === 'suspend' && '비활성화 확인'}
-                {pendingAction === 'activate' && '재활성화 확인'}
-                {pendingAction === 'revoke' && '폐기 확인'}
+                {pendingAction === 'suspend' && 'VC 일시정지 확인'}
+                {pendingAction === 'activate' && 'VC 재활성화 확인'}
+                {pendingAction === 'revoke' && 'VC 폐기(영구) 확인'}
               </h2>
             </div>
             <div className="card__body">
               <p style={{ fontSize: 14, lineHeight: 1.6 }}>
                 {pendingAction === 'suspend' &&
-                  `${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 비활성화하시겠습니까? (복구 가능)`}
+                  `${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 일시정지하시겠습니까? (나중에 재활성화 가능)`}
                 {pendingAction === 'activate' &&
-                  `${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 활성화하시겠습니까?`}
+                  `${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 재활성화하시겠습니까?`}
                 {pendingAction === 'revoke' &&
-                  `주의: ${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 폐기하시겠습니까? (되돌릴 수 없음)`}
+                  `주의: ${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 영구 폐기하시겠습니까? (되돌릴 수 없음)`}
               </p>
             </div>
             <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -533,11 +380,161 @@ export default function AdminsPage() {
                 {busy
                   ? '처리 중…'
                   : pendingAction === 'suspend'
-                    ? '비활성화'
+                    ? '일시정지'
                     : pendingAction === 'activate'
                       ? '재활성화'
-                      : '폐기'}
+                      : '폐기(영구)'}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Drawer/Modal */}
+      {showDetails && selectedAdmin && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-details-title"
+          className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4"
+          onClick={() => setShowDetails(false)}
+        >
+          <div className="card w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="card__header"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <h2 id="admin-details-title" style={{ fontWeight: 800 }}>
+                관리자 상세
+              </h2>
+              <button className="btn btn--ghost btn--sm" onClick={() => setShowDetails(false)} aria-label="닫기">
+                ✕
+              </button>
+            </div>
+            <div className="card__body">
+              <div className="space-y-2 text-sm">
+                <div>
+                  <strong>이름</strong>: {selectedAdmin.fullName} (@{selectedAdmin.username})
+                </div>
+                <div>
+                  <strong>역할</strong>: {selectedAdmin.role}
+                </div>
+                <div>
+                  <strong>온보딩</strong>: {selectedAdmin.onboardingStatus || 'ACTIVE'}
+                </div>
+                <div>
+                  <strong>상태</strong>: {getStatusLabel(getEffectiveStatus(selectedAdmin))}
+                </div>
+                <div>
+                  <strong>DID</strong>: {selectedAdmin.did || '(없음)'}
+                </div>
+                <div>
+                  <strong>생성일</strong>: {formatDate(selectedAdmin.createdAt)}
+                </div>
+              </div>
+            </div>
+            <div
+              className="card__footer"
+              style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}
+            >
+              {/* System Admin은 파괴적 액션 숨김 */}
+              {selectedAdmin.role === 'SYSTEM_ADMIN' ? (
+                <Button variant="secondary" onClick={() => setShowDetails(false)}>
+                  닫기
+                </Button>
+              ) : (
+                <>
+                  {/* 온보딩 섹션: PENDING_REVIEW에서만 노출 (일회성) */}
+                  {selectedAdmin.onboardingStatus === 'PENDING_REVIEW' && (
+                    <>
+                      <div className="text-[var(--muted)]" style={{ fontSize: 12, marginRight: 'auto' }}>
+                        승인 시, 해당 사용자는 다음 로그인에서 자동으로 초기 설정이 진행됩니다.
+                        <br />
+                        (지갑 생성 → DID 온체인 등록 → ADMIN VC 발급/등록 → Vault 암호화 후 Custody 저장)
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          const res = await fetch(`/api/admin/admins/${selectedAdmin.id}/approve`, { method: 'POST' });
+                          if (res.ok) {
+                            setAdmins((list) =>
+                              list.map((a) => (a.id === selectedAdmin.id ? { ...a, onboardingStatus: 'APPROVED' } : a)),
+                            );
+                            // modal 내 즉시 반영
+                            setSelectedAdmin((cur) =>
+                              cur ? ({ ...cur, onboardingStatus: 'APPROVED' } as AdminData) : cur,
+                            );
+                          }
+                        }}
+                      >
+                        승인 (온보딩)
+                      </Button>
+                    </>
+                  )}
+                  {/* 승인은 되었지만 최초 로그인 전이면 VC 액션 숨김 */}
+                  {selectedAdmin.onboardingStatus === 'APPROVED' && selectedAdmin.isActive === false && (
+                    <span className="text-[var(--muted)]" style={{ fontSize: 12 }}>
+                      최초 로그인 시 자동 활성화(VC 발급) 대기 중
+                    </span>
+                  )}
+
+                  {/* VC 액션 섹션: VC 존재/활성화 상태에서만 노출 */}
+                  {selectedAdmin.onboardingStatus === 'ACTIVE' && getEffectiveStatus(selectedAdmin) === 'ACTIVE' && (
+                    <>
+                      <Button
+                        variant="danger"
+                        onClick={() => {
+                          setPendingAction('suspend');
+                          setShowConfirmDialog(true);
+                        }}
+                        disabled={busy}
+                      >
+                        VC 일시정지
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setPendingAction('revoke');
+                          setShowConfirmDialog(true);
+                        }}
+                        disabled={busy}
+                      >
+                        VC 폐기(영구)
+                      </Button>
+                    </>
+                  )}
+                  {selectedAdmin.onboardingStatus === 'ACTIVE' && getEffectiveStatus(selectedAdmin) === 'SUSPENDED' && (
+                    <>
+                      <Button
+                        onClick={() => {
+                          setPendingAction('activate');
+                          setShowConfirmDialog(true);
+                        }}
+                        disabled={busy}
+                      >
+                        VC 재활성화
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setPendingAction('revoke');
+                          setShowConfirmDialog(true);
+                        }}
+                        disabled={busy}
+                      >
+                        VC 폐기(영구)
+                      </Button>
+                    </>
+                  )}
+                  {getEffectiveStatus(selectedAdmin) === 'REVOKED' && (
+                    <Button variant="secondary" disabled>
+                      폐기됨
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={() => setShowDetails(false)}>
+                    닫기
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -10,11 +10,11 @@ import { requireAuth } from '@/lib/auth-middleware';
  * Authentication: Requires authentication (모든 로그인한 Admin 가능)
  *
  * Request Body:
- * - userId: string (required) - User ID
+ * - userId?: string - 사용자 ID (선택)
+ * - adminId?: string - 관리자 ID (선택)
+ *   → 둘 중 하나는 반드시 포함되어야 함
  * - walletType: 'ANAMWALLET' | 'USSD' | 'PAPER_VOUCHER' (required)
- * - phoneNumber: string (optional, required for USSD)
  * - vault: Vault (required) - Encrypted vault object
- * - isBackup: boolean (required) - Backup flag
  *
  * Response:
  * - custodyId: string - Generated custody ID
@@ -28,18 +28,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.userId || !body.walletType || !body.vault || body.isBackup === undefined) {
-      return apiError('Missing required fields: userId, walletType, vault, isBackup', 400, 'VALIDATION_ERROR');
+    if (!body.userId && !body.adminId) {
+      return apiError('Either userId or adminId is required', 400, 'VALIDATION_ERROR');
+    }
+    if (!body.walletType || !body.vault) {
+      return apiError('Missing required fields: walletType, vault', 400, 'VALIDATION_ERROR');
     }
 
     // Validate wallet type
     if (!['ANAMWALLET', 'USSD', 'PAPER_VOUCHER'].includes(body.walletType)) {
       return apiError('Invalid walletType. Must be ANAMWALLET, USSD, or PAPER_VOUCHER', 400, 'VALIDATION_ERROR');
-    }
-
-    // Validate USSD requirements
-    if (body.walletType === 'USSD' && !body.phoneNumber) {
-      return apiError('phoneNumber is required for USSD wallet type', 400, 'VALIDATION_ERROR');
     }
 
     // Validate vault structure
@@ -54,20 +52,14 @@ export async function POST(request: NextRequest) {
     // Create custody
     const result = await custodyService.createCustody({
       userId: body.userId,
+      adminId: body.adminId,
       walletType: body.walletType,
-      phoneNumber: body.phoneNumber,
       vault: body.vault,
-      isBackup: body.isBackup,
     });
 
     return apiOk({ custodyId: result.custodyId }, 201);
   } catch (error) {
     console.error('Error in POST /api/custody/wallets:', error);
-
-    // Handle duplicate phone number
-    if (error instanceof Error && error.message.includes('already registered')) {
-      return apiError(error.message, 409, 'CONFLICT');
-    }
 
     return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }

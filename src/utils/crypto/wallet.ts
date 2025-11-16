@@ -54,12 +54,14 @@ export function createWalletFromMnemonic(mnemonic: string, path: string = "m/44'
 
   // Create HD wallet directly from mnemonic using ethers
   const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+  // Ensure uncompressed 65-byte public key (0x04 + 64 bytes)
+  const uncompressedPublicKey = new ethers.Wallet(wallet.privateKey).signingKey.publicKey;
 
   return {
     mnemonic,
     seed: wallet.mnemonic!.computeSeed(),
     privateKey: wallet.privateKey,
-    publicKey: wallet.publicKey,
+    publicKey: uncompressedPublicKey,
     address: wallet.address,
   };
 }
@@ -86,10 +88,12 @@ export function deriveKey(mnemonic: string, path: string): DerivedKey {
 
   // Create HD wallet directly from mnemonic using ethers
   const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+  // Ensure uncompressed public key
+  const uncompressedPublicKey = new ethers.Wallet(wallet.privateKey).signingKey.publicKey;
 
   return {
     privateKey: wallet.privateKey,
-    publicKey: wallet.publicKey,
+    publicKey: uncompressedPublicKey,
     address: wallet.address,
     path,
   };

@@ -5,6 +5,13 @@ export enum AdminRole {
   STAFF = 'STAFF',
 }
 
+export enum OnboardingStatus {
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  APPROVED = 'APPROVED',
+  ACTIVE = 'ACTIVE',
+  REJECTED = 'REJECTED',
+}
+
 @Entity('admins')
 export class Admin {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
@@ -70,6 +77,15 @@ export class Admin {
   role!: AdminRole;
 
   @Column({
+    name: 'onboarding_status',
+    type: 'enum',
+    enum: OnboardingStatus,
+    default: OnboardingStatus.ACTIVE,
+    comment: 'Signup/approval/activation state',
+  })
+  onboardingStatus!: OnboardingStatus;
+
+  @Column({
     type: 'varchar',
     length: 255,
     nullable: true,
@@ -95,22 +111,7 @@ export class Admin {
   })
   isActive!: boolean;
 
-  @Column({
-    name: 'created_by',
-    type: 'varchar',
-    length: 36,
-    nullable: true,
-    comment: 'Creator Admin ID (UUID)',
-  })
-  createdBy!: string | null;
-
-  @Column({
-    name: 'last_login',
-    type: 'timestamp',
-    nullable: true,
-    comment: 'Last login timestamp',
-  })
-  lastLogin!: Date | null;
+  // created_by, last_login removed
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

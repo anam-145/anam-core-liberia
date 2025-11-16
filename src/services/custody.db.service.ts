@@ -20,11 +20,10 @@ import type { Vault } from '../utils/crypto/vault';
 import AppDataSource from '../server/db/datasource';
 
 export interface CreateCustodyRequest {
-  userId: string;
+  userId?: string; // Either userId or adminId must be provided
+  adminId?: string;
   walletType: 'ANAMWALLET' | 'USSD' | 'PAPER_VOUCHER';
-  phoneNumber?: string;
   vault: Vault;
-  isBackup: boolean;
   vc?: Vault & { id: string }; // Optional: encrypted VC vault with id
 }
 
@@ -38,12 +37,11 @@ export interface UpdateVCRequest {
 
 export interface CustodyData {
   custodyId: string;
-  userId: string;
+  userId: string | null;
+  adminId: string | null;
   walletType: string;
-  phoneNumber?: string | null;
   vault: Vault;
   vc: (Vault & { id: string }) | null;
-  isBackup: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,11 +94,10 @@ export class CustodyDatabaseService {
     return {
       custodyId: entity.custodyId,
       userId: entity.userId,
+      adminId: entity.adminId,
       walletType: entity.walletType,
-      phoneNumber: entity.phoneNumber,
       vault: entity.vault,
       vc: entity.vc,
-      isBackup: entity.isBackup,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
@@ -112,24 +109,14 @@ export class CustodyDatabaseService {
   async createCustody(request: CreateCustodyRequest): Promise<CreateCustodyResponse> {
     await this.ensureInitialized();
 
-    // Validate USSD requirements
-    if (request.walletType === 'USSD' && !request.phoneNumber) {
-      throw new Error('phoneNumber is required for USSD wallet type');
+    // Validate owner reference
+    if (!request.userId && !request.adminId) {
+      throw new Error('Either userId or adminId is required');
     }
 
     // Validate wallet type
     if (!['ANAMWALLET', 'USSD', 'PAPER_VOUCHER'].includes(request.walletType)) {
       throw new Error('Invalid walletType. Must be ANAMWALLET, USSD, or PAPER_VOUCHER');
-    }
-
-    // Check for duplicate phone number (if provided)
-    if (request.phoneNumber) {
-      const existing = await this.dataSource.getRepository(CustodyWallet).findOne({
-        where: { phoneNumber: request.phoneNumber },
-      });
-      if (existing) {
-        throw new Error('Phone number already registered');
-      }
     }
 
     // Validate vault structure
@@ -141,12 +128,11 @@ export class CustodyDatabaseService {
     const custodyId = this.generateCustodyId();
     const custodyEntity = new CustodyWallet();
     custodyEntity.custodyId = custodyId;
-    custodyEntity.userId = request.userId;
+    custodyEntity.userId = request.userId ?? null;
+    custodyEntity.adminId = request.adminId ?? null;
     custodyEntity.walletType = WalletType[request.walletType];
-    custodyEntity.phoneNumber = request.phoneNumber || null;
     custodyEntity.vault = request.vault;
     custodyEntity.vc = request.vc || null; // Optionally set VC now
-    custodyEntity.isBackup = request.isBackup;
 
     // Save to database
     const repository = this.dataSource.getRepository(CustodyWallet);
@@ -207,18 +193,7 @@ export class CustodyDatabaseService {
   /**
    * Get custody by phone number (for USSD)
    */
-  async getCustodyByPhone(phoneNumber: string): Promise<CustodyData | null> {
-    await this.ensureInitialized();
-
-    const repository = this.dataSource.getRepository(CustodyWallet);
-    const custody = await repository.findOne({ where: { phoneNumber } });
-
-    if (!custody) {
-      return null;
-    }
-
-    return this.toCustodyData(custody);
-  }
+  // getCustodyByPhone removed — phone-based lookup deprecated in MVP
 
   /**
    * Delete custody by custody ID

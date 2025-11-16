@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
 import { requireRole } from '@/lib/auth-middleware';
-import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
 import { AdminRole } from '@/server/db/entities/Admin';
 
@@ -36,8 +35,7 @@ export async function POST(request: NextRequest) {
       return apiError('Invalid role. Must be SYSTEM_ADMIN or STAFF', 400, 'VALIDATION_ERROR');
     }
 
-    // Get current admin for audit trail
-    const session = await getSession();
+    // Note: Audit trail omitted in MVP
 
     // Create admin
     const admin = await adminService.createAdmin({
@@ -46,7 +44,6 @@ export async function POST(request: NextRequest) {
       fullName: body.fullName,
       email: body.email,
       role: body.role,
-      createdBy: session.adminId,
     });
 
     // Remove passwordHash from response
