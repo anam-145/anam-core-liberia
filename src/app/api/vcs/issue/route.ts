@@ -9,8 +9,8 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * POST /api/vcs/issue
  * DID 등록 + KYC VC 발급 통합 엔드포인트
  *
- * Authentication: Requires SYSTEM_ADMIN, APPROVER, or VERIFIER role
- * (참가자 등록 권한을 가진 모든 역할이 VC 발급 가능)
+ * Authentication: Requires SYSTEM_ADMIN or STAFF role
+ * (전역 작업: 시스템 관리자는 물론, 스태프도 VC 발급 가능)
  *
  * Request Body:
  * - walletAddress: string (required) - 지갑 주소
@@ -28,9 +28,8 @@ import { AdminRole } from '@/server/db/entities/Admin';
  *   - vcRegistry: string - VC 등록 tx
  */
 export async function POST(request: NextRequest) {
-  // 🔒 Authentication: SYSTEM_ADMIN, APPROVER, and VERIFIER can issue VCs
-  // (참가자 등록 시 VC 발급이 필요하므로, 참가자 등록 권한과 동일)
-  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER, AdminRole.VERIFIER]);
+  // 🔒 Authentication: SYSTEM_ADMIN or STAFF can issue VCs
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {

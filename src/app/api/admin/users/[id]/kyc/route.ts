@@ -7,7 +7,7 @@ import type { KycStatus } from '@/server/db/entities/User';
 
 /**
  * PUT /api/admin/users/[id]/kyc
- * Update user KYC information (SYSTEM_ADMIN, APPROVER, VERIFIER)
+ * Update user KYC information (SYSTEM_ADMIN, STAFF)
  *
  * Request Body:
  * - kycType?: string
@@ -20,7 +20,7 @@ import type { KycStatus } from '@/server/db/entities/User';
  * - user: Updated user object
  */
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER, AdminRole.VERIFIER]);
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {

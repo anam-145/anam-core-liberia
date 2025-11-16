@@ -1,14 +1,12 @@
 import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/api-response';
 
 // GET /api/wallet - Get wallet info
 export async function GET(_request: NextRequest) {
-  // TODO: Implement wallet info retrieval
-  return NextResponse.json({ message: 'Not implemented' }, { status: 501 });
+  return apiError('Not implemented', 501, 'INTERNAL_ERROR');
 }
 
 // POST /api/wallet - Create/Sign transaction
 export async function POST(_request: NextRequest) {
-  // TODO: Implement transaction signing
-  return NextResponse.json({ message: 'Not implemented' }, { status: 501 });
+  return apiError('Not implemented', 501, 'INTERNAL_ERROR');
 }

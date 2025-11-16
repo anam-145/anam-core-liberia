@@ -9,8 +9,8 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * POST /api/dids/register
  * DID 생성 및 블록체인 등록 (참가자용)
  *
- * Authentication: Requires SYSTEM_ADMIN, APPROVER, or VERIFIER role
- * (Register Participant 권한을 가진 모든 역할이 사용 가능)
+ * Authentication: Requires SYSTEM_ADMIN or STAFF role
+ * (전역 작업: 참가자 DID 등록은 시스템 관리자와 스태프가 수행)
  *
  * Note: System Admin의 privateKey를 사용하여 블록체인에 등록합니다.
  * - 보안: 외부에서 privateKey를 받지 않고 ENV에서 가져옴
@@ -28,8 +28,8 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * - blockNumber: number - 블록 번호
  */
 export async function POST(request: NextRequest) {
-  // 🔒 Authentication: SYSTEM_ADMIN, APPROVER, and VERIFIER can register participant DIDs
-  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.APPROVER, AdminRole.VERIFIER]);
+  // 🔒 Authentication: SYSTEM_ADMIN or STAFF can register participant DIDs
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {

@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
       isChallengeMatched: false,
       isHolderSignatureValid: false,
       isIssuerSignatureValid: false,
-      isNotExpired: false,
+      isWithinValidity: false,
       isActiveOnChain: false,
+      isSubjectMatchesHolder: false,
     };
 
     let reason = '';
@@ -158,17 +159,23 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Step 5: VC 만료 확인
+    // Step 5: VC 유효기간 확인 (validFrom/validUntil)
     const now = new Date();
-    const expirationDate = vc.expirationDate ? new Date(vc.expirationDate) : null;
+    const validFrom = vc.validFrom ? new Date(vc.validFrom) : null;
+    const validUntil = vc.validUntil ? new Date(vc.validUntil) : null;
 
-    checks.isNotExpired = !expirationDate || now < expirationDate;
+    const notBeforeOk = !validFrom || now >= validFrom;
+    const notAfterOk = !validUntil || now <= validUntil;
+    checks.isWithinValidity = notBeforeOk && notAfterOk;
 
-    if (!checks.isNotExpired) {
+    if (!checks.isWithinValidity) {
       return apiOk({
         valid: false,
         checks,
-        reason: `VC expired at ${expirationDate?.toISOString()}`,
+        reason:
+          `VC is out of validity window` +
+          (validFrom ? ` (validFrom=${validFrom.toISOString()})` : '') +
+          (validUntil ? ` (validUntil=${validUntil.toISOString()})` : ''),
       });
     }
 
@@ -184,6 +191,19 @@ export async function POST(request: NextRequest) {
         valid: false,
         checks,
         reason: status === 'REVOKED' ? 'VC has been revoked' : 'VC not found or inactive on-chain',
+      });
+    }
+
+    // Step 7: Verify VC subject.id matches VP holder DID
+    const vcSubjectId = typeof vc.credentialSubject?.id === 'string' ? (vc.credentialSubject.id as string) : undefined;
+    const holderDid = vp.holder;
+    checks.isSubjectMatchesHolder = vcSubjectId === holderDid;
+
+    if (!checks.isSubjectMatchesHolder) {
+      return apiOk({
+        valid: false,
+        checks,
+        reason: 'VC subject DID does not match VP holder DID',
       });
     }
 

@@ -6,13 +6,13 @@ import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
  * POST /api/admin/users/[id]/kyc/reject
- * Reject user KYC (APPROVER or SYSTEM_ADMIN only)
+ * Reject user KYC (SYSTEM_ADMIN or STAFF)
  *
  * Response:
  * - user: Updated user object
  */
 export async function POST(_request: NextRequest, { params }: { params: { id: string } }) {
-  const authCheck = await requireRole([AdminRole.APPROVER, AdminRole.SYSTEM_ADMIN]);
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {

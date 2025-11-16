@@ -3,7 +3,7 @@ import type { SessionOptions } from 'iron-session';
 export interface SessionData {
   adminId: string;
   username: string;
-  role: 'SYSTEM_ADMIN' | 'APPROVER' | 'VERIFIER';
+  role: 'SYSTEM_ADMIN' | 'STAFF';
   isLoggedIn: boolean;
 }
 

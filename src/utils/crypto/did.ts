@@ -11,10 +11,15 @@
 
 import { ethers } from 'ethers';
 import { randomBytes } from 'crypto';
+import bs58 from 'bs58';
 import { getAddressFromPrivateKey } from './wallet';
 
 // DID Types as defined in system design
-export type DIDType = 'user' | 'issuer';
+// DID kind used in DID URI (lower-case)
+export type DIDKind = 'user' | 'issuer';
+
+// DID Document display type (upper-case) for readability and alignment with DB enum
+export type DIDDocumentType = 'USER' | 'ISSUER';
 
 // DID Method constant
 const DID_METHOD = 'anam';
@@ -22,7 +27,7 @@ const DID_METHOD = 'anam';
 export interface DIDDocument {
   '@context': string | string[];
   id: string;
-  type: DIDType;
+  type: DIDDocumentType;
   created: string;
   updated: string;
   controller: string;
@@ -45,7 +50,7 @@ export interface VCProof {
   verificationMethod: string;
   proofPurpose: string;
   created: string;
-  proofValue: string;
+  jws: string;
 }
 
 export interface VPProof {
@@ -66,8 +71,7 @@ export interface VerifiableCredential {
     id: string;
     name?: string;
   };
-  issuanceDate: string;
-  validFrom?: string;
+  validFrom: string;
   validUntil?: string;
   credentialSubject: Record<string, unknown>;
   credentialStatus?: {
@@ -75,7 +79,6 @@ export interface VerifiableCredential {
     type: string;
   };
   proof?: VCProof;
-  expirationDate?: string;
 }
 
 export interface VerifiablePresentation {
@@ -122,7 +125,7 @@ export function canonicalStringify(obj: unknown): string {
  * @param address - Ethereum wallet address
  * @returns DID string in did:anam:<type>:<address> format
  */
-export function createDID(type: DIDType, address: string): string {
+export function createDID(type: DIDKind, address: string): string {
   const checksumAddress = ethers.getAddress(address);
   return `did:${DID_METHOD}:${type}:${checksumAddress}`;
 }
@@ -134,7 +137,7 @@ export function createDID(type: DIDType, address: string): string {
  * @param walletAddress - Ethereum wallet address
  * @returns Object with DID and wallet address
  */
-export function createDIDWithAddress(type: DIDType, walletAddress: string): { did: string; address: string } {
+export function createDIDWithAddress(type: DIDKind, walletAddress: string): { did: string; address: string } {
   const checksumAddress = ethers.getAddress(walletAddress);
   const did = createDID(type, checksumAddress);
   return { did, address: checksumAddress };
@@ -147,7 +150,7 @@ export function createDIDWithAddress(type: DIDType, walletAddress: string): { di
  */
 export function parseDID(did: string): {
   method: string;
-  type: DIDType;
+  type: DIDKind;
   address: string;
 } {
   const parts = did.split(':');
@@ -174,7 +177,7 @@ export function parseDID(did: string): {
 
   return {
     method: parts[1],
-    type: type as DIDType,
+    type: type as DIDKind,
     address,
   };
 }
@@ -203,7 +206,7 @@ export function createDIDDocument(
   const document: DIDDocument = {
     '@context': 'https://www.w3.org/ns/did/v1',
     id: did,
-    type: parsedDID.type.toUpperCase() as DIDType,
+    type: (parsedDID.type === 'issuer' ? 'ISSUER' : 'USER') as DIDDocumentType,
     created: now,
     updated: now,
     controller: controllerDID,
@@ -259,8 +262,8 @@ export function createVC(
   validityPeriodDays: number = 730,
 ): VerifiableCredential {
   const now = new Date();
-  const expiryDate = new Date(now);
-  expiryDate.setDate(expiryDate.getDate() + validityPeriodDays);
+  const validUntil = new Date(now);
+  validUntil.setDate(validUntil.getDate() + validityPeriodDays);
 
   return {
     '@context': ['https://www.w3.org/ns/credentials/v2'],
@@ -270,8 +273,8 @@ export function createVC(
       id: issuerDID,
       name: 'UNDP Liberia',
     },
-    issuanceDate: now.toISOString(),
-    expirationDate: expiryDate.toISOString(), // W3C 표준 필드
+    validFrom: now.toISOString(),
+    validUntil: validUntil.toISOString(),
     credentialSubject: {
       id: subjectDID,
       ...credentialSubject,
@@ -315,7 +318,7 @@ export async function signVC(
       created: new Date().toISOString(),
       verificationMethod,
       proofPurpose: 'assertionMethod',
-      proofValue: signature,
+      jws: signature,
     },
   };
 }
@@ -333,7 +336,7 @@ export function createVP(
   challenge: string,
 ): VerifiablePresentation {
   return {
-    '@context': ['https://www.w3.org/2018/credentials/v1'],
+    '@context': ['https://www.w3.org/ns/credentials/v2'],
     type: ['VerifiablePresentation'],
     holder: holderDID,
     verifiableCredential: verifiableCredentials,
@@ -390,7 +393,7 @@ export async function signVP(vp: VerifiablePresentation, holderPrivateKey: strin
  */
 export function verifyVCSignature(vc: VerifiableCredential, issuerAddress: string): boolean {
   try {
-    if (!vc.proof || !vc.proof.proofValue) {
+    if (!vc.proof || !vc.proof.jws) {
       return false;
     }
 
@@ -402,7 +405,7 @@ export function verifyVCSignature(vc: VerifiableCredential, issuerAddress: strin
     const message = canonicalStringify(vcCopy);
 
     // Recover signer address
-    const recoveredAddress = ethers.verifyMessage(message, vc.proof.proofValue);
+    const recoveredAddress = ethers.verifyMessage(message, vc.proof.jws);
 
     // Compare addresses
     return recoveredAddress.toLowerCase() === issuerAddress.toLowerCase();
@@ -476,14 +479,14 @@ export function extractAddressFromDIDDocument(didDocument: DIDDocument): string 
 }
 
 // Legacy support for migration (maps to new format)
-export function createDIDFromPrivateKey(privateKey: string, type: DIDType = 'user'): string {
+export function createDIDFromPrivateKey(privateKey: string, type: DIDKind = 'user'): string {
   const address = getAddressFromPrivateKey(privateKey);
   return createDIDWithAddress(type, address).did;
 }
 
 export function createDIDDocumentFromPrivateKey(
   privateKey: string,
-  type: DIDType = 'user',
+  type: DIDKind = 'user',
   controller?: string,
 ): DIDDocument {
   const wallet = new ethers.Wallet(privateKey);
@@ -491,4 +494,14 @@ export function createDIDDocumentFromPrivateKey(
   const publicKey = signingKey.publicKey;
   const did = createDIDWithAddress(type, wallet.address).did;
   return createDIDDocument(did, wallet.address, publicKey, controller);
+}
+
+/**
+ * Generate UNDP VC ID
+ * Scheme: "vc_undp_" + Base58(20 bytes random = 160-bit)
+ */
+export function generateUndpVCId(): string {
+  const bytes = randomBytes(20);
+  const b58 = bs58.encode(bytes);
+  return `vc_undp_${b58}`;
 }

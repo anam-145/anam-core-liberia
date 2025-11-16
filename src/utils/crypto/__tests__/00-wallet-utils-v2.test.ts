@@ -1,5 +1,9 @@
 /** @jest-environment node */
 
+/**
+ * 시나리오(지갑 유틸리티)
+ * - 니모닉 생성/검증, 지갑 복원, 파생 키, 서명/검증 등 기본 유틸 검증
+ */
 import {
   generateMnemonic,
   validateMnemonic,
@@ -12,7 +16,7 @@ import {
 } from '../wallet';
 
 // 니모닉 생성부터 키 파생·서명·검증까지 지갑 워크플로우 검증
-describe('Wallet Utilities', () => {
+describe('Wallet 유틸리티 v2', () => {
   // Valid BIP39 test mnemonic
   const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   const testPrivateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';

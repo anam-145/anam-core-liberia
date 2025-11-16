@@ -1,7 +1,11 @@
 import { encryptVault, decryptVault, verifyVaultPassword } from '../vault';
 
-// 지갑 니모닉 암호화/복호화 및 비밀번호 검증 로직 검증
-describe('Vault Encryption/Decryption', () => {
+/**
+ * 시나리오(월렛 볼트)
+ * - 니모닉을 AES-256-GCM으로 암호화/복호화한다
+ * - 비밀번호 검증(verify), 변조/오비추어스케이스 처리
+ */
+describe('Wallet Vault v2 – 니모닉 암복호화', () => {
   const testMnemonic = 'test test test test test test test test test test test junk';
   const testPassword = 'TestPassword123!';
   const wrongPassword = 'WrongPassword456!';
