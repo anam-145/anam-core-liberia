@@ -35,7 +35,6 @@ interface ParticipantData {
   ussdStatus: 'NOT_APPLICABLE' | 'PENDING' | 'ACTIVE';
   hasCustodyWallet: boolean;
   vcStatus?: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'; // From join with VC table
-  kycStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   kycDocumentPath?: string;
   kycFacePath?: string;
   isActive: boolean;
@@ -62,7 +61,6 @@ const MOCK_PARTICIPANTS: ParticipantData[] = [
     ussdStatus: 'ACTIVE',
     hasCustodyWallet: true,
     vcStatus: 'ACTIVE',
-    kycStatus: 'APPROVED',
     kycDocumentPath: '/docs/kyc_001.pdf',
     kycFacePath: '/docs/face_001.jpg',
     isActive: true,
@@ -81,7 +79,6 @@ const MOCK_PARTICIPANTS: ParticipantData[] = [
     ussdStatus: 'NOT_APPLICABLE',
     hasCustodyWallet: false,
     vcStatus: 'ACTIVE',
-    kycStatus: 'APPROVED',
     isActive: true,
     attendance: 'PRESENT',
     checkInTime: '8:54 AM',
@@ -96,7 +93,6 @@ const MOCK_PARTICIPANTS: ParticipantData[] = [
     ussdStatus: 'PENDING',
     hasCustodyWallet: true,
     vcStatus: 'ACTIVE',
-    kycStatus: 'PENDING',
     isActive: true,
     attendance: 'PRESENT',
     checkInTime: '8:53 AM',
@@ -111,7 +107,6 @@ const MOCK_PARTICIPANTS: ParticipantData[] = [
     ussdStatus: 'NOT_APPLICABLE',
     hasCustodyWallet: false,
     vcStatus: 'ACTIVE',
-    kycStatus: 'APPROVED',
     isActive: true,
     attendance: 'PRESENT',
     checkInTime: '8:25 AM',
@@ -126,7 +121,6 @@ const MOCK_PARTICIPANTS: ParticipantData[] = [
     ussdStatus: 'ACTIVE',
     hasCustodyWallet: true,
     vcStatus: 'SUSPENDED',
-    kycStatus: 'APPROVED',
     isActive: false,
     attendance: 'PRESENT',
     checkInTime: '8:20 AM',
@@ -141,7 +135,6 @@ const MOCK_PARTICIPANTS: ParticipantData[] = [
     ussdStatus: 'NOT_APPLICABLE',
     hasCustodyWallet: false,
     vcStatus: 'ACTIVE',
-    kycStatus: 'APPROVED',
     isActive: true,
     attendance: 'ABSENT',
     paymentStatus: 'NOT_ELIGIBLE',

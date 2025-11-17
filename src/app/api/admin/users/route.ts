@@ -3,7 +3,7 @@ import { adminService } from '@/services/admin.service';
 import { requireRole } from '@/lib/auth-middleware';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
-import type { KycStatus, USSDStatus } from '@/server/db/entities/User';
+import type { USSDStatus } from '@/server/db/entities/User';
 import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
@@ -11,7 +11,6 @@ import { AdminRole } from '@/server/db/entities/Admin';
  * List users with pagination and filters (SYSTEM_ADMIN, STAFF)
  *
  * Query Parameters:
- * - kycStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'
  * - ussdStatus?: 'NOT_APPLICABLE' | 'PENDING' | 'ACTIVE'
  * - limit?: number
  * - offset?: number
@@ -27,13 +26,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const kycStatus = searchParams.get('kycStatus') as KycStatus | undefined;
     const ussdStatus = searchParams.get('ussdStatus') as USSDStatus | undefined;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
     const { users, total } = await adminService.getUsers({
-      kycStatus,
       ussdStatus,
       limit,
       offset,

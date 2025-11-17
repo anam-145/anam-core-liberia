@@ -1,11 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-export enum KycStatus {
-  PENDING = 'PENDING',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-}
-
 export enum KycType {
   NIR = 'NIR',
   PASSPORT = 'PASSPORT',
@@ -128,16 +122,6 @@ export class User {
     comment: 'Path to face photo for KYC',
   })
   kycFacePath!: string | null;
-
-  @Column({
-    name: 'kyc_status',
-    type: 'enum',
-    enum: KycStatus,
-    default: KycStatus.PENDING,
-    comment: 'KYC verification status',
-  })
-  @Index()
-  kycStatus!: KycStatus;
 
   // Wallet Field
   @Column({

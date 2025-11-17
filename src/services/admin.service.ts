@@ -2,7 +2,7 @@ import { AppDataSource } from '@/server/db/datasource';
 import type { AdminRole } from '@/server/db/entities/Admin';
 import { Admin, OnboardingStatus } from '@/server/db/entities/Admin';
 import type { KycType } from '@/server/db/entities/User';
-import { User, KycStatus, USSDStatus } from '@/server/db/entities/User';
+import { User, USSDStatus } from '@/server/db/entities/User';
 import { Event, EventStatus } from '@/server/db/entities/Event';
 import type { EventRole } from '@/server/db/entities/EventStaff';
 import { EventStaff } from '@/server/db/entities/EventStaff';
@@ -197,7 +197,6 @@ class AdminService {
    * Get users with pagination and filters
    */
   async getUsers(options: {
-    kycStatus?: KycStatus;
     ussdStatus?: USSDStatus;
     limit?: number;
     offset?: number;
@@ -206,10 +205,6 @@ class AdminService {
 
     const userRepository = AppDataSource.getRepository(User);
     const query = userRepository.createQueryBuilder('user');
-
-    if (options.kycStatus) {
-      query.andWhere('user.kyc_status = :kycStatus', { kycStatus: options.kycStatus });
-    }
 
     if (options.ussdStatus) {
       query.andWhere('user.ussd_status = :ussdStatus', { ussdStatus: options.ussdStatus });
@@ -283,7 +278,6 @@ class AdminService {
       address: data.address || null,
       kycType: (data.kycType as KycType) || null,
       kycDocumentNumber: data.kycDocumentNumber || null,
-      kycStatus: KycStatus.PENDING,
       ussdStatus: data.useUSSD ? USSDStatus.PENDING : USSDStatus.NOT_APPLICABLE,
       isActive: true,
       hasCustodyWallet: false,
@@ -304,7 +298,6 @@ class AdminService {
       kycDocumentNumber?: string;
       kycDocumentPath?: string;
       kycFacePath?: string;
-      kycStatus?: KycStatus;
     },
   ): Promise<User | null> {
     await this.initialize();
@@ -320,7 +313,6 @@ class AdminService {
     if (data.kycDocumentNumber !== undefined) user.kycDocumentNumber = data.kycDocumentNumber;
     if (data.kycDocumentPath !== undefined) user.kycDocumentPath = data.kycDocumentPath;
     if (data.kycFacePath !== undefined) user.kycFacePath = data.kycFacePath;
-    if (data.kycStatus !== undefined) user.kycStatus = data.kycStatus;
 
     await userRepository.save(user);
     return user;
@@ -387,44 +379,6 @@ class AdminService {
     if (data.address !== undefined) user.address = data.address;
     if (data.isActive !== undefined) user.isActive = data.isActive;
 
-    await userRepository.save(user);
-    return user;
-  }
-
-  /**
-   * Approve user KYC
-   */
-  async approveKyc(userId: number, _adminId: string): Promise<User | null> {
-    await this.initialize();
-
-    const userRepository = AppDataSource.getRepository(User);
-    const user = await userRepository.findOne({ where: { id: userId } });
-
-    if (!user) {
-      return null;
-    }
-
-    user.kycStatus = KycStatus.APPROVED;
-    // KYC 검증자 정보는 별도 로그 테이블에서 관리
-
-    await userRepository.save(user);
-    return user;
-  }
-
-  /**
-   * Reject user KYC
-   */
-  async rejectKyc(userId: number): Promise<User | null> {
-    await this.initialize();
-
-    const userRepository = AppDataSource.getRepository(User);
-    const user = await userRepository.findOne({ where: { id: userId } });
-
-    if (!user) {
-      return null;
-    }
-
-    user.kycStatus = KycStatus.REJECTED;
     await userRepository.save(user);
     return user;
   }
@@ -747,7 +701,7 @@ class AdminService {
 
     const userRepository = AppDataSource.getRepository(User);
     const user = await userRepository.findOne({
-      where: { phoneNumber, kycStatus: KycStatus.APPROVED },
+      where: { phoneNumber },
     });
 
     return user;
