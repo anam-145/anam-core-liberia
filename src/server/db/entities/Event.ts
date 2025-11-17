@@ -53,8 +53,8 @@ export class Event {
   @Column({
     name: 'amount_per_day',
     type: 'decimal',
-    precision: 10,
-    scale: 2,
+    precision: 12,
+    scale: 6,
     comment: 'Daily DSA Amount',
   })
   amountPerDay!: string;

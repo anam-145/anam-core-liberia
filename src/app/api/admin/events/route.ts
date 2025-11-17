@@ -23,6 +23,77 @@ export async function POST(request: NextRequest) {
       return apiError('Missing required fields: name, startDate, endDate, amountPerDay', 400, 'VALIDATION_ERROR');
     }
 
+    // Additional domain validations
+    // 1) Event name length >= 2
+    if (typeof body.name !== 'string' || body.name.trim().length < 2) {
+      return apiError('Event name must be at least 2 characters', 400, 'VALIDATION_ERROR', {
+        field: 'name',
+      });
+    }
+
+    // 2) Dates: only future events, must start from tomorrow (not today), and end >= start
+    const toDateOnly = (d: string | Date) => {
+      const dt = new Date(d);
+      dt.setHours(0, 0, 0, 0);
+      return dt;
+    };
+    const startDateOnly = toDateOnly(body.startDate);
+    const endDateOnly = toDateOnly(body.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (startDateOnly < tomorrow) {
+      return apiError('Start date must be from tomorrow (future only)', 400, 'VALIDATION_ERROR', {
+        field: 'startDate',
+      });
+    }
+    if (endDateOnly < startDateOnly) {
+      return apiError('End date must be same as or after start date', 400, 'VALIDATION_ERROR', {
+        field: 'endDate',
+      });
+    }
+
+    // 3) Amount / participants constraints (temporary hard caps; TODO: fetch from contract)
+    const MAX_AMOUNT_PER_DAY_USDC = 1000; // TODO: Replace with contract limit
+    const MAX_PARTICIPANTS = 10000; // TODO: Replace with contract limit
+
+    const amount = Number(body.amountPerDay);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return apiError('Amount per day must be a positive number', 400, 'VALIDATION_ERROR', {
+        field: 'amountPerDay',
+      });
+    }
+    if (amount > MAX_AMOUNT_PER_DAY_USDC) {
+      return apiError(
+        `Amount per day exceeds temporary limit (${MAX_AMOUNT_PER_DAY_USDC} USDC)`,
+        400,
+        'VALIDATION_ERROR',
+        {
+          field: 'amountPerDay',
+        },
+      );
+    }
+    // normalize to 6 decimals (DB uses decimal(12,6))
+    const normalizedAmount = amount.toFixed(6);
+
+    let maxParticipants: number | undefined = undefined;
+    if (body.maxParticipants !== undefined && body.maxParticipants !== null && body.maxParticipants !== '') {
+      const n = Number(body.maxParticipants);
+      if (!Number.isInteger(n) || n <= 0) {
+        return apiError('Max participants must be a positive integer', 400, 'VALIDATION_ERROR', {
+          field: 'maxParticipants',
+        });
+      }
+      if (n > MAX_PARTICIPANTS) {
+        return apiError(`Max participants exceeds temporary limit (${MAX_PARTICIPANTS})`, 400, 'VALIDATION_ERROR', {
+          field: 'maxParticipants',
+        });
+      }
+      maxParticipants = n;
+    }
+
     const session = await getSession();
 
     const event = await adminService.createEvent(
@@ -30,10 +101,10 @@ export async function POST(request: NextRequest) {
         eventId: randomUUID(),
         name: body.name,
         description: body.description,
-        startDate: new Date(body.startDate),
-        endDate: new Date(body.endDate),
-        amountPerDay: body.amountPerDay,
-        maxParticipants: body.maxParticipants,
+        startDate: startDateOnly,
+        endDate: endDateOnly,
+        amountPerDay: normalizedAmount,
+        maxParticipants,
       },
       session.adminId,
     );

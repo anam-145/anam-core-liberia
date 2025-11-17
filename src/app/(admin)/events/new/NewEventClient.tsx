@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation';
 export default function NewEventClient() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [start, setStart] = useState(''); // datetime-local
-  const [end, setEnd] = useState(''); // datetime-local
+  const [start, setStart] = useState(''); // date-only (YYYY-MM-DD)
+  const [end, setEnd] = useState(''); // date-only (YYYY-MM-DD)
   const [description, setDescription] = useState('');
   const [amountPerDay, setAmountPerDay] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('100');
@@ -24,11 +24,13 @@ export default function NewEventClient() {
     }
     setSubmitting(true);
     try {
+      // 시/분은 사용하지 않음: date input(YYYY-MM-DD) 그대로 전달
+      const normalizeDate = (d: string) => d.trim();
       const body = {
         name: name.trim(),
         description: description.trim() || undefined,
-        startDate: new Date(start).toISOString(),
-        endDate: new Date(end).toISOString(),
+        startDate: normalizeDate(start),
+        endDate: normalizeDate(end),
         amountPerDay: Number(amountPerDay).toFixed(6),
         maxParticipants: maxParticipants ? parseInt(maxParticipants, 10) : undefined,
       };
@@ -69,13 +71,8 @@ export default function NewEventClient() {
                 required
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Input
-                  label="Start Date"
-                  type="datetime-local"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                />
-                <Input label="End Date" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+                <Input label="Start Date" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+                <Input label="End Date" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
               </div>
               <div>
                 <label className="label">Description</label>

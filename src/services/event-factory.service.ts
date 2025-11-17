@@ -20,7 +20,8 @@ export interface CreateEventOnChainResponse {
   txHash: string; // Deployment transaction hash
 }
 
-export async function createEventOnChain(_req: CreateEventOnChainRequest): Promise<CreateEventOnChainResponse> {
+// 임시 스텁: 요청 내용을 바탕으로 이벤트마다 고유한 주소/해시를 생성해 UNIQUE 제약 충돌을 피함
+export async function createEventOnChain(req: CreateEventOnChainRequest): Promise<CreateEventOnChainResponse> {
   // TODO: 컨트랙트 연결 및 createEvent 호출
   //  - chain: BASE (ENV로 설정)
   //  - signer: SYSTEM_ADMIN mnemonic/privKey
@@ -29,9 +30,27 @@ export async function createEventOnChain(_req: CreateEventOnChainRequest): Promi
   // 작은 지연으로 호출 느낌만 유지
   await new Promise((r) => setTimeout(r, 120));
 
-  // 모의 반환값 (유효한 형식)
-  return {
-    address: '0xDeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD',
-    txHash: '0xfeed000000000000000000000000000000000000000000000000000000000000',
-  };
+  // 요청 + 현재 시간으로 해시를 만들어 이벤트별 고유 값 생성
+  const seed = JSON.stringify({
+    usdc: req.usdcAddress,
+    start: req.startTime?.toISOString?.() ?? String(req.startTime),
+    end: req.endTime?.toISOString?.() ?? String(req.endTime),
+    amount: req.amountPerDay,
+    max: req.maxParticipants,
+    approvers: req.approvers || [],
+    verifiers: req.verifiers || [],
+    now: Date.now(),
+    rnd: Math.random(),
+  });
+
+  // 생성 규칙: sha256(seed) → 앞 40 hex = 20바이트 EVM 주소, 전체 32바이트 = tx 해시
+  const crypto = await import('crypto');
+  const hash = crypto.createHash('sha256').update(seed).digest('hex'); // 64 hex chars
+
+  // 주소 생성(앞 40자), 0x 접두사
+  const address = '0x' + hash.slice(0, 40);
+  // txHash는 전체 해시를 사용
+  const txHash = '0x' + hash.padEnd(64, '0');
+
+  return { address, txHash };
 }
