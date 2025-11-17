@@ -78,7 +78,6 @@ export async function POST(request: NextRequest) {
     // 5) Custody: store wallet vault and VC together (single call)
     const custody = await custodyService.createCustody({
       adminId: admin.adminId,
-      walletType: 'ANAMWALLET',
       vault: walletVault,
       vc: { id: signedVC.id, ...vcVault },
     });

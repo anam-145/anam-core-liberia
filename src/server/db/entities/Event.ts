@@ -89,8 +89,8 @@ export class Event {
   @Column({
     name: 'is_active',
     type: 'boolean',
-    default: true,
-    comment: 'Event active status',
+    default: false,
+    comment: 'Event active status (default: inactive)',
   })
   isActive!: boolean;
 

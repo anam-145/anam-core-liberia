@@ -72,7 +72,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : undefined,
       nationality: body.nationality,
       address: body.address,
-      userStatus: body.userStatus,
     });
 
     if (!user) {

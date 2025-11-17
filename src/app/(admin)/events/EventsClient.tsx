@@ -30,9 +30,22 @@ export default function EventsClient() {
       const url = new URL('/api/admin/events', window.location.origin);
       if (status && status !== 'ALL') url.searchParams.set('status', status);
       const res = await fetch(url.toString(), { cache: 'no-store' });
-      const data = await res.json();
+
+      // Parse JSON only when content-type is JSON
+      const contentType = res.headers.get('content-type') || '';
+      let data: { events?: ApiEvent[]; error?: string } | null = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json().catch(() => null);
+      } else {
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || 'Failed to load');
+        // If somehow success with non-JSON, treat as empty list
+        data = { events: [] };
+      }
+
       if (!res.ok) throw new Error(data?.error || 'Failed to load');
-      const list: ApiEvent[] = (data?.events || []).map((e: any) => ({
+
+      const list: ApiEvent[] = (data?.events ?? []).map((e) => ({
         eventId: e.eventId,
         name: e.name,
         derivedStatus: e.derivedStatus,
@@ -43,7 +56,12 @@ export default function EventsClient() {
       }));
       setEvents(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '네트워크 오류');
+      // Common helpful messages for auth errors
+      const msg = e instanceof Error ? e.message : '네트워크 오류';
+      if (/Unauthorized|401/.test(msg)) setError('권한이 없습니다. 다시 로그인해 주세요.');
+      else if (/Forbidden|403/.test(msg)) setError('접근 권한이 없습니다.');
+      else if (msg.startsWith('<!DOCTYPE')) setError('서버 오류가 발생했습니다.');
+      else setError(msg);
     } finally {
       setLoading(false);
     }
@@ -145,9 +163,7 @@ export default function EventsClient() {
         <div className="card">
           <div className="card__body text-center py-12">
             <p className="text-[var(--muted)] mb-4">아직 이벤트가 없습니다.</p>
-            <Link href="/events/new">
-              <Button>+ 새 이벤트 만들기</Button>
-            </Link>
+            {/* 새 이벤트 만들기 버튼은 임시로 숨김 처리 */}
           </div>
         </div>
       )}
@@ -189,15 +205,11 @@ export default function EventsClient() {
                     <td style={{ fontSize: 13, color: 'var(--muted)' }}>{formatDate(ev.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <Button variant="secondary" size="sm">
-                          상세
-                        </Button>
-                        <Button variant="secondary" size="sm">
-                          스태프
-                        </Button>
-                        <Button variant="secondary" size="sm">
-                          참가자
-                        </Button>
+                        <Link href={`/events/${ev.eventId}`}>
+                          <Button variant="secondary" size="sm">
+                            상세
+                          </Button>
+                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -231,9 +243,9 @@ export default function EventsClient() {
                     <div>생성일: {formatDate(ev.createdAt)}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <Button variant="secondary">상세</Button>
-                    <Button variant="secondary">스태프</Button>
-                    <Button variant="secondary">참가자</Button>
+                    <Link href={`/events/${ev.eventId}`}>
+                      <Button variant="secondary">상세</Button>
+                    </Link>
                   </div>
                 </div>
               </div>

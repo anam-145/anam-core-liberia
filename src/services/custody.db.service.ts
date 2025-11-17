@@ -15,14 +15,13 @@
 import 'reflect-metadata';
 import type { DataSource } from 'typeorm';
 import { randomBytes } from 'crypto';
-import { CustodyWallet, WalletType } from '../server/db/entities/CustodyWallet';
+import { CustodyWallet } from '../server/db/entities/CustodyWallet';
 import type { Vault } from '../utils/crypto/vault';
 import AppDataSource from '../server/db/datasource';
 
 export interface CreateCustodyRequest {
   userId?: string; // Either userId or adminId must be provided
   adminId?: string;
-  walletType: 'ANAMWALLET' | 'USSD' | 'PAPER_VOUCHER';
   vault: Vault;
   vc?: Vault & { id: string }; // Optional: encrypted VC vault with id
 }
@@ -39,7 +38,6 @@ export interface CustodyData {
   custodyId: string;
   userId: string | null;
   adminId: string | null;
-  walletType: string;
   vault: Vault;
   vc: (Vault & { id: string }) | null;
   createdAt: Date;
@@ -95,7 +93,6 @@ export class CustodyDatabaseService {
       custodyId: entity.custodyId,
       userId: entity.userId,
       adminId: entity.adminId,
-      walletType: entity.walletType,
       vault: entity.vault,
       vc: entity.vc,
       createdAt: entity.createdAt,
@@ -114,11 +111,6 @@ export class CustodyDatabaseService {
       throw new Error('Either userId or adminId is required');
     }
 
-    // Validate wallet type
-    if (!['ANAMWALLET', 'USSD', 'PAPER_VOUCHER'].includes(request.walletType)) {
-      throw new Error('Invalid walletType. Must be ANAMWALLET, USSD, or PAPER_VOUCHER');
-    }
-
     // Validate vault structure
     if (!request.vault.ciphertext || !request.vault.iv || !request.vault.salt || !request.vault.authTag) {
       throw new Error('Invalid vault structure. Required fields: ciphertext, iv, salt, authTag');
@@ -130,7 +122,6 @@ export class CustodyDatabaseService {
     custodyEntity.custodyId = custodyId;
     custodyEntity.userId = request.userId ?? null;
     custodyEntity.adminId = request.adminId ?? null;
-    custodyEntity.walletType = WalletType[request.walletType];
     custodyEntity.vault = request.vault;
     custodyEntity.vc = request.vc || null; // Optionally set VC now
 

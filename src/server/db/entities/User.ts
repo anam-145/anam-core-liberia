@@ -1,11 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-export enum WalletType {
-  ANAMWALLET = 'ANAMWALLET',
-  USSD = 'USSD',
-  PAPER_VOUCHER = 'PAPER_VOUCHER',
-}
-
 export enum KycStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
@@ -21,11 +15,10 @@ export enum KycType {
   CHIEF_CERT = 'CHIEF_CERT',
 }
 
-export enum UserStatus {
-  PENDING_KYC = 'PENDING_KYC',
-  PENDING_USSD = 'PENDING_USSD',
+export enum USSDStatus {
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+  PENDING = 'PENDING',
   ACTIVE = 'ACTIVE',
-  SUSPENDED = 'SUSPENDED',
 }
 
 @Entity('users')
@@ -99,6 +92,7 @@ export class User {
   })
   address!: string | null;
 
+  // KYC Fields
   @Column({
     name: 'kyc_type',
     type: 'enum',
@@ -145,24 +139,7 @@ export class User {
   @Index()
   kycStatus!: KycStatus;
 
-  @Column({
-    name: 'kyc_verified_by',
-    type: 'varchar',
-    length: 36,
-    nullable: true,
-    comment: 'Verifier Admin ID (UUID)',
-  })
-  kycVerifiedBy!: string | null;
-
-  @Column({
-    name: 'wallet_type',
-    type: 'enum',
-    enum: WalletType,
-    comment: 'ANAMWALLET, USSD, or PAPER_VOUCHER',
-  })
-  @Index()
-  walletType!: WalletType;
-
+  // Wallet Field
   @Column({
     name: 'wallet_address',
     type: 'varchar',
@@ -173,35 +150,34 @@ export class User {
   })
   walletAddress!: string | null;
 
+  // Status Management
   @Column({
-    type: 'varchar',
-    length: 255,
-    nullable: true,
-    comment: 'DID identifier',
-  })
-  @Index()
-  did!: string | null;
-
-  @Column({
-    name: 'vc_id',
-    type: 'varchar',
-    length: 100,
-    nullable: true,
-    comment: 'KYC VC ID',
-  })
-  @Index()
-  vcId!: string | null;
-
-  @Column({
-    name: 'user_status',
+    name: 'ussd_status',
     type: 'enum',
-    enum: UserStatus,
-    default: UserStatus.PENDING_KYC,
-    comment: 'User status',
+    enum: USSDStatus,
+    default: USSDStatus.NOT_APPLICABLE,
+    comment: 'USSD activation status',
   })
   @Index()
-  userStatus!: UserStatus;
+  ussdStatus!: USSDStatus;
 
+  @Column({
+    name: 'is_active',
+    type: 'boolean',
+    default: true,
+    comment: 'User activation status',
+  })
+  isActive!: boolean;
+
+  @Column({
+    name: 'has_custody_wallet',
+    type: 'boolean',
+    default: false,
+    comment: 'Whether user has custody wallet',
+  })
+  hasCustodyWallet!: boolean;
+
+  // Metadata
   @Column({
     name: 'created_by',
     type: 'varchar',

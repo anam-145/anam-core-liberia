@@ -4,7 +4,8 @@ import { apiError } from './api-response';
 import type { AdminRole } from '@/server/db/entities/Admin';
 import { AdminRole as AdminRoleEnum } from '@/server/db/entities/Admin';
 import { AppDataSource } from '@/server/db/datasource';
-import { EventStaff, EventStaffStatus } from '@/server/db/entities/EventStaff';
+import { ensureDataSource } from '@/server/db/ensureDataSource';
+import { EventStaff } from '@/server/db/entities/EventStaff';
 import type { EventRole } from '@/server/db/entities/EventStaff';
 
 /**
@@ -111,19 +112,16 @@ export async function requireEventRole(
     return null;
   }
 
-  // Initialize database if needed
-  if (!AppDataSource.isInitialized) {
-    await AppDataSource.initialize();
-  }
+  // Initialize database (serialized) to avoid race conditions
+  await ensureDataSource();
 
   const eventStaffRepository = AppDataSource.getRepository(EventStaff);
 
-  // Check if user has active staff assignment for this event
+  // Check if user has staff assignment for this event
   const staffAssignment = await eventStaffRepository.findOne({
     where: {
       eventId,
       adminId: session.adminId,
-      status: EventStaffStatus.ACTIVE,
     },
   });
 

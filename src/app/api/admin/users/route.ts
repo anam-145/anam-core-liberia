@@ -3,7 +3,7 @@ import { adminService } from '@/services/admin.service';
 import { requireRole } from '@/lib/auth-middleware';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
-import type { KycStatus } from '@/server/db/entities/User';
+import type { KycStatus, USSDStatus } from '@/server/db/entities/User';
 import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
@@ -12,7 +12,7 @@ import { AdminRole } from '@/server/db/entities/Admin';
  *
  * Query Parameters:
  * - kycStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'
- * - walletType?: 'ANAMWALLET' | 'USSD' | 'PAPER_VOUCHER'
+ * - ussdStatus?: 'NOT_APPLICABLE' | 'PENDING' | 'ACTIVE'
  * - limit?: number
  * - offset?: number
  *
@@ -28,13 +28,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     const kycStatus = searchParams.get('kycStatus') as KycStatus | undefined;
-    const walletType = searchParams.get('walletType') || undefined;
+    const ussdStatus = searchParams.get('ussdStatus') as USSDStatus | undefined;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
     const { users, total } = await adminService.getUsers({
       kycStatus,
-      walletType,
+      ussdStatus,
       limit,
       offset,
     });
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
  * - dateOfBirth?: Date
  * - nationality?: string
  * - address?: string
- * - walletType: string
+ * - useUSSD: boolean - Whether this user will use USSD service
  * - kycType?: string
  * - kycDocumentNumber?: string
  *
@@ -72,8 +72,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!body.name || !body.phoneNumber || !body.walletType) {
-      return apiError('Missing required fields: name, phoneNumber, walletType', 400, 'VALIDATION_ERROR');
+    if (!body.name || !body.phoneNumber || body.useUSSD === undefined) {
+      return apiError('Missing required fields: name, phoneNumber, useUSSD', 400, 'VALIDATION_ERROR');
     }
 
     const session = await getSession();
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : undefined,
         nationality: body.nationality,
         address: body.address,
-        walletType: body.walletType,
+        useUSSD: body.useUSSD,
         kycType: body.kycType,
         kycDocumentNumber: body.kycDocumentNumber,
       },

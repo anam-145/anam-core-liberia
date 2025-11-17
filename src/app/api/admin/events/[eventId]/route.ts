@@ -13,12 +13,7 @@ export async function GET(_request: NextRequest, { params }: { params: { eventId
   if (authCheck) return authCheck;
 
   try {
-    const id = parseInt(params.eventId);
-    if (isNaN(id)) {
-      return apiError('Invalid event ID', 400, 'VALIDATION_ERROR');
-    }
-
-    const event = await adminService.getEventById(id);
+    const event = await adminService.getEventByEventId(params.eventId);
 
     if (!event) {
       return apiError('Event not found', 404, 'NOT_FOUND');
@@ -44,14 +39,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { eventI
   if (authCheck) return authCheck;
 
   try {
-    const id = parseInt(params.eventId);
-    if (isNaN(id)) {
-      return apiError('Invalid event ID', 400, 'VALIDATION_ERROR');
-    }
-
     const body = await request.json();
 
-    const event = await adminService.updateEvent(id, {
+    const event = await adminService.updateEventByEventId(params.eventId, {
       name: body.name,
       description: body.description,
       startDate: body.startDate ? new Date(body.startDate) : undefined,

@@ -5,11 +5,6 @@ export enum EventRole {
   VERIFIER = 'VERIFIER',
 }
 
-export enum EventStaffStatus {
-  ACTIVE = 'ACTIVE',
-  SUSPENDED = 'SUSPENDED',
-}
-
 @Entity('event_staff')
 @Unique(['eventId', 'adminId']) // 같은 이벤트에 같은 관리자 중복 배정 방지
 export class EventStaff {
@@ -42,22 +37,7 @@ export class EventStaff {
   })
   eventRole!: EventRole;
 
-  @Column({
-    type: 'enum',
-    enum: EventStaffStatus,
-    default: EventStaffStatus.ACTIVE,
-    comment: 'Staff status for this event (ACTIVE or SUSPENDED)',
-  })
-  status!: EventStaffStatus;
-
-  @Column({
-    name: 'assigned_by',
-    type: 'varchar',
-    length: 36,
-    nullable: true,
-    comment: 'Admin ID who assigned this staff (UUID)',
-  })
-  assignedBy!: string | null;
+  // status/assignedBy removed (MVP 단순화)
 
   @Column({
     name: 'assigned_at',

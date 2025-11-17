@@ -3,6 +3,7 @@ import { adminService } from '@/services/admin.service';
 import { requireRole } from '@/lib/auth-middleware';
 import { apiOk, apiError } from '@/lib/api-response';
 import { AdminRole } from '@/server/db/entities/Admin';
+import type { EventRole } from '@/server/db/entities/EventStaff';
 
 /**
  * DELETE /api/admin/events/[eventId]/staff/[adminId]
@@ -25,6 +26,35 @@ export async function DELETE(_request: NextRequest, { params }: { params: { even
     return apiOk({ success: true });
   } catch (error) {
     console.error('Error in DELETE /api/admin/events/[eventId]/staff/[adminId]:', error);
+    return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
+  }
+}
+
+/**
+ * PATCH /api/admin/events/[eventId]/staff/[adminId]
+ * Update staff role for this event (SYSTEM_ADMIN only)
+ */
+export async function PATCH(request: NextRequest, { params }: { params: { eventId: string; adminId: string } }) {
+  const authCheck = await requireRole(AdminRole.SYSTEM_ADMIN);
+  if (authCheck) return authCheck;
+
+  try {
+    const body = await request.json();
+    const role = body?.eventRole as 'APPROVER' | 'VERIFIER' | undefined;
+    if (!role || (role !== 'APPROVER' && role !== 'VERIFIER')) {
+      return apiError('Invalid or missing field: eventRole', 400, 'VALIDATION_ERROR', {
+        fieldErrors: { eventRole: '역할을 선택해 주세요.' },
+      });
+    }
+
+    const updated = await adminService.updateEventStaffRole(params.eventId, params.adminId, role as EventRole);
+    if (!updated) {
+      return apiError('Staff assignment not found', 404, 'NOT_FOUND');
+    }
+
+    return apiOk({ staff: updated });
+  } catch (error) {
+    console.error('Error in PATCH /api/admin/events/[eventId]/staff/[adminId]:', error);
     return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');
   }
 }

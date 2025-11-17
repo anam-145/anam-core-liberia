@@ -116,16 +116,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               </Link>
             </>
           )}
-          {/* 참가자는 SYSTEM_ADMIN/STAFF 모두 */}
-          {sessionLoaded && role && (
-            <Link
-              href="/users"
-              className={pathname?.startsWith('/users') ? 'active' : ''}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <span>참가자</span>
-            </Link>
-          )}
         </nav>
       </aside>
 

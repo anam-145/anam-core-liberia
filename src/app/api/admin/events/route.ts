@@ -19,8 +19,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validate required fields (token is fixed to USDC via env; no token fields in body)
-    if (!body.name || !body.startDate || !body.endDate || !body.amountPerDay) {
-      return apiError('Missing required fields: name, startDate, endDate, amountPerDay', 400, 'VALIDATION_ERROR');
+    {
+      const fieldErrors: Record<string, string> = {};
+      if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
+        fieldErrors.name = '이벤트명을 입력해 주세요.';
+      }
+      if (!body.startDate) {
+        fieldErrors.startDate = '시작일을 선택해 주세요.';
+      }
+      if (!body.endDate) {
+        fieldErrors.endDate = '종료일을 선택해 주세요.';
+      }
+      if (!body.amountPerDay) {
+        fieldErrors.amountPerDay = '지급 금액을 입력해 주세요.';
+      }
+      if (Object.keys(fieldErrors).length > 0) {
+        return apiError('Validation failed', 400, 'VALIDATION_ERROR', { fieldErrors });
+      }
     }
 
     // Additional domain validations
@@ -113,7 +128,14 @@ export async function POST(request: NextRequest) {
     // 1) 실제 구현 시 signer(issuer) privateKey와 factory 주소/ABI 사용
     // 2) approvers/verifiers 목록은 EventStaff(초기 배정)에서 가져와 전달
     // 3) 아래 스텁 호출은 고정 address/txHash를 반환 (임시)
+    // 옵션 B (임시): 컨트랙트 미배포 상태 — eventId 기반 결정론적 플레이스홀더 주소/해시 생성
+    // 이유
+    //  - events.event_contract_address 컬럼은 UNIQUE 제약
+    //  - 하드코딩 동일 주소를 매번 저장하면 2번째 생성부터 UNIQUE 충돌 발생
+    //  - eventId에서 결정론적으로 파생하면 각 이벤트가 서로 다른 값을 가져 충돌을 피하고,
+    //    같은 eventId로 재시도 시에도 동일 값이 나와 idempotent합니다.
     const { address, txHash } = await createEventOnChain({
+      eventId: event.eventId,
       usdcAddress: process.env.BASE_USDC_ADDRESS || '0x0000000000000000000000000000000000000000',
       startTime: event.startDate,
       endTime: event.endDate,
@@ -165,7 +187,7 @@ export async function GET(request: NextRequest) {
     });
 
     const filtered = ['PENDING', 'ONGOING', 'COMPLETED'].includes(derived)
-      ? withDerived.filter((e: any) => e.derivedStatus === derived)
+      ? withDerived.filter((e) => (e as { derivedStatus: string }).derivedStatus === derived)
       : withDerived;
 
     return apiOk({ events: filtered, total });

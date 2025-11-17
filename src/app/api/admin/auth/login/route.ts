@@ -80,7 +80,6 @@ export async function POST(request: NextRequest) {
       // 4) Store custody with both vaults
       await custodyService.createCustody({
         adminId: admin.adminId,
-        walletType: 'ANAMWALLET',
         vault: walletVault,
         vc: { id: issued.vc.id, ...vcVault },
       });

@@ -13,7 +13,6 @@ import { requireAuth } from '@/lib/auth-middleware';
  * - userId?: string - 사용자 ID (선택)
  * - adminId?: string - 관리자 ID (선택)
  *   → 둘 중 하나는 반드시 포함되어야 함
- * - walletType: 'ANAMWALLET' | 'USSD' | 'PAPER_VOUCHER' (required)
  * - vault: Vault (required) - Encrypted vault object
  *
  * Response:
@@ -31,13 +30,8 @@ export async function POST(request: NextRequest) {
     if (!body.userId && !body.adminId) {
       return apiError('Either userId or adminId is required', 400, 'VALIDATION_ERROR');
     }
-    if (!body.walletType || !body.vault) {
-      return apiError('Missing required fields: walletType, vault', 400, 'VALIDATION_ERROR');
-    }
-
-    // Validate wallet type
-    if (!['ANAMWALLET', 'USSD', 'PAPER_VOUCHER'].includes(body.walletType)) {
-      return apiError('Invalid walletType. Must be ANAMWALLET, USSD, or PAPER_VOUCHER', 400, 'VALIDATION_ERROR');
+    if (!body.vault) {
+      return apiError('Missing required field: vault', 400, 'VALIDATION_ERROR');
     }
 
     // Validate vault structure
@@ -53,7 +47,6 @@ export async function POST(request: NextRequest) {
     const result = await custodyService.createCustody({
       userId: body.userId,
       adminId: body.adminId,
-      walletType: body.walletType,
       vault: body.vault,
     });
 

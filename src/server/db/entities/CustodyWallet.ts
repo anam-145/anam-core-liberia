@@ -15,12 +15,6 @@ import { Admin } from './Admin';
 // Encrypted VC payload: VC JSON encrypted with AES-GCM + plain vc.id for indexing
 type EncryptedVC = Vault & { id: string };
 
-export enum WalletType {
-  ANAMWALLET = 'ANAMWALLET',
-  USSD = 'USSD',
-  PAPER_VOUCHER = 'PAPER_VOUCHER',
-}
-
 @Entity('custody_wallets')
 export class CustodyWallet {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
@@ -66,15 +60,7 @@ export class CustodyWallet {
   @JoinColumn({ name: 'admin_id', referencedColumnName: 'adminId' })
   admin?: Admin | null;
 
-  @Column({
-    name: 'wallet_type',
-    type: 'enum',
-    enum: WalletType,
-    comment: 'ANAMWALLET, USSD, or PAPER_VOUCHER',
-  })
-  walletType!: WalletType;
-
-  // phone_number removed — identification moved to user/admin relations
+  // wallet_type removed — wallet type is managed at User/Admin level, not in custody
 
   @Column({
     type: 'json',

@@ -2,7 +2,7 @@ import { AppDataSource } from '@/server/db/datasource';
 import type { AdminRole } from '@/server/db/entities/Admin';
 import { Admin, OnboardingStatus } from '@/server/db/entities/Admin';
 import type { KycType } from '@/server/db/entities/User';
-import { User, KycStatus, WalletType, UserStatus } from '@/server/db/entities/User';
+import { User, KycStatus, USSDStatus } from '@/server/db/entities/User';
 import { Event, EventStatus } from '@/server/db/entities/Event';
 import type { EventRole } from '@/server/db/entities/EventStaff';
 import { EventStaff } from '@/server/db/entities/EventStaff';
@@ -198,7 +198,7 @@ class AdminService {
    */
   async getUsers(options: {
     kycStatus?: KycStatus;
-    walletType?: string;
+    ussdStatus?: USSDStatus;
     limit?: number;
     offset?: number;
   }): Promise<{ users: User[]; total: number }> {
@@ -211,8 +211,8 @@ class AdminService {
       query.andWhere('user.kyc_status = :kycStatus', { kycStatus: options.kycStatus });
     }
 
-    if (options.walletType) {
-      query.andWhere('user.wallet_type = :walletType', { walletType: options.walletType });
+    if (options.ussdStatus) {
+      query.andWhere('user.ussd_status = :ussdStatus', { ussdStatus: options.ussdStatus });
     }
 
     const total = await query.getCount();
@@ -254,7 +254,7 @@ class AdminService {
       dateOfBirth?: Date;
       nationality?: string;
       address?: string;
-      walletType: string;
+      useUSSD?: boolean; // USSD 사용 여부
       kycType?: string;
       kycDocumentNumber?: string;
     },
@@ -281,11 +281,12 @@ class AdminService {
       dateOfBirth: data.dateOfBirth || null,
       nationality: data.nationality || null,
       address: data.address || null,
-      walletType: data.walletType as WalletType,
       kycType: (data.kycType as KycType) || null,
       kycDocumentNumber: data.kycDocumentNumber || null,
       kycStatus: KycStatus.PENDING,
-      userStatus: UserStatus.PENDING_KYC, // 설계서에 따라 기본값은 PENDING_KYC
+      ussdStatus: data.useUSSD ? USSDStatus.PENDING : USSDStatus.NOT_APPLICABLE,
+      isActive: true,
+      hasCustodyWallet: false,
       createdBy,
     });
 
@@ -338,12 +339,17 @@ class AdminService {
       return null;
     }
 
-    // Check if user is USSD type
-    if (user.walletType !== WalletType.USSD) {
-      throw new Error('User is not a USSD wallet type');
+    // Check if user has USSD enabled
+    if (user.ussdStatus === USSDStatus.NOT_APPLICABLE) {
+      throw new Error('User does not have USSD service enabled');
     }
 
-    user.userStatus = UserStatus.ACTIVE;
+    if (user.ussdStatus === USSDStatus.ACTIVE) {
+      throw new Error('USSD is already active for this user');
+    }
+
+    user.ussdStatus = USSDStatus.ACTIVE;
+    user.hasCustodyWallet = true;
 
     await userRepository.save(user);
     return user;
@@ -361,7 +367,7 @@ class AdminService {
       dateOfBirth?: Date;
       nationality?: string;
       address?: string;
-      userStatus?: string;
+      isActive?: boolean;
     },
   ): Promise<User | null> {
     await this.initialize();
@@ -379,7 +385,7 @@ class AdminService {
     if (data.dateOfBirth !== undefined) user.dateOfBirth = data.dateOfBirth;
     if (data.nationality !== undefined) user.nationality = data.nationality;
     if (data.address !== undefined) user.address = data.address;
-    if (data.userStatus !== undefined) user.userStatus = data.userStatus as UserStatus;
+    if (data.isActive !== undefined) user.isActive = data.isActive;
 
     await userRepository.save(user);
     return user;
@@ -388,7 +394,7 @@ class AdminService {
   /**
    * Approve user KYC
    */
-  async approveKyc(userId: number, adminId: string): Promise<User | null> {
+  async approveKyc(userId: number, _adminId: string): Promise<User | null> {
     await this.initialize();
 
     const userRepository = AppDataSource.getRepository(User);
@@ -399,7 +405,7 @@ class AdminService {
     }
 
     user.kycStatus = KycStatus.APPROVED;
-    user.kycVerifiedBy = adminId;
+    // KYC 검증자 정보는 별도 로그 테이블에서 관리
 
     await userRepository.save(user);
     return user;
@@ -458,7 +464,8 @@ class AdminService {
       endDate: data.endDate,
       amountPerDay: data.amountPerDay,
       maxParticipants: data.maxParticipants || 100,
-      isActive: true,
+      // 이벤트 생성 시 기본 비활성화 (운영 준비 전 상태)
+      isActive: false,
       status: EventStatus.PENDING,
       createdBy,
     });
@@ -495,6 +502,34 @@ class AdminService {
       return null;
     }
 
+    Object.assign(event, data);
+    await eventRepository.save(event);
+    return event;
+  }
+
+  /**
+   * Update event by eventId (UUID)
+   */
+  async updateEventByEventId(
+    eventId: string,
+    data: {
+      name?: string;
+      description?: string;
+      startDate?: Date;
+      endDate?: Date;
+      maxParticipants?: number;
+      status?: EventStatus;
+      // Factory integration
+      eventContractAddress?: string | null;
+      deploymentTxHash?: string | null;
+      // 운영 토글 (일시중지/재개)
+      isActive?: boolean;
+    },
+  ): Promise<Event | null> {
+    await this.initialize();
+    const eventRepository = AppDataSource.getRepository(Event);
+    const event = await eventRepository.findOne({ where: { eventId } });
+    if (!event) return null;
     Object.assign(event, data);
     await eventRepository.save(event);
     return event;
@@ -547,6 +582,15 @@ class AdminService {
   }
 
   /**
+   * Get event by eventId (UUID)
+   */
+  async getEventByEventId(eventId: string): Promise<Event | null> {
+    await this.initialize();
+    const eventRepository = AppDataSource.getRepository(Event);
+    return eventRepository.findOne({ where: { eventId } });
+  }
+
+  /**
    * Assign staff to event
    */
   async assignStaff(data: { eventId: string; adminId: string; eventRole: EventRole }): Promise<EventStaff> {
@@ -576,6 +620,20 @@ class AdminService {
       where: { eventId },
       order: { assignedAt: 'DESC' },
     });
+  }
+
+  /**
+   * Update event staff role
+   */
+  async updateEventStaffRole(eventId: string, adminId: string, eventRole: EventRole): Promise<EventStaff | null> {
+    await this.initialize();
+
+    const repo = AppDataSource.getRepository(EventStaff);
+    const staff = await repo.findOne({ where: { eventId, adminId } });
+    if (!staff) return null;
+    staff.eventRole = eventRole;
+    await repo.save(staff);
+    return staff;
   }
 
   /**

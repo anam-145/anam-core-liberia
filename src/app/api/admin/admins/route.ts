@@ -2,7 +2,10 @@ import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
 import { requireRole } from '@/lib/auth-middleware';
 import { apiOk, apiError } from '@/lib/api-response';
-import { AdminRole } from '@/server/db/entities/Admin';
+import { Admin, AdminRole, OnboardingStatus } from '@/server/db/entities/Admin';
+import { AppDataSource } from '@/server/db/datasource';
+import { VcRegistry, VCStatus } from '@/server/db/entities/VcRegistry';
+import { EventStaff } from '@/server/db/entities/EventStaff';
 
 /**
  * POST /api/admin/admins
@@ -72,16 +75,45 @@ export async function POST(request: NextRequest) {
  * Response:
  * - admins: Admin[] (without passwordHash)
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const authCheck = await requireRole(AdminRole.SYSTEM_ADMIN);
   if (authCheck) return authCheck;
 
   try {
+    const url = new URL(request.url);
+    const eligibleForEvent = url.searchParams.get('eligibleForEvent');
+
+    // If filtering for eligibility to assign to a specific event
+    if (eligibleForEvent) {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+      const repo = AppDataSource.getRepository(Admin);
+      // Build query: only STAFF, active, onboarding ACTIVE, has DID/wallet, has ACTIVE ADMIN VC, not already assigned to this event
+      const qb = repo
+        .createQueryBuilder('a')
+        .leftJoin(VcRegistry, 'v', 'v.user_did = a.did AND v.vc_type = :vcType AND v.status = :vStatus', {
+          vcType: 'UndpAdminCredential',
+          vStatus: VCStatus.ACTIVE,
+        })
+        .leftJoin(EventStaff, 's', 's.event_id = :eventId AND s.admin_id = a.admin_id', { eventId: eligibleForEvent })
+        .where('a.role = :role', { role: AdminRole.STAFF })
+        .andWhere('a.is_active = true')
+        .andWhere('a.onboarding_status = :os', { os: OnboardingStatus.ACTIVE })
+        .andWhere('a.did IS NOT NULL')
+        .andWhere('a.wallet_address IS NOT NULL')
+        .andWhere('v.id IS NOT NULL') // Has active ADMIN VC
+        .andWhere('s.id IS NULL') // Not assigned to this event yet
+        .orderBy('a.full_name', 'ASC');
+
+      const list = await qb.getMany();
+      const adminsData = list.map(({ passwordHash: _passwordHash, ...admin }) => admin);
+      return apiOk({ admins: adminsData });
+    }
+
+    // Default: return all admins (existing behavior)
     const admins = await adminService.getAllAdmins();
-
-    // Remove passwordHash from response
     const adminsData = admins.map(({ passwordHash: _passwordHash, ...admin }) => admin);
-
     return apiOk({ admins: adminsData });
   } catch (error) {
     console.error('Error in GET /api/admin/admins:', error);
