@@ -283,7 +283,6 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   const [participants, _setParticipants] = useState<ParticipantData[]>(MOCK_PARTICIPANTS);
   const [activeTab, setActiveTab] = useState<'participants' | 'payment'>('participants');
   const [_filterStatus, _setFilterStatus] = useState<'all' | 'present' | 'absent'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [addUserQuery, setAddUserQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string>('');
@@ -292,8 +291,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     { userId: 'u_002', fullName: 'user', username: 'user', email: null as string | null },
   ]);
   const [showQrScanModal, setShowQrScanModal] = useState(false);
-  const [showParticipantModal, setShowParticipantModal] = useState(false);
-  const [selectedParticipant, setSelectedParticipant] = useState<ParticipantData | null>(null);
+  // 참가자 상세 모달 제거 (간소화)
 
   // Event info (mock)
   const eventInfo = {
@@ -316,15 +314,34 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     totalDisbursed: participants.filter((p) => p.paymentStatus === 'PAID').length * eventInfo.dailyDsa,
   };
 
-  // Filter participants
-  const filteredParticipants = participants.filter((p) => {
-    const matchesSearch =
-      !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.did.toLowerCase().includes(searchQuery.toLowerCase());
+  // Attendance visualization demo states
 
-    return matchesSearch;
-  });
+  // Dates between start and end (inclusive)
+  const getDateRange = (start: string, end: string) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const list: string[] = [];
+    const d = new Date(s);
+    while (d <= e) {
+      list.push(d.toISOString().slice(0, 10));
+      d.setDate(d.getDate() + 1);
+    }
+    return list;
+  };
+  const eventDates = getDateRange(eventInfo.startDate, eventInfo.endDate);
+  const todayIdx = Math.max(0, Math.min(eventDates.length - 1, eventInfo.currentDay - 1));
+
+  // Build demo attendance pattern up to todayIdx
+  function computeAttendance(participant: ParticipantData, dates: string[], todayIndex: number): Array<boolean | null> {
+    return dates.map((_, idx) => {
+      if (idx > todayIndex) return null; // future 날짜는 null
+      // 현재 스켈레톤 데이터 기준: 오늘 출석 여부만 반영
+      return idx === todayIndex ? participant.attendance === 'PRESENT' : false;
+    });
+  }
+
+  // Participants list (no search filter)
+  const filteredParticipants = participants;
 
   // Placeholder functions - API 연결 예정
   const approveDSA = (participantId: string) => {
@@ -451,34 +468,27 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         <div className="p-6">
           {activeTab === 'participants' && (
             <div>
-              {/* Toolbar */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+              {/* Header (title + action) */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
                 <h3 className="text-lg font-semibold">총 {participants.length}명 참가자</h3>
-                <div className="flex gap-2 w-full lg:w-auto">
-                  <Input
-                    type="text"
-                    placeholder="이름, DID 검색..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 lg:w-64"
-                  />
+                <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => setShowQrScanModal(true)}>
                     체크인
                   </Button>
-                  <Button onClick={() => setShowRegisterModal(true)}>유저 이벤트 등록</Button>
+                  <Button onClick={() => setShowRegisterModal(true)}>사용자 등록</Button>
                 </div>
               </div>
 
-              {/* Participants Table */}
+              {/* 검색창 제거됨 */}
+
+              {/* Participants Table (참가자 관리: 출석 날짜/총 DSA만 표시) */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">참가자</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">사용자 상태</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">VC 상태</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">USSD 상태</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">액션</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">출석</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">총 DSA</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -495,106 +505,48 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                              participant.isActive
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : 'bg-gray-50 text-gray-700 border-gray-200'
-                            }`}
-                          >
-                            {participant.isActive ? '활성' : '비활성'}
-                          </span>
+                        <td className="px-4 py-3 align-top">
+                          {(() => {
+                            const att = computeAttendance(participant, eventDates, todayIdx);
+                            const daysDone = todayIdx + 1;
+                            const presentCount = att.filter((v) => v === true).length;
+                            const pct = daysDone > 0 ? Math.round((presentCount / daysDone) * 100) : 0;
+                            return (
+                              <div className="min-w-[200px]">
+                                {/* 도트 */}
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {att.map((v, idx) => {
+                                    const isToday = idx === todayIdx;
+                                    const cls =
+                                      v === true ? 'bg-green-500' : v === false ? 'bg-gray-300' : 'bg-gray-100';
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className={`inline-block w-2.5 h-2.5 rounded-full ${cls} ${isToday ? 'ring-1 ring-gray-400' : ''}`}
+                                        title={`${eventDates[idx]}`}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                                {/* 막대 */}
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className="bg-[var(--brand)] h-2 rounded-full transition-all"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <div className="text-[11px] text-gray-500 mt-1">
+                                  {presentCount}/{daysDone}일 ({pct}%)
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                              participant.vcStatus === 'ACTIVE'
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : participant.vcStatus === 'SUSPENDED'
-                                  ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                                  : 'bg-red-50 text-red-700 border-red-200'
-                            }`}
-                          >
-                            {participant.vcStatus === 'ACTIVE'
-                              ? '활성'
-                              : participant.vcStatus === 'SUSPENDED'
-                                ? '일시정지'
-                                : '폐기'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {participant.ussdStatus !== 'NOT_APPLICABLE' ? (
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                                participant.ussdStatus === 'ACTIVE'
-                                  ? 'bg-green-50 text-green-700 border-green-200'
-                                  : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                              }`}
-                            >
-                              {participant.ussdStatus === 'ACTIVE' ? '활성화' : '대기중'}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-xs">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2 flex-wrap">
-                            <button
-                              className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                              onClick={() => {
-                                setSelectedParticipant(participant);
-                                setShowParticipantModal(true);
-                              }}
-                            >
-                              상세
-                            </button>
-                            <button
-                              className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                              onClick={() => console.log('바우처 QR 발급 API 연결 예정:', participant.participantId)}
-                            >
-                              바우처 QR 발급
-                            </button>
-                            {participant.isActive ? (
-                              <button
-                                className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                                onClick={() => console.log('사용자 비활성화 API 연결 예정:', participant.participantId)}
-                              >
-                                비활성화
-                              </button>
-                            ) : (
-                              <button
-                                className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                                onClick={() => console.log('사용자 활성화 API 연결 예정:', participant.participantId)}
-                              >
-                                활성화
-                              </button>
-                            )}
-                            {participant.vcStatus === 'ACTIVE' && (
-                              <button
-                                className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                                onClick={() => console.log('VC 일시정지 API 연결 예정:', participant.participantId)}
-                              >
-                                VC 일시정지
-                              </button>
-                            )}
-                            {participant.vcStatus === 'SUSPENDED' && (
-                              <button
-                                className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                                onClick={() => console.log('VC 재활성화 API 연결 예정:', participant.participantId)}
-                              >
-                                VC 재활성화
-                              </button>
-                            )}
-                            {participant.vcStatus !== 'REVOKED' && (
-                              <button
-                                className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700"
-                                onClick={() => console.log('VC 폐기 API 연결 예정:', participant.participantId)}
-                              >
-                                VC 폐기
-                              </button>
-                            )}
-                          </div>
+                          {(() => {
+                            const paid = participant.paymentStatus === 'PAID' ? eventInfo.dailyDsa : 0;
+                            return <div className="font-medium">${paid}</div>;
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -833,182 +785,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
       {/* Check-in Modal */}
       {showQrScanModal && <CheckInModal onClose={() => setShowQrScanModal(false)} />}
 
-      {/* Participant Detail Modal */}
-      {showParticipantModal && selectedParticipant && (
-        <SimpleModal onClose={() => setShowParticipantModal(false)} className="max-w-xl">
-          <div className="card w-full max-w-xl mx-auto">
-            <div className="card__header">참가자 상세 정보</div>
-            <div className="card__body max-h-[calc(100vh-12rem)] overflow-y-auto">
-              {/* Basic Info */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">기본 정보</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-gray-600">이름:</span>
-                    <span className="ml-2 font-medium">{selectedParticipant.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">ID:</span>
-                    <span className="ml-2">{selectedParticipant.participantId}</span>
-                  </div>
-                  {selectedParticipant.phoneNumber && (
-                    <div>
-                      <span className="text-gray-600">전화번호:</span>
-                      <span className="ml-2">{selectedParticipant.phoneNumber}</span>
-                    </div>
-                  )}
-                  {selectedParticipant.email && (
-                    <div>
-                      <span className="text-gray-600">이메일:</span>
-                      <span className="ml-2">{selectedParticipant.email}</span>
-                    </div>
-                  )}
-                  {selectedParticipant.gender && (
-                    <div>
-                      <span className="text-gray-600">성별:</span>
-                      <span className="ml-2">{selectedParticipant.gender}</span>
-                    </div>
-                  )}
-                  {selectedParticipant.dateOfBirth && (
-                    <div>
-                      <span className="text-gray-600">생년월일:</span>
-                      <span className="ml-2">{selectedParticipant.dateOfBirth}</span>
-                    </div>
-                  )}
-                  {selectedParticipant.nationality && (
-                    <div>
-                      <span className="text-gray-600">국적:</span>
-                      <span className="ml-2">{selectedParticipant.nationality}</span>
-                    </div>
-                  )}
-                  {selectedParticipant.createdAt && (
-                    <div>
-                      <span className="text-gray-600">등록일:</span>
-                      <span className="ml-2">{new Date(selectedParticipant.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                </div>
-                {selectedParticipant.address && (
-                  <div className="mt-3">
-                    <span className="text-gray-600 text-sm">주소:</span>
-                    <p className="text-sm mt-1">{selectedParticipant.address}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* DID/Wallet Info */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">DID/지갑 정보</h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">DID:</span>
-                    <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">
-                      {selectedParticipant.did}
-                    </div>
-                  </div>
-                  {selectedParticipant.walletAddress && (
-                    <div>
-                      <span className="text-gray-600">지갑 주소:</span>
-                      <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">
-                        {selectedParticipant.walletAddress}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Status Info */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">상태 정보</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-sm text-gray-600">사용자 상태:</span>
-                    <div className="mt-1">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                          selectedParticipant.isActive
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-gray-50 text-gray-700 border-gray-200'
-                        }`}
-                      >
-                        {selectedParticipant.isActive ? '활성' : '비활성'}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600">VC 상태:</span>
-                    <div className="mt-1">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                          selectedParticipant.vcStatus === 'ACTIVE'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : selectedParticipant.vcStatus === 'SUSPENDED'
-                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                              : 'bg-red-50 text-red-700 border-red-200'
-                        }`}
-                      >
-                        {selectedParticipant.vcStatus === 'ACTIVE'
-                          ? '활성'
-                          : selectedParticipant.vcStatus === 'SUSPENDED'
-                            ? '일시정지'
-                            : '폐기'}
-                      </span>
-                    </div>
-                  </div>
-                  {selectedParticipant.ussdStatus !== 'NOT_APPLICABLE' && (
-                    <div>
-                      <span className="text-sm text-gray-600">USSD 상태:</span>
-                      <div className="mt-1">
-                        <span
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                            selectedParticipant.ussdStatus === 'ACTIVE'
-                              ? 'bg-green-50 text-green-700 border-green-200'
-                              : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                          }`}
-                        >
-                          {selectedParticipant.ussdStatus === 'ACTIVE' ? '활성화' : '대기중'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* KYC Documents */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">KYC 문서</h3>
-                <div className="flex gap-2">
-                  {selectedParticipant.kycDocumentPath ? (
-                    <>
-                      <button
-                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                        onClick={() => console.log('KYC 문서 다운로드:', selectedParticipant.kycDocumentPath)}
-                      >
-                        신분증 다운로드
-                      </button>
-                      {selectedParticipant.kycFacePath && (
-                        <button
-                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                          onClick={() => console.log('얼굴 사진 다운로드:', selectedParticipant.kycFacePath)}
-                        >
-                          얼굴 사진 다운로드
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-sm text-gray-500">KYC 문서가 없습니다</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <Button variant="secondary" onClick={() => setShowParticipantModal(false)}>
-                닫기
-              </Button>
-            </div>
-          </div>
-        </SimpleModal>
-      )}
+      {/* Participant Detail Modal (removed for simplified management) */}
     </div>
   );
 }

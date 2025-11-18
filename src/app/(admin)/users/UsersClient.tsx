@@ -120,6 +120,11 @@ export default function UsersClient() {
     }
   };
 
+  // 종이바우처 발급 함수
+  const handleIssuePaperVoucher = (userId: number) => {
+    window.open(`/print/users/${userId}/paper-voucher`, '_blank');
+  };
+
   return (
     <div className="max-w-screen-2xl mx-auto">
       {/* Header */}
@@ -190,7 +195,7 @@ export default function UsersClient() {
                 <thead>
                   <tr>
                     <th>사용자 / DID</th>
-                    <th>등록 유형</th>
+                    <th>초기 등록 유형</th>
                     <th>활성화</th>
                     <th>USSD</th>
                     <th>VC 상태</th>
@@ -285,7 +290,7 @@ export default function UsersClient() {
                       </td>
                       <td style={{ fontSize: 13, color: 'var(--muted)' }}>{formatDate(u.createdAt)}</td>
                       <td>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           <button
                             className="btn btn--secondary btn--sm"
                             onClick={() => {
@@ -296,6 +301,15 @@ export default function UsersClient() {
                           >
                             상세
                           </button>
+                          {u.hasCustodyWallet && (
+                            <button
+                              className="btn btn--primary btn--sm"
+                              onClick={() => handleIssuePaperVoucher(u.id)}
+                              title="종이바우처 발급"
+                            >
+                              종이바우처 발급
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -339,7 +353,7 @@ export default function UsersClient() {
                     </div>
                     <div>생성일: {formatDate(u.createdAt)}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <Button
                       variant="secondary"
                       onClick={() => {
@@ -349,6 +363,11 @@ export default function UsersClient() {
                     >
                       상세
                     </Button>
+                    {u.hasCustodyWallet && (
+                      <Button variant="primary" onClick={() => handleIssuePaperVoucher(u.id)}>
+                        종이바우처 발급
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

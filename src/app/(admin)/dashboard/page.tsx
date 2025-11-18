@@ -165,6 +165,22 @@ export default function DashboardPage() {
     return Math.round((current / max) * 100);
   };
 
+  // Normalize event status (avoid hardcoding 'status' only)
+  const getDerivedStatus = (e: ApiEvent): 'PENDING' | 'ONGOING' | 'COMPLETED' => {
+    if (e.derivedStatus) return e.derivedStatus;
+    if (e.status) return e.status;
+    try {
+      const start = new Date(e.startDate);
+      const end = new Date(e.endDate);
+      const now = new Date();
+      if (now < start) return 'PENDING';
+      if (now > end) return 'COMPLETED';
+      return 'ONGOING';
+    } catch {
+      return 'PENDING';
+    }
+  };
+
   return (
     <div className="max-w-screen-2xl mx-auto">
       {/* Page Header */}
@@ -189,7 +205,7 @@ export default function DashboardPage() {
           <div className="card__body">
             <div className="text-sm text-[var(--muted)]">진행중</div>
             <div className="text-2xl font-bold mt-1 text-green-600">
-              {events.filter((e) => e.status === 'ONGOING').length}
+              {events.filter((e) => getDerivedStatus(e) === 'ONGOING').length}
             </div>
           </div>
         </div>
@@ -197,7 +213,7 @@ export default function DashboardPage() {
           <div className="card__body">
             <div className="text-sm text-[var(--muted)]">예정</div>
             <div className="text-2xl font-bold mt-1 text-yellow-600">
-              {events.filter((e) => e.status === 'PENDING').length}
+              {events.filter((e) => getDerivedStatus(e) === 'PENDING').length}
             </div>
           </div>
         </div>
@@ -205,7 +221,7 @@ export default function DashboardPage() {
           <div className="card__body">
             <div className="text-sm text-[var(--muted)]">완료</div>
             <div className="text-2xl font-bold mt-1 text-gray-600">
-              {events.filter((e) => e.status === 'COMPLETED').length}
+              {events.filter((e) => getDerivedStatus(e) === 'COMPLETED').length}
             </div>
           </div>
         </div>

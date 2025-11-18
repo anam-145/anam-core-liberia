@@ -71,12 +71,15 @@ export async function GET(request: NextRequest) {
     // Extract filename for download
     const filename = path.basename(absolutePath);
 
-    // Return file with download headers
+    // Return file with inline display for images, download for others
+    const isImage = contentType.startsWith('image/');
+    const disposition = isImage ? 'inline' : `attachment; filename="${filename}"`;
+
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': disposition,
         'Content-Length': fileBuffer.length.toString(),
       },
     });

@@ -2,12 +2,13 @@
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
+// import Select from '@/components/ui/Select';
 
 type AdminRole = 'SYSTEM_ADMIN' | 'STAFF';
 type VCStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
 type OnboardingStatus = 'PENDING_REVIEW' | 'APPROVED' | 'ACTIVE' | 'REJECTED';
-type AdminStatus = 'ALL' | VCStatus;
+// Status filter removed
+// type AdminStatus = 'ALL' | VCStatus;
 
 interface AdminData {
   id: number;
@@ -27,7 +28,7 @@ interface AdminData {
 export default function AdminsClient() {
   const [admins, setAdmins] = useState<AdminData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<AdminStatus>('ALL');
+  // const [statusFilter, setStatusFilter] = useState<AdminStatus>('ALL');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<AdminData | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,8 +72,7 @@ export default function AdminsClient() {
       admin.username.toLowerCase().includes(query) ||
       admin.email?.toLowerCase().includes(query) ||
       admin.did?.toLowerCase().includes(query);
-    const matchesStatus = statusFilter === 'ALL' || getEffectiveStatus(admin) === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const getStatusBadgeColor = (status: VCStatus) => {
@@ -173,20 +173,13 @@ export default function AdminsClient() {
 
       <div className="card mb-4 lg:mb-6">
         <div className="card__body">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <Input
               type="text"
               placeholder="이름, DID, 이메일 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-
-            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as AdminStatus)}>
-              <option value="ALL">모든 상태</option>
-              <option value="ACTIVE">활성화</option>
-              <option value="SUSPENDED">비활성화</option>
-              <option value="REVOKED">폐기됨</option>
-            </Select>
           </div>
         </div>
       </div>
