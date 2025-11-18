@@ -1,76 +1,130 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
-import EventDetailClient from '@/app/(admin)/events/[eventId]/EventDetailClient';
+import { useRouter } from 'next/navigation';
 
-interface EventData {
-  id: number;
+type Role = 'SYSTEM_ADMIN' | 'STAFF';
+
+interface ApiEvent {
   eventId: string;
   name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
+  description: string | null;
+  startDate: string; // ISO
+  endDate: string; // ISO
   amountPerDay: string;
   maxParticipants: number;
-  currentParticipants?: number;
-  status: 'PENDING' | 'ONGOING' | 'COMPLETED';
-  is_active: boolean;
+  isActive: boolean;
+  derivedStatus?: 'PENDING' | 'ONGOING' | 'COMPLETED';
+  status?: 'PENDING' | 'ONGOING' | 'COMPLETED';
 }
 
-// Mock data for UI skeleton
-const MOCK_EVENTS: EventData[] = [
-  {
-    id: 1,
-    eventId: 'evt_001',
-    name: 'Climate Change Adaptation Workshop',
-    description: 'Training on climate resilience strategies for local communities',
-    startDate: '2025-01-20',
-    endDate: '2025-01-22',
-    amountPerDay: '150',
-    maxParticipants: 50,
-    currentParticipants: 32,
-    status: 'ONGOING',
-    is_active: true,
-  },
-  {
-    id: 2,
-    eventId: 'evt_002',
-    name: 'Digital Literacy Training',
-    description: 'Basic computer and internet skills for youth empowerment',
-    startDate: '2025-01-25',
-    endDate: '2025-01-27',
-    amountPerDay: '120',
-    maxParticipants: 30,
-    currentParticipants: 28,
-    status: 'PENDING',
-    is_active: true,
-  },
-  {
-    id: 3,
-    eventId: 'evt_003',
-    name: 'Agricultural Development Seminar',
-    description: 'Sustainable farming techniques and market access strategies',
-    startDate: '2025-01-10',
-    endDate: '2025-01-12',
-    amountPerDay: '100',
-    maxParticipants: 40,
-    currentParticipants: 40,
-    status: 'COMPLETED',
-    is_active: true,
-  },
-];
-
 export default function DashboardPage() {
-  const [events] = useState<EventData[]>(MOCK_EVENTS);
-  const [isLoading] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [events, setEvents] = useState<ApiEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const router = useRouter();
+  const [role, setRole] = useState<Role | null>(null);
+  const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
 
-  // 실제 구현시 API 호출
-  // useEffect(() => {
-  //   fetch('/api/admin/events')
-  //     .then(res => res.json())
-  //     .then(data => setEvents(data.events))
-  // }, []);
+  // 세션 역할 로드
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/auth/session', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled) setRole(data?.isLoggedIn ? (data.role as Role) : null);
+      } catch {
+        if (!cancelled) setRole(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 이벤트 로드 (+ 역할별 분기)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      setError('');
+      try {
+        if (role === 'SYSTEM_ADMIN') {
+          const res = await fetch('/api/admin/events', { cache: 'no-store' });
+          const data = (await res.json().catch(() => ({}))) as { events?: ApiEvent[]; error?: string };
+          if (!res.ok) throw new Error((data as { error?: string })?.error || '이벤트를 불러오지 못했습니다');
+          const list: ApiEvent[] = (data.events ?? []).map((e) => ({
+            eventId: e.eventId,
+            name: e.name,
+            description: e.description ?? null,
+            startDate: e.startDate,
+            endDate: e.endDate,
+            amountPerDay: e.amountPerDay,
+            maxParticipants: e.maxParticipants ?? 0,
+            isActive: Boolean(e.isActive),
+            derivedStatus: e.derivedStatus as ApiEvent['derivedStatus'],
+            status: e.status as ApiEvent['status'],
+          }));
+          if (!cancelled) setEvents(list);
+
+          // 내 배정 이벤트 (관리자도 참고용으로 유지)
+          try {
+            const meRes = await fetch('/api/admin/events/staff/me', { cache: 'no-store' });
+            const meData = await meRes.json().catch(() => ({}) as { assignedEventIds?: string[] });
+            if (!cancelled && meRes.ok) {
+              setAssignedIds(new Set<string>(meData.assignedEventIds ?? []));
+            }
+          } catch {
+            if (!cancelled) setAssignedIds(new Set());
+          }
+        } else if (role === 'STAFF') {
+          // 스태프: 본인 배정 이벤트만 조회
+          const res = await fetch('/api/admin/events/staff/me', { cache: 'no-store' });
+          const data = (await res.json().catch(() => ({}))) as {
+            events?: Array<Partial<ApiEvent> & { derivedStatus?: ApiEvent['derivedStatus'] }>;
+            assignedEventIds?: string[];
+            error?: string;
+          };
+          if (!res.ok) throw new Error(data?.error || '이벤트를 불러오지 못했습니다');
+
+          if (!cancelled) setAssignedIds(new Set<string>(data.assignedEventIds ?? []));
+
+          const staffList: ApiEvent[] = (data.events ?? []).map((e) => {
+            const d = e as unknown as any;
+            // 서버에서 derivedStatus를 제공하지만, 안전하게 클라이언트에서도 계산 fallback
+            const start = new Date(String(d.startDate));
+            const end = new Date(String(d.endDate));
+            const now = new Date();
+            const derived = now < start ? 'PENDING' : now > end ? 'COMPLETED' : 'ONGOING';
+            return {
+              eventId: String(d.eventId),
+              name: String(d.name),
+              description: d.description ?? null,
+              startDate: String(d.startDate),
+              endDate: String(d.endDate),
+              amountPerDay: String(d.amountPerDay ?? ''),
+              maxParticipants: Number(d.maxParticipants ?? 0),
+              isActive: Boolean(d.isActive),
+              derivedStatus: (d.derivedStatus as ApiEvent['derivedStatus']) ?? derived,
+              status: d.status as ApiEvent['status'],
+            } as ApiEvent;
+          });
+          if (!cancelled) setEvents(staffList);
+        } else {
+          // 아직 역할 정보를 못가져온 상태
+          if (!cancelled) setEvents([]);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : '이벤트를 불러오지 못했습니다');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
 
   const getStatusBadgeColor = (status: string) => {
     const map: Record<string, string> = {
@@ -110,11 +164,6 @@ export default function DashboardPage() {
     if (!current || !max) return 0;
     return Math.round((current / max) * 100);
   };
-
-  // 선택된 이벤트가 있으면 EventDetailClient 컴포넌트 표시
-  if (selectedEventId) {
-    return <EventDetailClient eventId={selectedEventId} onBack={() => setSelectedEventId(null)} />;
-  }
 
   return (
     <div className="max-w-screen-2xl mx-auto">
@@ -176,14 +225,10 @@ export default function DashboardPage() {
       )}
 
       {/* Events Grid */}
-      {!isLoading && events.length > 0 && (
+      {!isLoading && !error && events.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {events.map((event) => (
-            <div
-              key={event.eventId}
-              className="card hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => setSelectedEventId(event.eventId)}
-            >
+            <div key={event.eventId} className="card hover:shadow-lg transition-shadow">
               <div className="card__body">
                 {/* Event Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -193,10 +238,10 @@ export default function DashboardPage() {
                   </div>
                   <span
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(
-                      event.status,
+                      (event.derivedStatus || event.status || 'PENDING') as string,
                     )}`}
                   >
-                    {getStatusLabel(event.status)}
+                    {getStatusLabel((event.derivedStatus || event.status || 'PENDING') as string)}
                   </span>
                 </div>
 
@@ -225,34 +270,36 @@ export default function DashboardPage() {
                   <div className="flex justify-between items-center mb-2 text-sm">
                     <span className="text-[var(--muted)]">참가자</span>
                     <span className="font-medium">
-                      {event.currentParticipants || 0} / {event.maxParticipants}명
+                      {0} / {event.maxParticipants}명
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-[var(--brand)] h-2 rounded-full transition-all"
                       style={{
-                        width: `${calculateProgress(event.currentParticipants, event.maxParticipants)}%`,
+                        width: `${calculateProgress(0, event.maxParticipants)}%`,
                       }}
                     />
                   </div>
                   <div className="text-xs text-[var(--muted)] mt-1">
-                    {calculateProgress(event.currentParticipants, event.maxParticipants)}% 등록
+                    {calculateProgress(0, event.maxParticipants)}% 등록
                   </div>
                 </div>
 
                 {/* Action Button */}
                 <div className="mt-4 pt-4 border-t">
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedEventId(event.eventId);
-                    }}
-                  >
-                    상세 보기 →
-                  </Button>
+                  {(role === 'SYSTEM_ADMIN' || assignedIds.has(event.eventId)) && (
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboard/${event.eventId}`);
+                      }}
+                    >
+                      상세 보기 →
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -260,8 +307,17 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Error State */}
+      {!isLoading && error && (
+        <div className="card">
+          <div className="card__body text-center py-12">
+            <p className="text-red-600">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Empty State */}
-      {!isLoading && events.length === 0 && (
+      {!isLoading && !error && events.length === 0 && (
         <div className="card">
           <div className="card__body text-center py-12">
             <div className="text-6xl mb-4">📅</div>

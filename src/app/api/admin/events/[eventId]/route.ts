@@ -1,15 +1,16 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
-import { requireAuth } from '@/lib/auth-middleware';
+import { requireRole } from '@/lib/auth-middleware';
 import { apiOk, apiError } from '@/lib/api-response';
 import type { EventStatus } from '@/server/db/entities/Event';
+import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
  * GET /api/admin/events/[eventId]
  * Get event by ID
  */
 export async function GET(_request: NextRequest, { params }: { params: { eventId: string } }) {
-  const authCheck = await requireAuth(_request);
+  const authCheck = await requireRole(AdminRole.SYSTEM_ADMIN);
   if (authCheck) return authCheck;
 
   try {
@@ -35,7 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: { eventId
  * Update event
  */
 export async function PATCH(request: NextRequest, { params }: { params: { eventId: string } }) {
-  const authCheck = await requireAuth(request);
+  const authCheck = await requireRole(AdminRole.SYSTEM_ADMIN);
   if (authCheck) return authCheck;
 
   try {

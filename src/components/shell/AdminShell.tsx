@@ -92,7 +92,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <nav className="nav">
           <Link
             href="/dashboard"
-            className={pathname === '/dashboard' ? 'active' : ''}
+            className={pathname?.startsWith('/dashboard') ? 'active' : ''}
             onClick={() => setSidebarOpen(false)}
           >
             <span>대시보드</span>

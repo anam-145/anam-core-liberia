@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
  * List events with pagination and filters
  */
 export async function GET(request: NextRequest) {
+  // SYSTEM_ADMIN 전용 목록 조회로 상향 (페이지 정책과 일치)
   const authCheck = await requireRole(AdminRole.SYSTEM_ADMIN);
   if (authCheck) return authCheck;
 
