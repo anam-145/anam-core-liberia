@@ -92,6 +92,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <span>대시보드</span>
           </Link>
+          {/* 사용자 (SYSTEM_ADMIN, STAFF 모두 접근 가능) */}
+          <Link
+            href="/users"
+            className={pathname?.startsWith('/users') ? 'active' : ''}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <span>참가자</span>
+          </Link>
           {/* SYSTEM_ADMIN 전용 메뉴 */}
           {sessionLoaded && role === 'SYSTEM_ADMIN' && (
             <>
@@ -101,13 +109,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 onClick={() => setSidebarOpen(false)}
               >
                 <span>관리자</span>
-              </Link>
-              <Link
-                href="/users"
-                className={pathname?.startsWith('/users') ? 'active' : ''}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <span>사용자</span>
               </Link>
               <Link
                 href="/events"
