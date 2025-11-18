@@ -763,19 +763,7 @@ class AdminService {
     });
   }
 
-  /**
-   * Update event staff role
-   */
-  async updateEventStaffRole(eventId: string, adminId: string, eventRole: EventRole): Promise<EventStaff | null> {
-    await this.initialize();
-
-    const repo = AppDataSource.getRepository(EventStaff);
-    const staff = await repo.findOne({ where: { eventId, adminId } });
-    if (!staff) return null;
-    staff.eventRole = eventRole;
-    await repo.save(staff);
-    return staff;
-  }
+  // updateEventStaffRole 제거됨: UI에서 역할 변경 기능을 제거함(역할은 배정 시 확정)
 
   /**
    * Remove staff from event

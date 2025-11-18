@@ -126,13 +126,15 @@ export async function POST(request: NextRequest) {
       verifiers: [],
     });
 
-    // 2) 자금 입금(USDC): amountPerDay(6d) × maxParticipants — 체인 성공 후 즉시 입금
+    // 2) 자금 입금(USDC): amountPerDay(6d) × maxParticipants × 일수(당일 포함)
     const tokenAddress = process.env.BASE_USDC_ADDRESS;
     if (!tokenAddress) {
       return apiError('USDC address not configured', 500, 'INTERNAL_ERROR');
     }
     const perDay = parseUnits(normalizedAmount, 6);
-    const fundingAmount = perDay * BigInt(maxParticipants);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const days = Math.floor((endDateOnly.getTime() - startDateOnly.getTime()) / MS_PER_DAY) + 1;
+    const fundingAmount = perDay * BigInt(maxParticipants) * BigInt(days);
 
     try {
       // signer from system admin mnemonic

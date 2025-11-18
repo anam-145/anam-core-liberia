@@ -4,6 +4,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import ProgressModal from '@/components/ui/ProgressModal';
 
 export default function NewEventClient() {
   const router = useRouter();
@@ -16,6 +17,10 @@ export default function NewEventClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMsg, setModalMsg] = useState('이벤트를 생성 중입니다...');
+  const [modalDone, setModalDone] = useState(false);
+  const [nextHref, setNextHref] = useState('/events');
 
   const submit = async () => {
     setError('');
@@ -43,6 +48,9 @@ export default function NewEventClient() {
       return;
     }
     setSubmitting(true);
+    setModalMsg('컨트랙트 배포 및 자금 입금 중입니다. 잠시만 기다려 주세요...');
+    setModalDone(false);
+    setModalOpen(true);
     try {
       // 시/분은 사용하지 않음: date input(YYYY-MM-DD) 그대로 전달
       const normalizeDate = (d: string) => d.trim();
@@ -86,11 +94,16 @@ export default function NewEventClient() {
         }
         setFieldErrors(feServer);
         setError(data?.error || '이벤트 생성에 실패했습니다');
+        setModalOpen(false);
         return;
       }
-      router.push('/events');
+      setModalMsg('이벤트가 생성되었습니다.');
+      setModalDone(true);
+      const eventId = data?.event?.eventId as string | undefined;
+      setNextHref(eventId ? `/events/${eventId}` : '/events');
     } catch (e) {
       setError(e instanceof Error ? e.message : '네트워크 오류가 발생했습니다');
+      setModalOpen(false);
     } finally {
       setSubmitting(false);
     }
@@ -98,6 +111,18 @@ export default function NewEventClient() {
 
   return (
     <>
+      <ProgressModal
+        open={modalOpen}
+        title={modalDone ? '완료' : '처리 중입니다'}
+        message={modalMsg}
+        done={modalDone}
+        confirmText="확인"
+        onConfirm={() => {
+          setModalOpen(false);
+          setModalDone(false);
+          router.push(nextHref);
+        }}
+      />
       <h1 className="text-xl lg:text-2xl font-bold mb-4">Create New Event</h1>
       <div className="grid grid-cols-1 gap-4">
         <Card>

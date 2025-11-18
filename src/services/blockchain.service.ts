@@ -452,6 +452,58 @@ class BlockchainService {
   }
 
   /**
+   * Revoke event-scoped role on LiberiaEvent contract
+   * @param eventAddress - Deployed LiberiaEvent contract address
+   * @param role - 'APPROVER' | 'VERIFIER'
+   * @param account - Address to revoke role from
+   * @param signerPrivateKey - Private key with SYSTEM_ADMIN_ROLE on the event
+   * @returns Transaction hash or 'already-revoked' when idempotent
+   */
+  async revokeEventRole(
+    eventAddress: string,
+    role: 'APPROVER' | 'VERIFIER',
+    account: string,
+    signerPrivateKey: string,
+  ): Promise<string> {
+    this.initialize();
+
+    if (!this.provider) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    const EVENT_ROLE_ABI = [
+      'function revokeRole(bytes32 role, address account) external',
+      'function hasRole(bytes32 role, address account) external view returns (bool)',
+    ];
+
+    const { id } = await import('ethers');
+    const roleSelector = role === 'APPROVER' ? id('APPROVER_ROLE') : id('VERIFIER_ROLE');
+
+    try {
+      const signer = this.getSigner(signerPrivateKey);
+      const contract = new Contract(eventAddress, EVENT_ROLE_ABI, signer);
+
+      // Idempotency: if role already revoked, return a stable string
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const has = (await (contract as any).hasRole(roleSelector, account)) as boolean;
+      if (!has) {
+        return 'already-revoked';
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tx: any = await (contract as any).revokeRole(roleSelector, account);
+      const receipt = await tx.wait();
+      if (!receipt) throw new Error('Transaction receipt is null');
+      return tx.hash as string;
+    } catch (error) {
+      console.error('[Blockchain] Failed to revoke event role:', error);
+      throw new Error(
+        `Failed to revoke ${role}_ROLE on event: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
    * Activate VC on blockchain (from suspended state)
    * @param vcId - VC ID
    * @param issuerPrivateKey - Private key of the issuer

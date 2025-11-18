@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import ProgressModal from '@/components/ui/ProgressModal';
 
 type EventStatus = 'PENDING' | 'ONGOING' | 'COMPLETED';
 
@@ -48,6 +49,10 @@ export default function ClientPage({ params }: Props) {
   const [activateMsg, setActivateMsg] = useState('');
   const [activateError, setActivateError] = useState(false);
   const [eventActive, setEventActive] = useState<boolean | null>(null);
+  // Progress modal for long-running assign/revoke actions
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressMsg, setProgressMsg] = useState('처리 중입니다...');
+  const [progressDone, setProgressDone] = useState(false);
 
   // ESC to close modal
   useEffect(() => {
@@ -202,26 +207,21 @@ export default function ClientPage({ params }: Props) {
     })();
   }, [tab, eventId]);
 
-  // Update role helper
-  async function updateStaffRole(eventId: string, adminId: string, role: 'APPROVER' | 'VERIFIER') {
-    setStaffRows((list) => list.map((r) => (r.adminId === adminId ? { ...r, updating: true } : r)));
-    try {
-      const res = await fetch(`/api/admin/events/${eventId}/staff/${adminId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventRole: role }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || '역할 변경에 실패했습니다');
-      setStaffRows((list) => list.map((r) => (r.adminId === adminId ? { ...r, eventRole: role, updating: false } : r)));
-    } catch (e) {
-      setStaffError(e instanceof Error ? e.message : '오류가 발생했습니다');
-      setStaffRows((list) => list.map((r) => (r.adminId === adminId ? { ...r, updating: false } : r)));
-    }
-  }
+  // (역할 변경 UI 제거됨)
 
   return (
     <div className="max-w-screen-2xl mx-auto">
+      <ProgressModal
+        open={progressOpen}
+        title={progressDone ? '완료' : '처리 중입니다'}
+        message={progressMsg}
+        done={progressDone}
+        confirmText="확인"
+        onConfirm={() => {
+          setProgressOpen(false);
+          setProgressDone(false);
+        }}
+      />
       {/* Header */}
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -434,17 +434,38 @@ export default function ClientPage({ params }: Props) {
                       <td style={{ fontSize: 13, color: 'var(--muted)' }}>{new Date(r.assignedAt).toLocaleString()}</td>
                       <td>
                         <div style={{ minWidth: 180 }}>
-                          <Select
-                            label={undefined as unknown as string}
-                            value={r.eventRole}
-                            onChange={(e) =>
-                              updateStaffRole(event.eventId, r.adminId, e.target.value as 'VERIFIER' | 'APPROVER')
-                            }
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={async () => {
+                              // Progress modal during on-chain revoke
+                              setProgressMsg('관리자 배정 해제 중입니다. 잠시만 기다려 주세요...');
+                              setProgressDone(false);
+                              setProgressOpen(true);
+                              setStaffRows((list) =>
+                                list.map((x) => (x.adminId === r.adminId ? { ...x, updating: true } : x)),
+                              );
+                              try {
+                                const res = await fetch(`/api/admin/events/${event.eventId}/staff/${r.adminId}`, {
+                                  method: 'DELETE',
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data?.error || '배정 해제에 실패했습니다.');
+                                setStaffRows((list) => list.filter((x) => x.adminId !== r.adminId));
+                                setProgressMsg('관리자 배정 해제가 완료되었습니다.');
+                                setProgressDone(true);
+                              } catch (e) {
+                                setStaffError(e instanceof Error ? e.message : '오류가 발생했습니다');
+                                setStaffRows((list) =>
+                                  list.map((x) => (x.adminId === r.adminId ? { ...x, updating: false } : x)),
+                                );
+                                setProgressOpen(false);
+                              }
+                            }}
                             disabled={r.updating}
                           >
-                            <option value="VERIFIER">Verifier</option>
-                            <option value="APPROVER">Approver</option>
-                          </Select>
+                            배정 해제
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -469,17 +490,37 @@ export default function ClientPage({ params }: Props) {
                     </div>
                     <div className="text-[12px]">역할: {r.eventRole}</div>
                     <div>
-                      <Select
-                        label={undefined as unknown as string}
-                        value={r.eventRole}
-                        onChange={(e) =>
-                          updateStaffRole(event.eventId, r.adminId, e.target.value as 'VERIFIER' | 'APPROVER')
-                        }
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          setProgressMsg('관리자 배정 해제 중입니다. 잠시만 기다려 주세요...');
+                          setProgressDone(false);
+                          setProgressOpen(true);
+                          setStaffRows((list) =>
+                            list.map((x) => (x.adminId === r.adminId ? { ...x, updating: true } : x)),
+                          );
+                          try {
+                            const res = await fetch(`/api/admin/events/${event.eventId}/staff/${r.adminId}`, {
+                              method: 'DELETE',
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data?.error || '배정 해제에 실패했습니다.');
+                            setStaffRows((list) => list.filter((x) => x.adminId !== r.adminId));
+                            setProgressMsg('관리자 배정 해제가 완료되었습니다.');
+                            setProgressDone(true);
+                          } catch (e) {
+                            setStaffError(e instanceof Error ? e.message : '오류가 발생했습니다');
+                            setStaffRows((list) =>
+                              list.map((x) => (x.adminId === r.adminId ? { ...x, updating: false } : x)),
+                            );
+                            setProgressOpen(false);
+                          }
+                        }}
                         disabled={r.updating}
                       >
-                        <option value="VERIFIER">Verifier</option>
-                        <option value="APPROVER">Approver</option>
-                      </Select>
+                        배정 해제
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -790,6 +831,12 @@ export default function ClientPage({ params }: Props) {
 
                       setAssigning(true);
                       try {
+                        // Close selection modal and show progress modal during on-chain grant
+                        setShowAddStaff(false);
+                        setProgressMsg('관리자를 이벤트에 배정 중입니다. 잠시만 기다려 주세요...');
+                        setProgressDone(false);
+                        setProgressOpen(true);
+
                         const res = await fetch(`/api/admin/events/${event.eventId}/staff`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -805,9 +852,26 @@ export default function ClientPage({ params }: Props) {
                           if (res.status === 409) feServer.admin = '이미 이 이벤트에 배정된 관리자입니다.';
                           setAssignFieldErrors(feServer);
                           setAssignError(msg);
+                          setProgressOpen(false);
                         } else {
-                          setShowAddStaff(false);
+                          // optimistic update to staff list
+                          const added = admins.find((a) => a.adminId === selectedAdminId);
+                          if (added) {
+                            setStaffRows((list) => [
+                              ...list,
+                              {
+                                adminId: added.adminId,
+                                fullName: added.fullName,
+                                username: added.username,
+                                email: added.email,
+                                eventRole: addStaffRole,
+                                assignedAt: (data?.staff?.assignedAt as string) || new Date().toISOString(),
+                              },
+                            ]);
+                          }
                           setSelectedAdminId('');
+                          setProgressMsg('관리자 배정이 완료되었습니다.');
+                          setProgressDone(true);
                         }
                       } finally {
                         setAssigning(false);
