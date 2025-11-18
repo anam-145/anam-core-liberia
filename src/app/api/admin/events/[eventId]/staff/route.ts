@@ -51,7 +51,11 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
 
 /**
  * GET /api/admin/events/[eventId]/staff
- * Get event staff list (SYSTEM_ADMIN, APPROVER)
+ * Access: APPROVER only (event-scoped)
+ * Get event staff list
+ *
+ * Note: Only APPROVER can view staff assignments for an event.
+ * VERIFIER cannot view staff list.
  *
  * Response:
  * - staff: EventStaff[]

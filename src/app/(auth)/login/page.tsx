@@ -98,7 +98,7 @@ export default function LoginPage() {
       }
 
       // Normal login without activation
-      router.push('/dashboard');
+      router.push('/checkins');
       if (timer) clearTimeout(timer);
       setShowProgress(false);
       setBlockExit(false);
@@ -130,7 +130,7 @@ export default function LoginPage() {
           onConfirm={() => {
             setShowProgress(false);
             setProgressDone(false);
-            router.push('/dashboard');
+            router.push('/checkins');
           }}
         />
         <form onSubmit={handleSubmit}>

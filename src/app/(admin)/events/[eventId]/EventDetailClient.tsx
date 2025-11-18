@@ -52,7 +52,7 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                   aria-label="AnamWallet 체크인"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/camera.svg" alt="" className="w-6 h-6" />
+                  <img src="/icons/smartphone.svg" alt="" className="w-6 h-6" />
                   <div className="flex-1 text-left">
                     <div className="text-base font-semibold">AnamWallet</div>
                     <div className="text-xs text-gray-500">앱으로 체크인</div>
@@ -67,7 +67,7 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                   aria-label="USSD 체크인"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/camera.svg" alt="" className="w-6 h-6" />
+                  <img src="/icons/ussd.svg" alt="" className="w-6 h-6" />
                   <div className="flex-1 text-left">
                     <div className="text-base font-semibold">USSD</div>
                     <div className="text-xs text-gray-500">피처폰 사용자 체크인</div>
@@ -82,7 +82,7 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                   aria-label="Paper 바우처 체크인"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/camera.svg" alt="" className="w-6 h-6" />
+                  <img src="/icons/paper.svg" alt="" className="w-6 h-6" />
                   <div className="flex-1 text-left">
                     <div className="text-base font-semibold">Paper 바우처</div>
                     <div className="text-xs text-gray-500">QR 바우처로 체크인</div>

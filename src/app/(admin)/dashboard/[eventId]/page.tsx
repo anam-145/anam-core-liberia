@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { ensureDataSource } from '@/server/db/ensureDataSource';
 import { AppDataSource } from '@/server/db/datasource';
-import { EventStaff } from '@/server/db/entities/EventStaff';
+import { EventStaff, EventRole } from '@/server/db/entities/EventStaff';
 import ClientWrapper from './ClientWrapper';
 
 interface Props {
@@ -16,12 +16,18 @@ export default async function DashboardEventDetailPage({ params }: Props) {
     redirect('/denied');
   }
 
-  // SYSTEM_ADMIN은 모두 접근 가능, STAFF는 배정된 이벤트만 접근 가능
+  // SYSTEM_ADMIN은 모두 접근 가능, STAFF는 APPROVER 권한이 있는 이벤트만 접근 가능
   if (session.role !== 'SYSTEM_ADMIN') {
     await ensureDataSource();
     const repo = AppDataSource.getRepository(EventStaff);
-    const assigned = await repo.findOne({ where: { eventId: params.eventId, adminId: session.adminId } });
-    if (!assigned) {
+    const approver = await repo.findOne({
+      where: {
+        eventId: params.eventId,
+        adminId: session.adminId,
+        eventRole: EventRole.APPROVER,
+      },
+    });
+    if (!approver) {
       redirect('/denied');
     }
   }

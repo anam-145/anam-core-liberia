@@ -1,18 +1,19 @@
 import type { NextRequest } from 'next/server';
 import { adminService } from '@/services/admin.service';
-import { requireAuth, requireRole } from '@/lib/auth-middleware';
+import { requireRole } from '@/lib/auth-middleware';
 import { apiOk, apiError } from '@/lib/api-response';
 import { AdminRole } from '@/server/db/entities/Admin';
 
 /**
  * GET /api/admin/users/[id]
+ * Access: SYSTEM_ADMIN, STAFF
  * Get user by ID
  *
  * Response:
  * - user: User object
  */
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const authCheck = await requireAuth(request);
+  const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
   try {

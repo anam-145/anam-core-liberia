@@ -8,7 +8,11 @@ import { NextResponse } from 'next/server';
 
 /**
  * GET /api/admin/files
- * Download KYC files (SYSTEM_ADMIN, STAFF)
+ * Access: SYSTEM_ADMIN, STAFF (all STAFF can download all files)
+ * Download KYC files
+ *
+ * Note: Currently all STAFF members can download any KYC file.
+ * Future enhancement: Restrict to event-assigned participants only.
  *
  * Query Parameters:
  * - path: string (file path from database, e.g., /uploads/kyc-documents/user_xxx/...)

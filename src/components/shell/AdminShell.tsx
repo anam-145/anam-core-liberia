@@ -3,14 +3,16 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Logo from '../icons/Logo';
+import { useSessionStore } from '@/stores/session.store';
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const router = useRouter();
   const [loggingOut, setLoggingOut] = React.useState(false);
-  const [role, setRole] = React.useState<'SYSTEM_ADMIN' | 'STAFF' | null>(null);
-  const [sessionLoaded, setSessionLoaded] = React.useState(false);
+
+  // Use Zustand store for session management
+  const { role, isLoaded: sessionLoaded, fetchSession } = useSessionStore();
 
   // 바디 스크롤 잠금 (모바일 드로어 열렸을 때)
   React.useEffect(() => {
@@ -35,26 +37,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('keydown', handleEsc);
   }, [sidebarOpen]);
 
-  // Load session role for role-aware navigation
+  // Load session role for role-aware navigation (once on mount)
   React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/admin/auth/session', { cache: 'no-store' });
-        const data = await res.json();
-        if (!cancelled) {
-          setRole(data.isLoggedIn ? (data.role as 'SYSTEM_ADMIN' | 'STAFF') : null);
-        }
-      } catch {
-        if (!cancelled) setRole(null);
-      } finally {
-        if (!cancelled) setSessionLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    fetchSession();
+  }, [fetchSession]);
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -90,6 +76,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
         </div>
         <nav className="nav">
+          {/* 체크인 */}
+          <Link
+            href="/checkins"
+            className={pathname?.startsWith('/checkins') ? 'active' : ''}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <span>체크인</span>
+          </Link>
+          {/* 대시보드 */}
           <Link
             href="/dashboard"
             className={pathname?.startsWith('/dashboard') ? 'active' : ''}
@@ -97,7 +92,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <span>대시보드</span>
           </Link>
-          {/* 관리자/이벤트는 SYSTEM_ADMIN 전용 네비 */}
+          {/* SYSTEM_ADMIN 전용 메뉴 */}
           {sessionLoaded && role === 'SYSTEM_ADMIN' && (
             <>
               <Link
@@ -107,25 +102,21 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               >
                 <span>관리자</span>
               </Link>
+              <Link
+                href="/users"
+                className={pathname?.startsWith('/users') ? 'active' : ''}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span>사용자</span>
+              </Link>
+              <Link
+                href="/events"
+                className={pathname?.startsWith('/events') ? 'active' : ''}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span>이벤트</span>
+              </Link>
             </>
-          )}
-          {/* 사용자: SYSTEM_ADMIN, STAFF 모두 노출 */}
-          <Link
-            href="/users"
-            className={pathname?.startsWith('/users') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>사용자</span>
-          </Link>
-          {/* 이벤트는 SYSTEM_ADMIN 전용 네비 */}
-          {sessionLoaded && role === 'SYSTEM_ADMIN' && (
-            <Link
-              href="/events"
-              className={pathname?.startsWith('/events') ? 'active' : ''}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <span>이벤트</span>
-            </Link>
           )}
         </nav>
       </aside>

@@ -3,8 +3,9 @@ import { AdminRole } from '@/server/db/entities/Admin';
 import { redirect } from 'next/navigation';
 import UsersClient from './UsersClient';
 
+// Access: SYSTEM_ADMIN only
 export default async function UsersPage() {
-  const ok = await hasRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
+  const ok = await hasRole([AdminRole.SYSTEM_ADMIN]);
   if (!ok) redirect('/denied');
   return <UsersClient />;
 }

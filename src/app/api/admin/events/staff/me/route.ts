@@ -2,11 +2,12 @@ import { apiError, apiOk } from '@/lib/api-response';
 import { getSession } from '@/lib/auth';
 import { ensureDataSource } from '@/server/db/ensureDataSource';
 import { AppDataSource } from '@/server/db/datasource';
-import { EventStaff } from '@/server/db/entities/EventStaff';
+import { EventStaff, EventRole } from '@/server/db/entities/EventStaff';
 import { Event } from '@/server/db/entities/Event';
 import { In } from 'typeorm';
+import type { NextRequest } from 'next/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureDataSource();
     const session = await getSession();
@@ -14,8 +15,23 @@ export async function GET() {
       return apiError('Unauthorized', 401, 'UNAUTHORIZED');
     }
 
+    // Query parameter로 role 필터링 (기본값: 모든 역할)
+    const { searchParams } = new URL(request.url);
+    const roleParam = searchParams.get('role');
+    const filterRole =
+      roleParam === 'APPROVER' ? EventRole.APPROVER : roleParam === 'VERIFIER' ? EventRole.VERIFIER : null;
+
     const repo = AppDataSource.getRepository(EventStaff);
-    const rows = await repo.find({ where: { adminId: session.adminId } });
+    const rows = await repo.find({
+      where: filterRole
+        ? {
+            adminId: session.adminId,
+            eventRole: filterRole,
+          }
+        : {
+            adminId: session.adminId,
+          },
+    });
     const assignedEventIds = Array.from(new Set(rows.map((r) => r.eventId)));
 
     // If no assignments, return empty summary
