@@ -1,18 +1,40 @@
 /**
- * EventFactory Service (Stub)
+ * EventFactory Service (Stub → On-chain 준비)
  *
- * 현재 컨트랙트 배포가 진행 중이라, 실제 배포 대신 "결정론적 플레이스홀더" 주소/해시를 반환합니다.
+ * 현재 기본 동작은 "결정론적 플레이스홀더" 주소/해시를 반환합니다.
  *
- * 왜 이렇게 했나요?
- * - 이벤트 테이블에는 `eventContractAddress`에 UNIQUE 제약이 있습니다.
- * - 컨트랙트를 아직 배포하지 않았더라도, 여러 이벤트를 생성할 수 있어야 합니다.
- * - 같은 하드코딩 주소를 매번 저장하면 UNIQUE 제약에 걸려 두 번째부터 실패합니다.
- * - 따라서 이벤트별 고유 식별자(eventId)로부터 결정론적으로 주소/해시를 만들면,
- *   - 각 이벤트마다 유일한 값이 생성되어 UNIQUE 충돌이 없고
- *   - 동일 eventId에 대해 항상 동일 값이 만들어져 idempotent 합니다.
+ * 온체인 연동 준비사항:
+ * - ENV: EVENT_FACTORY_ADDRESS (배포된 Factory 주소)
+ * - ABI: src/contracts/abi/EventFactory.json (ethers v6에서 바로 쓰는 ABI 배열)
+ * - 네트워크: BASE_RPC_URL, BASE_CHAIN_ID
+ * - 서명자: SYSTEM_ADMIN_MNEMONIC (getSystemAdminWallet() 사용 권장)
  *
- * 실제 EventFactory 연동 시에는 이 스텁을 제거하고 온체인 배포 결과(address/txHash)를 사용하세요.
+ * 추후 실제 배포 호출을 추가할 때, ABI/주소가 설정되어 있으면 on-chain으로 시도하고,
+ * 실패 시 아래의 결정론적 스텁으로 폴백하는 방식이 안전합니다.
  */
+import { JsonRpcProvider, Wallet, Contract, parseUnits } from 'ethers';
+import type { TransactionResponse, InterfaceAbi } from 'ethers';
+import EventFactoryABI from '@/contracts/abi/EventFactory.json';
+import { getSystemAdminWallet } from '@/services/system-init.service';
+
+type CreateEventFn = {
+  staticCall: (
+    start: bigint,
+    end: bigint,
+    amount: bigint,
+    max: bigint,
+    approvers: string[],
+    verifiers: string[],
+  ) => Promise<string>;
+  (
+    start: bigint,
+    end: bigint,
+    amount: bigint,
+    max: bigint,
+    approvers: string[],
+    verifiers: string[],
+  ): Promise<TransactionResponse>;
+};
 
 export interface CreateEventOnChainRequest {
   /** 이벤트의 고유 ID(UUID). 제공되면 이 값 기반으로 결정론적 주소/해시를 생성합니다. */
@@ -33,6 +55,90 @@ export interface CreateEventOnChainResponse {
 
 // 임시 스텁: 요청 내용을 바탕으로 이벤트마다 고유한 주소/해시를 생성해 UNIQUE 제약 충돌을 피함
 export async function createEventOnChain(req: CreateEventOnChainRequest): Promise<CreateEventOnChainResponse> {
+  // 1) Try on-chain path if ENV + ABI are set
+  const factoryAddr = process.env.EVENT_FACTORY_ADDRESS;
+  if (factoryAddr && Array.isArray(EventFactoryABI) && EventFactoryABI.length > 0) {
+    try {
+      const chainId = parseInt(process.env.BASE_CHAIN_ID || '84532', 10);
+      const rpcUrl = process.env.BASE_RPC_URL || '';
+      if (!rpcUrl) throw new Error('BASE_RPC_URL is not set');
+
+      const provider = new JsonRpcProvider(rpcUrl, chainId);
+      const { privateKey } = getSystemAdminWallet();
+      const signer = new Wallet(privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`, provider);
+      const factory = new Contract(factoryAddr, EventFactoryABI as InterfaceAbi, signer);
+
+      const start = BigInt(Math.floor(new Date(req.startTime).getTime() / 1000));
+      const end = BigInt(Math.floor(new Date(req.endTime).getTime() / 1000));
+      const amount6 = parseUnits(String(req.amountPerDay), 6);
+      const max = BigInt(req.maxParticipants);
+      const approvers = req.approvers || [];
+      const verifiers = req.verifiers || [];
+
+      // Predict address via static call (v6: .staticCall)
+      let predicted: string | null = null;
+      try {
+        type CreateEventFn = {
+          staticCall: (
+            start: bigint,
+            end: bigint,
+            amount: bigint,
+            max: bigint,
+            approvers: string[],
+            verifiers: string[],
+          ) => Promise<string>;
+          (
+            start: bigint,
+            end: bigint,
+            amount: bigint,
+            max: bigint,
+            approvers: string[],
+            verifiers: string[],
+          ): Promise<TransactionResponse>;
+        };
+        const createEventFn = (factory as unknown as { createEvent: CreateEventFn }).createEvent;
+        predicted = await createEventFn.staticCall(start, end, amount6, max, approvers, verifiers);
+      } catch (e) {
+        console.debug('[EventFactory] staticCall prediction failed:', e);
+        predicted = null;
+      }
+
+      const createEvent = (factory as unknown as { createEvent: CreateEventFn }).createEvent;
+      const tx = await createEvent(start, end, amount6, max, approvers, verifiers);
+      const receipt = await tx.wait();
+
+      // Try to decode EventCreated(eventAddress, creator)
+      let deployedAddress = predicted || '0x0000000000000000000000000000000000000000';
+      try {
+        const iface = (factory as Contract).interface;
+        const logs = (
+          receipt as unknown as {
+            logs: ReadonlyArray<{ address: string; data: string; topics: string[] | readonly string[] }>;
+          }
+        ).logs;
+        for (const log of logs) {
+          if (log.address?.toLowerCase() !== factoryAddr.toLowerCase()) continue;
+          try {
+            const parsed = iface.decodeEventLog('EventCreated', log.data, log.topics);
+            const eventAddress = parsed?.[0] as string | undefined;
+            if (eventAddress && eventAddress.startsWith('0x')) {
+              deployedAddress = eventAddress;
+              break;
+            }
+          } catch (e) {
+            console.debug('[EventFactory] Failed to decode EventCreated:', e);
+          }
+        }
+      } catch (e) {
+        console.debug('[EventFactory] Log parsing failed:', e);
+      }
+
+      return { address: deployedAddress, txHash: tx.hash };
+    } catch (err) {
+      console.warn('[EventFactory] On-chain createEvent failed, falling back to stub:', err);
+    }
+  }
+
   // TODO: 컨트랙트 연결 및 createEvent 호출
   //  - chain: BASE (ENV로 설정)
   //  - signer: SYSTEM_ADMIN mnemonic/privKey
