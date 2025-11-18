@@ -105,9 +105,16 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <span>유저 등록</span>
           </Link>
-          {/* 관리자/이벤트는 SYSTEM_ADMIN 전용 네비 */}
+          {/* 사용자/관리자/이벤트는 SYSTEM_ADMIN 전용 네비 */}
           {sessionLoaded && role === 'SYSTEM_ADMIN' && (
             <>
+              <Link
+                href="/users"
+                className={pathname?.startsWith('/users') ? 'active' : ''}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span>사용자</span>
+              </Link>
               <Link
                 href="/admins"
                 className={pathname?.startsWith('/admins') ? 'active' : ''}

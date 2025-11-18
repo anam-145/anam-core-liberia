@@ -2,7 +2,7 @@ import { AppDataSource } from '@/server/db/datasource';
 import type { AdminRole } from '@/server/db/entities/Admin';
 import { Admin, OnboardingStatus } from '@/server/db/entities/Admin';
 import type { KycType } from '@/server/db/entities/User';
-import { User, USSDStatus } from '@/server/db/entities/User';
+import { User, USSDStatus, RegistrationType } from '@/server/db/entities/User';
 import { Event, EventStatus } from '@/server/db/entities/Event';
 import type { EventRole } from '@/server/db/entities/EventStaff';
 import { EventStaff } from '@/server/db/entities/EventStaff';
@@ -13,6 +13,11 @@ import { EventPayment, PaymentStatus } from '@/server/db/entities/EventPayment';
 import { hash, compare } from 'bcryptjs';
 import type { VerifiablePresentation } from '@/utils/crypto/did';
 import { randomUUID } from 'crypto';
+import { generateWallet } from '@/utils/crypto/wallet';
+import { encryptVault } from '@/utils/crypto/vault';
+import { getVCDatabaseService } from '@/services/vc.db.service';
+import { custodyService } from '@/services/custody.db.service';
+import { getSystemAdminWallet } from '@/services/system-init.service';
 
 /**
  * Admin Service
@@ -238,64 +243,12 @@ class AdminService {
   }
 
   /**
-   * Create a new user
-   */
-  async createUser(
-    data: {
-      name: string;
-      phoneNumber: string;
-      email?: string;
-      gender?: string;
-      dateOfBirth?: Date;
-      nationality?: string;
-      address?: string;
-      useUSSD?: boolean; // USSD 사용 여부
-      kycType?: string;
-      kycDocumentNumber?: string;
-    },
-    createdBy: string,
-  ): Promise<User> {
-    await this.initialize();
-
-    const userRepository = AppDataSource.getRepository(User);
-
-    // Check for existing phone number
-    const existingPhone = await userRepository.findOne({
-      where: { phoneNumber: data.phoneNumber },
-    });
-    if (existingPhone) {
-      throw new Error('Phone number already exists');
-    }
-
-    const user = userRepository.create({
-      userId: randomUUID(),
-      name: data.name,
-      phoneNumber: data.phoneNumber,
-      email: data.email || null,
-      gender: data.gender || null,
-      dateOfBirth: data.dateOfBirth || null,
-      nationality: data.nationality || null,
-      address: data.address || null,
-      kycType: (data.kycType as KycType) || null,
-      kycDocumentNumber: data.kycDocumentNumber || null,
-      ussdStatus: data.useUSSD ? USSDStatus.PENDING : USSDStatus.NOT_APPLICABLE,
-      isActive: true,
-      hasCustodyWallet: false,
-      createdBy,
-    });
-
-    await userRepository.save(user);
-    return user;
-  }
-
-  /**
    * Update user KYC information
    */
   async updateUserKyc(
     id: number,
     data: {
       kycType?: string;
-      kycDocumentNumber?: string;
       kycDocumentPath?: string;
       kycFacePath?: string;
     },
@@ -310,9 +263,173 @@ class AdminService {
     }
 
     if (data.kycType !== undefined) user.kycType = (data.kycType as KycType) || null;
-    if (data.kycDocumentNumber !== undefined) user.kycDocumentNumber = data.kycDocumentNumber;
     if (data.kycDocumentPath !== undefined) user.kycDocumentPath = data.kycDocumentPath;
     if (data.kycFacePath !== undefined) user.kycFacePath = data.kycFacePath;
+
+    await userRepository.save(user);
+    return user;
+  }
+
+  /**
+   * Create user with registration type
+   */
+  async createUserWithRegistrationType(
+    data: {
+      name: string;
+      phoneNumber?: string;
+      email?: string;
+      gender?: string;
+      dateOfBirth?: Date;
+      nationality?: string;
+      address?: string;
+      registrationType: 'ANAMWALLET' | 'USSD' | 'PAPERVOUCHER';
+      walletAddress?: string; // For AnamWallet - direct wallet address
+      password?: string; // For Paper Voucher - password for vault encryption
+      kycType?: string;
+    },
+    createdBy: string,
+  ): Promise<User> {
+    await this.initialize();
+
+    const userRepository = AppDataSource.getRepository(User);
+
+    // Check for existing phone number (if provided)
+    if (data.phoneNumber) {
+      const existingPhone = await userRepository.findOne({
+        where: { phoneNumber: data.phoneNumber },
+      });
+      if (existingPhone) {
+        throw new Error('Phone number already exists');
+      }
+    }
+
+    // Registration type specific validations and setup
+    let walletAddress: string | null = null;
+    let ussdStatus: USSDStatus = USSDStatus.NOT_APPLICABLE;
+
+    switch (data.registrationType) {
+      case 'ANAMWALLET': {
+        if (!data.walletAddress) {
+          throw new Error('Wallet address is required for AnamWallet');
+        }
+
+        // Validate and normalize Ethereum address
+        const ethers = await import('ethers');
+        if (!ethers.isAddress(data.walletAddress)) {
+          throw new Error('Invalid Ethereum address format');
+        }
+
+        walletAddress = ethers.getAddress(data.walletAddress); // Checksummed format
+
+        // Check if wallet address already exists
+        const existingWallet = await userRepository.findOne({
+          where: { walletAddress },
+        });
+        if (existingWallet) {
+          throw new Error('Wallet address already exists');
+        }
+        break;
+      }
+
+      case 'USSD': {
+        if (!data.phoneNumber) {
+          throw new Error('Phone number is required for USSD wallet');
+        }
+        ussdStatus = USSDStatus.PENDING;
+        break;
+      }
+
+      case 'PAPERVOUCHER': {
+        if (!data.password) {
+          throw new Error('Password is required for Paper Voucher');
+        }
+
+        // 1) Generate wallet from scratch
+        const wallet = generateWallet();
+        walletAddress = wallet.address;
+
+        // 2) Issue KYC VC (this will also register DID on-chain)
+        const vcService = getVCDatabaseService();
+        const issuer = getSystemAdminWallet();
+        const issued = await vcService.issueVC({
+          walletAddress: wallet.address,
+          publicKeyHex: wallet.publicKey,
+          vcType: 'KYC',
+          data: {
+            name: data.name,
+            phoneNumber: data.phoneNumber || '',
+            nationality: data.nationality || '',
+            kycType: data.kycType || '',
+          },
+          issuerPrivateKey: issuer.privateKey,
+        });
+
+        // 3) Encrypt wallet mnemonic and VC JSON into vaults
+        const walletVault = encryptVault(wallet.mnemonic, data.password);
+        const vcVault = encryptVault(JSON.stringify(issued.vc), data.password);
+
+        // 4) Store custody with both vaults
+        // First create and save user to get userId
+        const tempUser = userRepository.create({
+          userId: randomUUID(),
+          name: data.name,
+          phoneNumber: data.phoneNumber || null,
+          email: data.email || null,
+          gender: data.gender || null,
+          dateOfBirth: data.dateOfBirth || null,
+          nationality: data.nationality || null,
+          address: data.address || null,
+          walletAddress: wallet.address,
+          kycType: (data.kycType as KycType) || null,
+          registrationType: RegistrationType.PAPERVOUCHER,
+          ussdStatus: USSDStatus.NOT_APPLICABLE,
+          isActive: true, // Paper Voucher is immediately active
+          hasCustodyWallet: true, // Has custody wallet stored
+          createdBy,
+        });
+
+        await userRepository.save(tempUser);
+
+        // Store custody
+        await custodyService.createCustody({
+          userId: tempUser.userId,
+          vault: walletVault,
+          vc: { id: issued.vc.id, ...vcVault },
+        });
+
+        // Return user with QR data
+        return {
+          ...tempUser,
+          qrData: {
+            address: wallet.address,
+            walletVault,
+            custodyVault: { id: issued.vc.id, ...vcVault },
+          },
+        } as any;
+      }
+
+      default:
+        throw new Error(`Invalid registration type: ${data.registrationType}`);
+    }
+
+    // Create user with common fields
+    const user = userRepository.create({
+      userId: randomUUID(),
+      name: data.name,
+      phoneNumber: data.phoneNumber || null,
+      email: data.email || null,
+      gender: data.gender || null,
+      dateOfBirth: data.dateOfBirth || null,
+      nationality: data.nationality || null,
+      address: data.address || null,
+      walletAddress,
+      kycType: (data.kycType as KycType) || null,
+      registrationType: RegistrationType[data.registrationType],
+      ussdStatus,
+      isActive: false, // All types start inactive except Paper Voucher (future)
+      hasCustodyWallet: false, // Will be true after activation
+      createdBy,
+    });
 
     await userRepository.save(user);
     return user;

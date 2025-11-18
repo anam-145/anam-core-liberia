@@ -166,6 +166,50 @@ a {
   font-size: 15px;
 }
 
+/* ====== Icon Button (e.g., Camera) ====== */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.05s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.icon-btn:active {
+  transform: scale(0.98);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid rgba(138, 30, 30, 0.35); /* brand ring */
+  outline-offset: 2px;
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.icon-btn img,
+.icon-btn svg {
+  width: 24px;
+  height: 24px;
+}
+@media (prefers-color-scheme: dark) {
+  .icon-btn {
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
 /* ====== Badges ====== */
 .badge {
   display: inline-flex;

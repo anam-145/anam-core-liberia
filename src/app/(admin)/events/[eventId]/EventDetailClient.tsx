@@ -6,15 +6,13 @@ import Input from '@/components/ui/Input';
 interface SimpleModalProps {
   children: React.ReactNode;
   onClose: () => void;
+  className?: string; // allow width/size override
 }
 
-function SimpleModal({ children, onClose }: SimpleModalProps) {
+function SimpleModal({ children, onClose, className }: SimpleModalProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40" onClick={onClose}>
+      <div className={`w-full max-h-[90vh] overflow-auto ${className || ''}`} onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -154,6 +152,12 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   const [_filterStatus, _setFilterStatus] = useState<'all' | 'present' | 'absent'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [addUserQuery, setAddUserQuery] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [userList] = useState([
+    { userId: 'u_001', fullName: 'user', username: 'user', email: null as string | null },
+    { userId: 'u_002', fullName: 'user', username: 'user', email: null as string | null },
+  ]);
   const [showQrScanModal, setShowQrScanModal] = useState(false);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantData | null>(null);
@@ -195,7 +199,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     console.log('DSA 승인 API 연결 예정:', participantId);
   };
 
-  const approveAllPending = () => {
+  const _approveAllPending = () => {
     // API 연결 예정
     console.log('전체 DSA 승인 API 연결 예정');
   };
@@ -328,7 +332,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                   <Button variant="secondary" onClick={() => setShowQrScanModal(true)}>
                     QR 스캔
                   </Button>
-                  <Button onClick={() => setShowRegisterModal(true)}>+ 참가자 등록</Button>
+                  <Button onClick={() => setShowRegisterModal(true)}>유저 이벤트 등록</Button>
                 </div>
               </div>
 
@@ -483,9 +487,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                     <option value="2025-01-29">Day 5 - 2025-01-29</option>
                   </select>
                 </div>
-                <div className="text-sm text-gray-600">
-                  일일 지급액: <span className="font-semibold">${eventInfo.dailyDsa} USDC</span>
-                </div>
+                {/* 일일 지급액 표시 제거 */}
               </div>
 
               {/* Daily Stats */}
@@ -520,11 +522,6 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               <div className="card">
                 <div className="card__header flex justify-between items-center">
                   <h4 className="font-medium">지급 대상자 목록</h4>
-                  {stats.awaiting > 0 && (
-                    <Button className="btn-sm bg-green-600 hover:bg-green-700 text-white" onClick={approveAllPending}>
-                      전체 승인 ({stats.awaiting}명)
-                    </Button>
-                  )}
                 </div>
                 <div className="card__body">
                   <div className="overflow-x-auto">
@@ -616,14 +613,85 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         </div>
       </div>
 
-      {/* Register Modal */}
+      {/* Register Modal (UI only) — 스태프 모달과 동일 카드 레이아웃 */}
       {showRegisterModal && (
-        <SimpleModal onClose={() => setShowRegisterModal(false)}>
-          <div className="p-6">
-            <h2 className="text-xl font-bold mb-4">참가자 등록</h2>
-            <p className="text-gray-600">추후 구현 예정</p>
-            <div className="mt-6 flex justify-end">
-              <Button onClick={() => setShowRegisterModal(false)}>닫기</Button>
+        <SimpleModal onClose={() => setShowRegisterModal(false)} className="max-w-xl">
+          <div className="card w-full max-w-xl mx-auto">
+            <div className="card__header">유저 이벤트 등록</div>
+            <div className="card__body">
+              <div className="grid gap-4">
+                <div>
+                  <Input
+                    type="text"
+                    label="사용자 검색"
+                    placeholder="이름, 아이디, 이메일"
+                    value={addUserQuery}
+                    onChange={(e) => setAddUserQuery(e.target.value)}
+                  />
+                  <div className="mt-3 space-y-2 max-h-72 overflow-auto">
+                    {(() => {
+                      const q = addUserQuery.trim().toLowerCase();
+                      const filtered = userList.filter((u) => {
+                        if (!q) return true;
+                        return (
+                          u.fullName.toLowerCase().includes(q) ||
+                          u.username.toLowerCase().includes(q) ||
+                          (u.email || '').toLowerCase().includes(q)
+                        );
+                      });
+                      if (filtered.length === 0) {
+                        return <div className="text-[12px] text-[var(--muted)]">검색 결과가 없습니다.</div>;
+                      }
+                      return filtered.map((u) => {
+                        const selected = selectedUserId === u.userId;
+                        return (
+                          <label
+                            key={u.userId}
+                            role="radio"
+                            aria-checked={selected}
+                            className={
+                              `flex items-center justify-between gap-3 p-2 border rounded-lg cursor-pointer transition-colors outline-none focus:outline-none focus-visible:outline-none ` +
+                              `hover:bg-gray-50 ` +
+                              (selected ? `border-[var(--brand)]` : `border-[var(--line)]`)
+                            }
+                          >
+                            <div>
+                              <div className="font-medium">{u.fullName}</div>
+                              <div className="text-[12px] text-[var(--muted)]">
+                                {u.username}
+                                {u.email ? ` · ${u.email}` : ''}
+                              </div>
+                            </div>
+                            <input
+                              type="radio"
+                              className="sr-only focus:outline-none focus:ring-0"
+                              name="selectedUser"
+                              checked={selected}
+                              onChange={() => setSelectedUserId(u.userId)}
+                            />
+                          </label>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+                <div className="text-sm text-[var(--muted)]">💡 선택한 사용자는 이 이벤트에 등록됩니다.</div>
+              </div>
+            </div>
+            <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setShowRegisterModal(false)}>
+                취소
+              </Button>
+              <Button
+                disabled={!selectedUserId}
+                onClick={() => {
+                  // UI only: close modal, clear selection
+                  setShowRegisterModal(false);
+                  setSelectedUserId('');
+                }}
+              >
+                등록
+              </Button>
             </div>
           </div>
         </SimpleModal>
@@ -631,189 +699,193 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
 
       {/* QR Scan Modal */}
       {showQrScanModal && (
-        <SimpleModal onClose={() => setShowQrScanModal(false)}>
-          <div className="p-6 text-center">
-            <h2 className="text-xl font-bold mb-6">QR 체크인 스캐너</h2>
-
-            <div className="py-12">
-              <p className="text-lg text-gray-700 mb-2">QR 스캔 기능</p>
-              <p className="text-sm text-gray-500">모바일 앱 API 연결 예정</p>
+        <SimpleModal onClose={() => setShowQrScanModal(false)} className="max-w-xl">
+          <div className="card w-full max-w-xl mx-auto">
+            <div className="card__header">QR 체크인 스캐너</div>
+            <div className="card__body">
+              <div className="py-8 text-center">
+                <p className="text-lg text-gray-700 mb-2">QR 스캔 기능</p>
+                <p className="text-sm text-gray-500">모바일 앱 API 연결 예정</p>
+              </div>
             </div>
-
-            <Button variant="secondary" onClick={() => setShowQrScanModal(false)}>
-              닫기
-            </Button>
+            <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setShowQrScanModal(false)}>
+                닫기
+              </Button>
+            </div>
           </div>
         </SimpleModal>
       )}
 
       {/* Participant Detail Modal */}
       {showParticipantModal && selectedParticipant && (
-        <SimpleModal onClose={() => setShowParticipantModal(false)}>
-          <div className="p-6 max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">참가자 상세 정보</h2>
-
-            {/* Basic Info */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold mb-3">기본 정보</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-gray-600">이름:</span>
-                  <span className="ml-2 font-medium">{selectedParticipant.name}</span>
+        <SimpleModal onClose={() => setShowParticipantModal(false)} className="max-w-xl">
+          <div className="card w-full max-w-xl mx-auto">
+            <div className="card__header">참가자 상세 정보</div>
+            <div className="card__body max-h-[calc(100vh-12rem)] overflow-y-auto">
+              {/* Basic Info */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3">기본 정보</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">이름:</span>
+                    <span className="ml-2 font-medium">{selectedParticipant.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">ID:</span>
+                    <span className="ml-2">{selectedParticipant.participantId}</span>
+                  </div>
+                  {selectedParticipant.phoneNumber && (
+                    <div>
+                      <span className="text-gray-600">전화번호:</span>
+                      <span className="ml-2">{selectedParticipant.phoneNumber}</span>
+                    </div>
+                  )}
+                  {selectedParticipant.email && (
+                    <div>
+                      <span className="text-gray-600">이메일:</span>
+                      <span className="ml-2">{selectedParticipant.email}</span>
+                    </div>
+                  )}
+                  {selectedParticipant.gender && (
+                    <div>
+                      <span className="text-gray-600">성별:</span>
+                      <span className="ml-2">{selectedParticipant.gender}</span>
+                    </div>
+                  )}
+                  {selectedParticipant.dateOfBirth && (
+                    <div>
+                      <span className="text-gray-600">생년월일:</span>
+                      <span className="ml-2">{selectedParticipant.dateOfBirth}</span>
+                    </div>
+                  )}
+                  {selectedParticipant.nationality && (
+                    <div>
+                      <span className="text-gray-600">국적:</span>
+                      <span className="ml-2">{selectedParticipant.nationality}</span>
+                    </div>
+                  )}
+                  {selectedParticipant.createdAt && (
+                    <div>
+                      <span className="text-gray-600">등록일:</span>
+                      <span className="ml-2">{new Date(selectedParticipant.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <span className="text-gray-600">ID:</span>
-                  <span className="ml-2">{selectedParticipant.participantId}</span>
-                </div>
-                {selectedParticipant.phoneNumber && (
-                  <div>
-                    <span className="text-gray-600">전화번호:</span>
-                    <span className="ml-2">{selectedParticipant.phoneNumber}</span>
-                  </div>
-                )}
-                {selectedParticipant.email && (
-                  <div>
-                    <span className="text-gray-600">이메일:</span>
-                    <span className="ml-2">{selectedParticipant.email}</span>
-                  </div>
-                )}
-                {selectedParticipant.gender && (
-                  <div>
-                    <span className="text-gray-600">성별:</span>
-                    <span className="ml-2">{selectedParticipant.gender}</span>
-                  </div>
-                )}
-                {selectedParticipant.dateOfBirth && (
-                  <div>
-                    <span className="text-gray-600">생년월일:</span>
-                    <span className="ml-2">{selectedParticipant.dateOfBirth}</span>
-                  </div>
-                )}
-                {selectedParticipant.nationality && (
-                  <div>
-                    <span className="text-gray-600">국적:</span>
-                    <span className="ml-2">{selectedParticipant.nationality}</span>
-                  </div>
-                )}
-                {selectedParticipant.createdAt && (
-                  <div>
-                    <span className="text-gray-600">등록일:</span>
-                    <span className="ml-2">{new Date(selectedParticipant.createdAt).toLocaleDateString()}</span>
+                {selectedParticipant.address && (
+                  <div className="mt-3">
+                    <span className="text-gray-600 text-sm">주소:</span>
+                    <p className="text-sm mt-1">{selectedParticipant.address}</p>
                   </div>
                 )}
               </div>
-              {selectedParticipant.address && (
-                <div className="mt-3">
-                  <span className="text-gray-600 text-sm">주소:</span>
-                  <p className="text-sm mt-1">{selectedParticipant.address}</p>
-                </div>
-              )}
-            </div>
 
-            {/* DID/Wallet Info */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold mb-3">DID/지갑 정보</h3>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-gray-600">DID:</span>
-                  <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">{selectedParticipant.did}</div>
-                </div>
-                {selectedParticipant.walletAddress && (
+              {/* DID/Wallet Info */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3">DID/지갑 정보</h3>
+                <div className="space-y-2 text-sm">
                   <div>
-                    <span className="text-gray-600">지갑 주소:</span>
+                    <span className="text-gray-600">DID:</span>
                     <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">
-                      {selectedParticipant.walletAddress}
+                      {selectedParticipant.did}
                     </div>
                   </div>
-                )}
+                  {selectedParticipant.walletAddress && (
+                    <div>
+                      <span className="text-gray-600">지갑 주소:</span>
+                      <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">
+                        {selectedParticipant.walletAddress}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Status Info */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold mb-3">상태 정보</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="text-sm text-gray-600">사용자 상태:</span>
-                  <div className="mt-1">
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                        selectedParticipant.isActive
-                          ? 'bg-green-50 text-green-700 border-green-200'
-                          : 'bg-gray-50 text-gray-700 border-gray-200'
-                      }`}
-                    >
-                      {selectedParticipant.isActive ? '활성' : '비활성'}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-600">VC 상태:</span>
-                  <div className="mt-1">
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                        selectedParticipant.vcStatus === 'ACTIVE'
-                          ? 'bg-green-50 text-green-700 border-green-200'
-                          : selectedParticipant.vcStatus === 'SUSPENDED'
-                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            : 'bg-red-50 text-red-700 border-red-200'
-                      }`}
-                    >
-                      {selectedParticipant.vcStatus === 'ACTIVE'
-                        ? '활성'
-                        : selectedParticipant.vcStatus === 'SUSPENDED'
-                          ? '일시정지'
-                          : '폐기'}
-                    </span>
-                  </div>
-                </div>
-                {selectedParticipant.ussdStatus !== 'NOT_APPLICABLE' && (
+              {/* Status Info */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3">상태 정보</h3>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-sm text-gray-600">USSD 상태:</span>
+                    <span className="text-sm text-gray-600">사용자 상태:</span>
                     <div className="mt-1">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-                          selectedParticipant.ussdStatus === 'ACTIVE'
+                          selectedParticipant.isActive
                             ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}
                       >
-                        {selectedParticipant.ussdStatus === 'ACTIVE' ? '활성화' : '대기중'}
+                        {selectedParticipant.isActive ? '활성' : '비활성'}
                       </span>
                     </div>
                   </div>
-                )}
+                  <div>
+                    <span className="text-sm text-gray-600">VC 상태:</span>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                          selectedParticipant.vcStatus === 'ACTIVE'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : selectedParticipant.vcStatus === 'SUSPENDED'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              : 'bg-red-50 text-red-700 border-red-200'
+                        }`}
+                      >
+                        {selectedParticipant.vcStatus === 'ACTIVE'
+                          ? '활성'
+                          : selectedParticipant.vcStatus === 'SUSPENDED'
+                            ? '일시정지'
+                            : '폐기'}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedParticipant.ussdStatus !== 'NOT_APPLICABLE' && (
+                    <div>
+                      <span className="text-sm text-gray-600">USSD 상태:</span>
+                      <div className="mt-1">
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                            selectedParticipant.ussdStatus === 'ACTIVE'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          }`}
+                        >
+                          {selectedParticipant.ussdStatus === 'ACTIVE' ? '활성화' : '대기중'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* KYC Documents */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold mb-3">KYC 문서</h3>
-              <div className="flex gap-2">
-                {selectedParticipant.kycDocumentPath ? (
-                  <>
-                    <button
-                      className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                      onClick={() => console.log('KYC 문서 다운로드:', selectedParticipant.kycDocumentPath)}
-                    >
-                      신분증 다운로드
-                    </button>
-                    {selectedParticipant.kycFacePath && (
+              {/* KYC Documents */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3">KYC 문서</h3>
+                <div className="flex gap-2">
+                  {selectedParticipant.kycDocumentPath ? (
+                    <>
                       <button
                         className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                        onClick={() => console.log('얼굴 사진 다운로드:', selectedParticipant.kycFacePath)}
+                        onClick={() => console.log('KYC 문서 다운로드:', selectedParticipant.kycDocumentPath)}
                       >
-                        얼굴 사진 다운로드
+                        신분증 다운로드
                       </button>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-sm text-gray-500">KYC 문서가 없습니다</span>
-                )}
+                      {selectedParticipant.kycFacePath && (
+                        <button
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
+                          onClick={() => console.log('얼굴 사진 다운로드:', selectedParticipant.kycFacePath)}
+                        >
+                          얼굴 사진 다운로드
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-sm text-gray-500">KYC 문서가 없습니다</span>
+                  )}
+                </div>
               </div>
             </div>
-
-            <div className="flex justify-end">
+            <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <Button variant="secondary" onClick={() => setShowParticipantModal(false)}>
                 닫기
               </Button>

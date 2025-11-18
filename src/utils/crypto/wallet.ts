@@ -128,6 +128,35 @@ export function getAddressFromPrivateKey(privateKey: string): string {
 }
 
 /**
+ * Gets the address from a public key
+ * @param publicKey - The public key (compressed or uncompressed, with or without 0x prefix)
+ * @returns Ethereum address
+ */
+export function getAddressFromPublicKey(publicKey: string): string {
+  // Remove 0x prefix if present
+  const cleanPublicKey = publicKey.startsWith('0x') ? publicKey.slice(2) : publicKey;
+
+  // Convert to uncompressed format if compressed (33 bytes starting with 02 or 03)
+  let uncompressedKey = cleanPublicKey;
+  if (cleanPublicKey.length === 66) {
+    // Compressed public key (33 bytes)
+    // For compressed keys, we need to use computeAddress directly
+    return ethers.computeAddress('0x' + cleanPublicKey);
+  }
+
+  // For uncompressed keys (65 bytes starting with 04, or 64 bytes without prefix)
+  if (cleanPublicKey.length === 130 && cleanPublicKey.startsWith('04')) {
+    uncompressedKey = cleanPublicKey.slice(2); // Remove the '04' prefix
+  } else if (cleanPublicKey.length === 128) {
+    // Already without prefix
+    uncompressedKey = cleanPublicKey;
+  }
+
+  // Compute address from public key
+  return ethers.computeAddress('0x04' + uncompressedKey);
+}
+
+/**
  * Signs a message with a private key
  * @param message - The message to sign
  * @param privateKey - The private key to sign with

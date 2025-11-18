@@ -15,6 +15,12 @@ export enum USSDStatus {
   ACTIVE = 'ACTIVE',
 }
 
+export enum RegistrationType {
+  ANAMWALLET = 'ANAMWALLET',
+  USSD = 'USSD',
+  PAPERVOUCHER = 'PAPERVOUCHER',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
@@ -42,9 +48,9 @@ export class User {
     type: 'varchar',
     length: 20,
     nullable: true,
-    comment: 'Phone number',
+    unique: true,
+    comment: 'Phone number (unique when not null)',
   })
-  @Index()
   phoneNumber!: string | null;
 
   @Column({
@@ -97,15 +103,6 @@ export class User {
   kycType!: KycType | null;
 
   @Column({
-    name: 'kyc_document_number',
-    type: 'varchar',
-    length: 100,
-    nullable: true,
-    comment: 'ID number',
-  })
-  kycDocumentNumber!: string | null;
-
-  @Column({
     name: 'kyc_document_path',
     type: 'varchar',
     length: 500,
@@ -133,6 +130,16 @@ export class User {
     comment: 'Ethereum Address',
   })
   walletAddress!: string | null;
+
+  // Registration Type
+  @Column({
+    name: 'registration_type',
+    type: 'enum',
+    enum: RegistrationType,
+    nullable: true,
+    comment: 'Initial registration method (ANAMWALLET, USSD, PAPERVOUCHER)',
+  })
+  registrationType!: RegistrationType | null;
 
   // Status Management
   @Column({
