@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import UsersClient from './UsersClient';
 
 export default async function UsersPage() {
-  const ok = await hasRole(AdminRole.SYSTEM_ADMIN);
+  const ok = await hasRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (!ok) redirect('/denied');
   return <UsersClient />;
 }

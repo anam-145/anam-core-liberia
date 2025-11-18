@@ -209,7 +209,39 @@ class AdminService {
     await this.initialize();
 
     const userRepository = AppDataSource.getRepository(User);
-    const query = userRepository.createQueryBuilder('user');
+
+    // Create query with JOINs for DID and VC status
+    const query = userRepository
+      .createQueryBuilder('user')
+      .leftJoin('did_documents', 'did', 'did.wallet_address = user.wallet_address AND did.did_type = :didType', {
+        didType: 'USER',
+      })
+      .leftJoin('vc_registry', 'vc', 'vc.user_did = did.did')
+      .select([
+        'user.id AS id',
+        'user.user_id AS userId',
+        'user.name AS name',
+        'user.phone_number AS phoneNumber',
+        'user.email AS email',
+        'user.nationality AS nationality',
+        'user.gender AS gender',
+        'user.date_of_birth AS dateOfBirth',
+        'user.address AS address',
+        'user.wallet_address AS walletAddress',
+        'user.registration_type AS registrationType',
+        'user.kyc_type AS kycType',
+        'user.kyc_document_path AS kycDocumentPath',
+        'user.kyc_face_path AS kycFacePath',
+        'user.ussd_status AS ussdStatus',
+        'user.is_active AS isActive',
+        'user.has_custody_wallet AS hasCustodyWallet',
+        'user.created_by AS createdBy',
+        'user.created_at AS createdAt',
+        'user.updated_at AS updatedAt',
+        'did.did AS did',
+        'vc.vc_id AS vcId',
+        'vc.status AS vcStatus',
+      ]);
 
     if (options.ussdStatus) {
       query.andWhere('user.ussd_status = :ussdStatus', { ussdStatus: options.ussdStatus });
@@ -227,7 +259,39 @@ class AdminService {
       query.skip(options.offset);
     }
 
-    const users = await query.getMany();
+    const rawUsers = await query.getRawMany();
+
+    // Map raw results to User objects with additional DID and VC fields
+    const users = rawUsers.map((raw) => {
+      const user = new User();
+      user.id = parseInt(String(raw.id));
+      user.userId = raw.userId;
+      user.name = raw.name;
+      user.phoneNumber = raw.phoneNumber;
+      user.email = raw.email;
+      user.nationality = raw.nationality;
+      user.gender = raw.gender;
+      user.dateOfBirth = raw.dateOfBirth;
+      user.address = raw.address;
+      user.walletAddress = raw.walletAddress;
+      user.registrationType = raw.registrationType;
+      user.kycType = raw.kycType;
+      user.kycDocumentPath = raw.kycDocumentPath;
+      user.kycFacePath = raw.kycFacePath;
+      user.ussdStatus = raw.ussdStatus;
+      user.isActive = Boolean(raw.isActive);
+      user.hasCustodyWallet = Boolean(raw.hasCustodyWallet);
+      user.createdBy = raw.createdBy;
+      user.createdAt = raw.createdAt;
+      user.updatedAt = raw.updatedAt;
+
+      // Add DID and VC fields (not part of User entity, but needed for UI)
+      (user as User & { did?: string | null; vcId?: string | null; vcStatus?: string | null }).did = raw.did;
+      (user as User & { did?: string | null; vcId?: string | null; vcStatus?: string | null }).vcId = raw.vcId;
+      (user as User & { did?: string | null; vcId?: string | null; vcStatus?: string | null }).vcStatus = raw.vcStatus;
+
+      return user;
+    });
 
     return { users, total };
   }
@@ -286,6 +350,8 @@ class AdminService {
       walletAddress?: string; // For AnamWallet - direct wallet address
       password?: string; // For Paper Voucher - password for vault encryption
       kycType?: string;
+      kycDocumentPath?: string; // KYC document file path
+      kycFacePath?: string; // KYC face photo file path
     },
     createdBy: string,
   ): Promise<User> {
@@ -381,6 +447,8 @@ class AdminService {
           address: data.address || null,
           walletAddress: wallet.address,
           kycType: (data.kycType as KycType) || null,
+          kycDocumentPath: data.kycDocumentPath || null,
+          kycFacePath: data.kycFacePath || null,
           registrationType: RegistrationType.PAPERVOUCHER,
           ussdStatus: USSDStatus.NOT_APPLICABLE,
           isActive: true, // Paper Voucher is immediately active
@@ -405,7 +473,7 @@ class AdminService {
             walletVault,
             custodyVault: { id: issued.vc.id, ...vcVault },
           },
-        } as any;
+        } as User & { qrData: { address: string; walletVault: unknown; custodyVault: unknown } };
       }
 
       default:
@@ -424,6 +492,8 @@ class AdminService {
       address: data.address || null,
       walletAddress,
       kycType: (data.kycType as KycType) || null,
+      kycDocumentPath: data.kycDocumentPath || null,
+      kycFacePath: data.kycFacePath || null,
       registrationType: RegistrationType[data.registrationType],
       ussdStatus,
       isActive: false, // All types start inactive except Paper Voucher (future)

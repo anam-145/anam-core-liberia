@@ -19,6 +19,139 @@ function SimpleModal({ children, onClose, className }: SimpleModalProps) {
   );
 }
 
+// Check-in modal with three methods and per-method forms
+function CheckInModal({ onClose }: { onClose: () => void }) {
+  const [method, setMethod] = useState<'ANAMWALLET' | 'USSD' | 'PAPER' | null>(null);
+  const [ussdPin, setUssdPin] = useState('');
+  const [paperPin, setPaperPin] = useState('');
+
+  function resetAndClose() {
+    setMethod(null);
+    setUssdPin('');
+    setPaperPin('');
+    onClose();
+  }
+
+  return (
+    <SimpleModal onClose={resetAndClose} className="max-w-xl">
+      <div className="card w-full max-w-xl mx-auto">
+        <div className="card__header">체크인</div>
+        <div className="card__body">
+          {!method && (
+            <div className="py-2">
+              <p className="text-sm text-gray-600 mb-4">체크인 방법을 선택하세요.</p>
+              <div className="flex flex-col gap-3">
+                {/* AnamWallet */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  onClick={() => {
+                    // TODO: 휴대폰 api 연결 예정 (AnamWallet)
+                    console.log('AnamWallet 체크인 (휴대폰 API 연결 예정)');
+                  }}
+                  aria-label="AnamWallet 체크인"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/icons/camera.svg" alt="" className="w-6 h-6" />
+                  <div className="flex-1 text-left">
+                    <div className="text-base font-semibold">AnamWallet</div>
+                    <div className="text-xs text-gray-500">앱으로 체크인</div>
+                  </div>
+                </button>
+
+                {/* USSD */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  onClick={() => setMethod('USSD')}
+                  aria-label="USSD 체크인"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/icons/camera.svg" alt="" className="w-6 h-6" />
+                  <div className="flex-1 text-left">
+                    <div className="text-base font-semibold">USSD</div>
+                    <div className="text-xs text-gray-500">피처폰 사용자 체크인</div>
+                  </div>
+                </button>
+
+                {/* Paper Voucher */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  onClick={() => setMethod('PAPER')}
+                  aria-label="Paper 바우처 체크인"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/icons/camera.svg" alt="" className="w-6 h-6" />
+                  <div className="flex-1 text-left">
+                    <div className="text-base font-semibold">Paper 바우처</div>
+                    <div className="text-xs text-gray-500">QR 바우처로 체크인</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {method === 'USSD' && (
+            <div className="py-2">
+              <div className="mb-3">
+                <button
+                  type="button"
+                  className="text-sm text-[var(--brand)] hover:underline"
+                  onClick={() => setMethod(null)}
+                >
+                  ← 방법 선택으로 돌아가기
+                </button>
+              </div>
+              <h3 className="text-base font-semibold mb-3">USSD 체크인</h3>
+              <div className="grid gap-3">
+                <Input
+                  label="비밀번호(PIN)"
+                  type="number"
+                  placeholder="숫자만 입력"
+                  value={ussdPin}
+                  onChange={(e) => setUssdPin(e.target.value)}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+          )}
+
+          {method === 'PAPER' && (
+            <div className="py-2">
+              <div className="mb-3">
+                <button
+                  type="button"
+                  className="text-sm text-[var(--brand)] hover:underline"
+                  onClick={() => setMethod(null)}
+                >
+                  ← 방법 선택으로 돌아가기
+                </button>
+              </div>
+              <h3 className="text-base font-semibold mb-3">Paper 바우처 체크인</h3>
+              <div className="grid gap-3">
+                <Input
+                  label="바우처 비밀번호"
+                  type="number"
+                  placeholder="숫자만 입력"
+                  value={paperPin}
+                  onChange={(e) => setPaperPin(e.target.value)}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={resetAndClose}>
+            닫기
+          </Button>
+        </div>
+      </div>
+    </SimpleModal>
+  );
+}
+
 interface ParticipantData {
   id: number;
   participantId: string;
@@ -330,7 +463,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                     className="flex-1 lg:w-64"
                   />
                   <Button variant="secondary" onClick={() => setShowQrScanModal(true)}>
-                    QR 스캔
+                    체크인
                   </Button>
                   <Button onClick={() => setShowRegisterModal(true)}>유저 이벤트 등록</Button>
                 </div>
@@ -697,25 +830,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         </SimpleModal>
       )}
 
-      {/* QR Scan Modal */}
-      {showQrScanModal && (
-        <SimpleModal onClose={() => setShowQrScanModal(false)} className="max-w-xl">
-          <div className="card w-full max-w-xl mx-auto">
-            <div className="card__header">QR 체크인 스캐너</div>
-            <div className="card__body">
-              <div className="py-8 text-center">
-                <p className="text-lg text-gray-700 mb-2">QR 스캔 기능</p>
-                <p className="text-sm text-gray-500">모바일 앱 API 연결 예정</p>
-              </div>
-            </div>
-            <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <Button variant="secondary" onClick={() => setShowQrScanModal(false)}>
-                닫기
-              </Button>
-            </div>
-          </div>
-        </SimpleModal>
-      )}
+      {/* Check-in Modal */}
+      {showQrScanModal && <CheckInModal onClose={() => setShowQrScanModal(false)} />}
 
       {/* Participant Detail Modal */}
       {showParticipantModal && selectedParticipant && (

@@ -53,3 +53,7 @@ next-env.d.ts
 docs/
 
 CLAUDE.md
+
+# Uploads (sensitive data - KYC documents and photos)
+uploads/
+!uploads/.gitkeep

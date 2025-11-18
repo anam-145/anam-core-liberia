@@ -5,6 +5,8 @@ import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
 import type { USSDStatus } from '@/server/db/entities/User';
 import { AdminRole } from '@/server/db/entities/Admin';
+import { saveKycFile, deleteAllKycFiles } from '@/lib/file-upload';
+import { randomUUID } from 'crypto';
 
 /**
  * GET /api/admin/users
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/users
  * Register new user (SYSTEM_ADMIN, STAFF)
  *
- * Request Body:
+ * Request Body (multipart/form-data):
  * - name: string
  * - phoneNumber?: string (required for USSD)
  * - email?: string
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
  * - registrationType: 'ANAMWALLET' | 'USSD' | 'PAPERVOUCHER'
  * - walletAddress?: string (required for AnamWallet)
  * - kycType?: string
+ * - kycDocument: File (PDF, JPG, PNG)
+ * - kycFace: File (JPG, PNG)
  *
  * Response:
  * - user: User object
@@ -67,8 +71,42 @@ export async function POST(request: NextRequest) {
   const authCheck = await requireRole([AdminRole.SYSTEM_ADMIN, AdminRole.STAFF]);
   if (authCheck) return authCheck;
 
+  // 파일 경로 저장용 (에러 시 cleanup)
+  let userId: string | null = null; // For cleanup
+
   try {
-    const body = await request.json();
+    const formData = await request.formData();
+
+    // Extract form fields
+    const name = String(formData.get('name') ?? '');
+    const phoneNumber = formData.get('phoneNumber') ? String(formData.get('phoneNumber')) : undefined;
+    const email = formData.get('email') ? String(formData.get('email')) : undefined;
+    const gender = formData.get('gender') ? String(formData.get('gender')) : undefined;
+    const dateOfBirth = formData.get('dateOfBirth') ? String(formData.get('dateOfBirth')) : undefined;
+    const nationality = formData.get('nationality') ? String(formData.get('nationality')) : undefined;
+    const address = formData.get('address') ? String(formData.get('address')) : undefined;
+    const registrationType = String(formData.get('registrationType') ?? '') as 'USSD' | 'ANAMWALLET' | 'PAPERVOUCHER';
+    const walletAddress = formData.get('walletAddress') ? String(formData.get('walletAddress')) : undefined;
+    const password = formData.get('password') ? String(formData.get('password')) : undefined;
+    const kycType = formData.get('kycType') ? String(formData.get('kycType')) : undefined;
+
+    // Extract files
+    const kycDocument = formData.get('kycDocument');
+    const kycFace = formData.get('kycFace');
+
+    const body = {
+      name,
+      phoneNumber,
+      email,
+      gender,
+      dateOfBirth,
+      nationality,
+      address,
+      registrationType,
+      walletAddress,
+      password,
+      kycType,
+    };
 
     // Basic validation
     if (!body.name || !body.registrationType) {
@@ -98,8 +136,47 @@ export async function POST(request: NextRequest) {
       return apiError('Password is required for Paper Voucher', 400, 'VALIDATION_ERROR');
     }
 
+    // File validation
+    if (!(kycDocument instanceof File)) {
+      return apiError('KYC document file is required', 400, 'VALIDATION_ERROR');
+    }
+    if (!(kycFace instanceof File)) {
+      return apiError('KYC face photo is required', 400, 'VALIDATION_ERROR');
+    }
+
+    // Generate userId for file storage
+    userId = `user_${randomUUID()}`;
+
+    // Save files
+    let kycDocumentPath: string;
+    let kycFacePath: string;
+
+    try {
+      const docResult = await saveKycFile({
+        file: kycDocument,
+        type: 'document',
+        userId,
+      });
+      kycDocumentPath = docResult.path;
+
+      const faceResult = await saveKycFile({
+        file: kycFace,
+        type: 'face',
+        userId,
+      });
+      kycFacePath = faceResult.path;
+    } catch (error) {
+      // Cleanup any saved files and folders
+      if (userId) {
+        await deleteAllKycFiles(userId);
+      }
+
+      return apiError(error instanceof Error ? error.message : 'File upload failed', 400, 'VALIDATION_ERROR');
+    }
+
     // Common user data preparation
     const userData = {
+      userId, // Use generated userId
       name: body.name,
       phoneNumber: body.phoneNumber,
       email: body.email,
@@ -112,6 +189,8 @@ export async function POST(request: NextRequest) {
       password: body.registrationType === 'PAPERVOUCHER' ? body.password : undefined,
       registrationType: body.registrationType,
       kycType: body.kycType,
+      kycDocumentPath, // Add file paths
+      kycFacePath,
     };
 
     // Create user with appropriate registration type
@@ -138,6 +217,11 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error in POST /api/admin/users:', error);
+
+    // Cleanup uploaded files and folders on error
+    if (userId) {
+      await deleteAllKycFiles(userId);
+    }
 
     // Handle duplicate errors with user-friendly messages
     if (error instanceof Error) {

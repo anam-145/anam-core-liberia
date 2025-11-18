@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import ProgressModal from '@/components/ui/ProgressModal';
 
-export default function ParticipantsRegisterClient() {
+export default function UserRegisterClient() {
   const router = useRouter();
   const [registrationType, setRegistrationType] = useState<string>('ANAMWALLET'); // 기본값: AnamWallet
   const [showCameraModal, setShowCameraModal] = useState(false);
@@ -23,6 +23,10 @@ export default function ParticipantsRegisterClient() {
     walletAddress: '0x089b5956c702Fc6654040f46666bFE383f9a7dF0', // 샘플 지갑 주소
     password: '', // Paper Voucher 비밀번호
   });
+
+  // File state
+  const [kycDocument, setKycDocument] = useState<File | null>(null);
+  const [kycFace, setKycFace] = useState<File | null>(null);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -97,6 +101,35 @@ export default function ParticipantsRegisterClient() {
       errors.password = '비밀번호는 최소 4자 이상이어야 합니다';
     }
 
+    // 파일 검증
+    if (!kycDocument) {
+      errors.kycDocument = '신분증 사본을 업로드해주세요';
+    } else {
+      // 파일 타입 검증
+      const allowedDocTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
+      if (!allowedDocTypes.includes(kycDocument.type)) {
+        errors.kycDocument = 'PDF, JPG, PNG, HEIC, WebP 파일만 업로드 가능합니다';
+      }
+      // 파일 크기 검증 (10MB)
+      if (kycDocument.size > 10 * 1024 * 1024) {
+        errors.kycDocument = '파일 크기는 10MB를 초과할 수 없습니다';
+      }
+    }
+
+    if (!kycFace) {
+      errors.kycFace = '얼굴 사진을 업로드해주세요';
+    } else {
+      // 파일 타입 검증 (이미지만)
+      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
+      if (!allowedImageTypes.includes(kycFace.type)) {
+        errors.kycFace = 'JPG, PNG, HEIC, WebP 파일만 업로드 가능합니다';
+      }
+      // 파일 크기 검증 (10MB)
+      if (kycFace.size > 10 * 1024 * 1024) {
+        errors.kycFace = '파일 크기는 10MB를 초과할 수 없습니다';
+      }
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -129,23 +162,28 @@ export default function ParticipantsRegisterClient() {
       // 전화번호가 있으면 +231 추가
       const phoneWithCountryCode = formData.phoneNumber ? `+231${formData.phoneNumber}` : '';
 
-      // API 호출
+      // FormData 생성
+      const submitData = new FormData();
+      submitData.append('name', formData.name.trim());
+      if (phoneWithCountryCode) submitData.append('phoneNumber', phoneWithCountryCode);
+      if (formData.email) submitData.append('email', formData.email.trim());
+      if (formData.gender) submitData.append('gender', formData.gender);
+      if (formData.dateOfBirth) submitData.append('dateOfBirth', formData.dateOfBirth);
+      if (formData.nationality) submitData.append('nationality', formData.nationality.trim());
+      if (formData.address) submitData.append('address', formData.address.trim());
+      submitData.append('registrationType', registrationType);
+      if (formData.walletAddress) submitData.append('walletAddress', formData.walletAddress);
+      if (formData.password) submitData.append('password', formData.password);
+      if (formData.kycType) submitData.append('kycType', formData.kycType);
+
+      // 파일 추가
+      if (kycDocument) submitData.append('kycDocument', kycDocument);
+      if (kycFace) submitData.append('kycFace', kycFace);
+
+      // API 호출 (multipart/form-data는 자동으로 Content-Type 설정됨)
       const res = await fetch('/api/admin/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          phoneNumber: phoneWithCountryCode || undefined,
-          email: formData.email.trim() || undefined,
-          gender: formData.gender || undefined,
-          dateOfBirth: formData.dateOfBirth || undefined,
-          nationality: formData.nationality.trim() || undefined,
-          address: formData.address.trim() || undefined,
-          registrationType,
-          walletAddress: formData.walletAddress || undefined,
-          password: formData.password || undefined,
-          kycType: formData.kycType || undefined,
-        }),
+        body: submitData,
       });
 
       const data = await res.json().catch(() => ({}));
@@ -217,6 +255,8 @@ export default function ParticipantsRegisterClient() {
       password: '',
     });
     setRegistrationType('ANAMWALLET');
+    setKycDocument(null);
+    setKycFace(null);
     setFieldErrors({});
     setError('');
   };
@@ -392,8 +432,13 @@ export default function ParticipantsRegisterClient() {
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
-                      accept="image/*,.pdf"
+                      accept="image/jpeg,image/png,.pdf"
                       className="input flex-1 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setKycDocument(file);
+                        if (fieldErrors.kycDocument) setFieldErrors({ ...fieldErrors, kycDocument: '' });
+                      }}
                       required
                     />
                     <button
@@ -402,9 +447,16 @@ export default function ParticipantsRegisterClient() {
                       aria-label="카메라 열기"
                       onClick={() => setShowCameraModal(true)}
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src="/icons/camera.svg" alt="" width={24} height={24} />
                     </button>
                   </div>
+                  {kycDocument && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      선택된 파일: {kycDocument.name} ({(kycDocument.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                  {fieldErrors.kycDocument && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycDocument}</p>}
                 </div>
 
                 <div>
@@ -412,8 +464,13 @@ export default function ParticipantsRegisterClient() {
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png"
                       className="input flex-1 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setKycFace(file);
+                        if (fieldErrors.kycFace) setFieldErrors({ ...fieldErrors, kycFace: '' });
+                      }}
                       required
                     />
                     <button
@@ -422,9 +479,16 @@ export default function ParticipantsRegisterClient() {
                       aria-label="카메라 열기"
                       onClick={() => setShowCameraModal(true)}
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src="/icons/camera.svg" alt="" width={24} height={24} />
                     </button>
                   </div>
+                  {kycFace && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      선택된 파일: {kycFace.name} ({(kycFace.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                  {fieldErrors.kycFace && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycFace}</p>}
                 </div>
               </div>
             </div>
@@ -476,6 +540,7 @@ export default function ParticipantsRegisterClient() {
                   aria-label="QR 스캔"
                   onClick={() => setShowCameraModal(true)}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/icons/camera.svg" alt="" width={24} height={24} />
                 </button>
               </div>
@@ -514,7 +579,7 @@ export default function ParticipantsRegisterClient() {
               variant="secondary"
               onClick={() => {
                 resetForm();
-                router.push('/participants');
+                router.push('/users');
               }}
             >
               취소
@@ -555,7 +620,7 @@ export default function ParticipantsRegisterClient() {
           setShowProgress(false);
           setProgressDone(false);
           resetForm();
-          router.push('/participants');
+          router.push('/users');
         }}
       />
     </div>

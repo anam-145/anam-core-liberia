@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
 type USSDStatus = 'NOT_APPLICABLE' | 'PENDING' | 'ACTIVE';
 type VCStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
+type RegistrationType = 'ANAMWALLET' | 'USSD' | 'PAPERVOUCHER';
 
 interface UserRow {
   id: number;
@@ -18,6 +20,7 @@ interface UserRow {
   dateOfBirth: string | null; // ISO
   address: string | null;
   walletAddress: string | null;
+  registrationType?: RegistrationType | null;
   did?: string | null;
   vcStatus?: VCStatus | null;
   kycDocumentPath?: string | null;
@@ -37,6 +40,7 @@ export default function UsersClient() {
 
   const [showDetails, setShowDetails] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [downloadError, setDownloadError] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -84,6 +88,38 @@ export default function UsersClient() {
     return v.length > 16 ? `${v.slice(0, 8)}…${v.slice(-6)}` : v;
   };
 
+  // 파일 다운로드 함수
+  const handleDownload = async (filePath: string, fileName: string) => {
+    setDownloadError(''); // 이전 에러 초기화
+
+    try {
+      const response = await fetch(`/api/admin/files?path=${encodeURIComponent(filePath)}`);
+
+      if (!response.ok) {
+        setDownloadError('파일 다운로드에 실패했습니다.');
+        return;
+      }
+
+      // Blob으로 변환
+      const blob = await response.blob();
+
+      // 다운로드 링크 생성
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+
+      // 정리
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download error:', error);
+      setDownloadError('파일 다운로드 중 오류가 발생했습니다.');
+    }
+  };
+
   return (
     <div className="max-w-screen-2xl mx-auto">
       {/* Header */}
@@ -91,8 +127,11 @@ export default function UsersClient() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">사용자</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">참가자 계정 관리(디자인만 적용)</p>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">참가자 계정 관리</p>
           </div>
+          <Link href="/users/new">
+            <Button>+ 새 사용자</Button>
+          </Link>
         </div>
       </div>
 
@@ -147,13 +186,15 @@ export default function UsersClient() {
         <>
           <div className="hidden lg:block">
             <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <table className="table min-w-[760px]">
+              <table className="table min-w-[900px]">
                 <thead>
                   <tr>
-                    <th>사용자</th>
-                    <th>DID</th>
-                    <th>지갑</th>
-                    <th>생성일</th>
+                    <th>사용자 / DID</th>
+                    <th>등록 유형</th>
+                    <th>활성화</th>
+                    <th>USSD</th>
+                    <th>VC 상태</th>
+                    <th>등록일</th>
                     <th>액션</th>
                   </tr>
                 </thead>
@@ -161,18 +202,86 @@ export default function UsersClient() {
                   {filtered.map((u) => (
                     <tr key={u.userId}>
                       <td>
-                        <div style={{ maxWidth: 260 }}>
+                        <div style={{ maxWidth: '200px' }}>
                           <div style={{ fontWeight: 700, marginBottom: 2 }}>{u.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                            {(u.phoneNumber || '-') + (u.email ? ` · ${u.email}` : '')}
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: 'var(--muted)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {u.did || '(DID 없음)'}
                           </div>
                         </div>
                       </td>
                       <td>
-                        <code style={{ fontSize: 12 }}>{shorten(u.did || '') || '-'}</code>
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                            u.registrationType === 'ANAMWALLET'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : u.registrationType === 'USSD'
+                                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                : u.registrationType === 'PAPERVOUCHER'
+                                  ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                  : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          {u.registrationType === 'ANAMWALLET'
+                            ? 'AnamWallet'
+                            : u.registrationType === 'USSD'
+                              ? 'USSD'
+                              : u.registrationType === 'PAPERVOUCHER'
+                                ? '종이 바우처'
+                                : '-'}
+                        </span>
                       </td>
                       <td>
-                        <code style={{ fontSize: 12 }}>{shorten(u.walletAddress)}</code>
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                            u.isActive
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          {u.isActive ? '활성' : '비활성'}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                            u.ussdStatus === 'ACTIVE'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : u.ussdStatus === 'PENDING'
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          {u.ussdStatus === 'ACTIVE' ? '활성' : u.ussdStatus === 'PENDING' ? '대기중' : 'N/A'}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                            u.vcStatus === 'ACTIVE'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : u.vcStatus === 'SUSPENDED'
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                : u.vcStatus === 'REVOKED'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          {u.vcStatus === 'ACTIVE'
+                            ? '활성'
+                            : u.vcStatus === 'SUSPENDED'
+                              ? '일시정지'
+                              : u.vcStatus === 'REVOKED'
+                                ? '폐기'
+                                : 'N/A'}
+                        </span>
                       </td>
                       <td style={{ fontSize: 13, color: 'var(--muted)' }}>{formatDate(u.createdAt)}</td>
                       <td>
@@ -182,6 +291,7 @@ export default function UsersClient() {
                             onClick={() => {
                               setSelectedUser(u);
                               setShowDetails(true);
+                              setDownloadError(''); // 에러 초기화
                             }}
                           >
                             상세
@@ -382,14 +492,24 @@ export default function UsersClient() {
                     <>
                       <button
                         className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                        onClick={() => console.log('KYC 문서 다운로드:', selectedUser.kycDocumentPath)}
+                        onClick={() =>
+                          handleDownload(
+                            selectedUser.kycDocumentPath!,
+                            `${selectedUser.name}_신분증.${selectedUser.kycDocumentPath!.split('.').pop()}`,
+                          )
+                        }
                       >
                         신분증 다운로드
                       </button>
                       {selectedUser.kycFacePath && (
                         <button
                           className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                          onClick={() => console.log('얼굴 사진 다운로드:', selectedUser.kycFacePath)}
+                          onClick={() =>
+                            handleDownload(
+                              selectedUser.kycFacePath!,
+                              `${selectedUser.name}_얼굴사진.${selectedUser.kycFacePath!.split('.').pop()}`,
+                            )
+                          }
                         >
                           얼굴 사진 다운로드
                         </button>
@@ -399,6 +519,7 @@ export default function UsersClient() {
                     <span className="text-sm text-gray-500">KYC 문서가 없습니다</span>
                   )}
                 </div>
+                {downloadError && <div style={{ color: '#c33', fontSize: 12, marginTop: 8 }}>{downloadError}</div>}
               </div>
             </div>
             <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

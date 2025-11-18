@@ -97,24 +97,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <span>대시보드</span>
           </Link>
-          {/* 참가자 등록: SYSTEM_ADMIN, STAFF 모두 노출 */}
-          <Link
-            href="/participants"
-            className={pathname?.startsWith('/participants') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>유저 등록</span>
-          </Link>
-          {/* 사용자/관리자/이벤트는 SYSTEM_ADMIN 전용 네비 */}
+          {/* 관리자/이벤트는 SYSTEM_ADMIN 전용 네비 */}
           {sessionLoaded && role === 'SYSTEM_ADMIN' && (
             <>
-              <Link
-                href="/users"
-                className={pathname?.startsWith('/users') ? 'active' : ''}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <span>사용자</span>
-              </Link>
               <Link
                 href="/admins"
                 className={pathname?.startsWith('/admins') ? 'active' : ''}
@@ -122,14 +107,25 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               >
                 <span>관리자</span>
               </Link>
-              <Link
-                href="/events"
-                className={pathname?.startsWith('/events') ? 'active' : ''}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <span>이벤트</span>
-              </Link>
             </>
+          )}
+          {/* 사용자: SYSTEM_ADMIN, STAFF 모두 노출 */}
+          <Link
+            href="/users"
+            className={pathname?.startsWith('/users') ? 'active' : ''}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <span>사용자</span>
+          </Link>
+          {/* 이벤트는 SYSTEM_ADMIN 전용 네비 */}
+          {sessionLoaded && role === 'SYSTEM_ADMIN' && (
+            <Link
+              href="/events"
+              className={pathname?.startsWith('/events') ? 'active' : ''}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span>이벤트</span>
+            </Link>
           )}
         </nav>
       </aside>
