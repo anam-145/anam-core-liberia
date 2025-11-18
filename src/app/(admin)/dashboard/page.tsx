@@ -91,7 +91,7 @@ export default function DashboardPage() {
           if (!cancelled) setAssignedIds(new Set<string>(data.assignedEventIds ?? []));
 
           const staffList: ApiEvent[] = (data.events ?? []).map((e) => {
-            const d = e as unknown as any;
+            const d = e as unknown as Record<string, unknown>;
             // 서버에서 derivedStatus를 제공하지만, 안전하게 클라이언트에서도 계산 fallback
             const start = new Date(String(d.startDate));
             const end = new Date(String(d.endDate));
