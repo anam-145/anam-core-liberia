@@ -398,6 +398,60 @@ class BlockchainService {
   }
 
   /**
+   * Grant event-scoped role on LiberiaEvent contract
+   * @param eventAddress - Deployed LiberiaEvent contract address
+   * @param role - 'APPROVER' | 'VERIFIER'
+   * @param account - Address to grant role to
+   * @param signerPrivateKey - Private key with SYSTEM_ADMIN_ROLE on the event
+   * @returns Transaction hash
+   */
+  async grantEventRole(
+    eventAddress: string,
+    role: 'APPROVER' | 'VERIFIER',
+    account: string,
+    signerPrivateKey: string,
+  ): Promise<string> {
+    this.initialize();
+
+    if (!this.provider) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    // Minimal ABI for AccessControl
+    const EVENT_ROLE_ABI = [
+      'function grantRole(bytes32 role, address account) external',
+      'function hasRole(bytes32 role, address account) external view returns (bool)',
+    ];
+
+    // Resolve role selector via ethers.id
+    const { id } = await import('ethers');
+    const roleSelector = role === 'APPROVER' ? id('APPROVER_ROLE') : id('VERIFIER_ROLE');
+
+    try {
+      const signer = this.getSigner(signerPrivateKey);
+      const contract = new Contract(eventAddress, EVENT_ROLE_ABI, signer);
+
+      // Idempotency: skip if already granted
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const already = (await (contract as any).hasRole(roleSelector, account)) as boolean;
+      if (already) {
+        return 'already-assigned';
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tx: any = await (contract as any).grantRole(roleSelector, account);
+      const receipt = await tx.wait();
+      if (!receipt) throw new Error('Transaction receipt is null');
+      return tx.hash as string;
+    } catch (error) {
+      console.error('[Blockchain] Failed to grant event role:', error);
+      throw new Error(
+        `Failed to grant ${role}_ROLE on event: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
    * Activate VC on blockchain (from suspended state)
    * @param vcId - VC ID
    * @param issuerPrivateKey - Private key of the issuer
@@ -439,6 +493,50 @@ class BlockchainService {
       throw new Error(
         `Failed to activate VC on blockchain: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
+    }
+  }
+
+  /**
+   * Transfer ERC20 tokens (e.g., USDC) to a recipient
+   * @param tokenAddress ERC20 token address
+   * @param to Recipient address
+   * @param amount Base units amount (e.g., 6 decimals for USDC)
+   * @param signerPrivateKey Sender private key
+   * @returns Transaction hash
+   */
+  async transferERC20(tokenAddress: string, to: string, amount: bigint, signerPrivateKey: string): Promise<string> {
+    this.initialize();
+
+    if (!this.provider) throw new Error('Blockchain service not initialized');
+    if (!tokenAddress || !to) throw new Error('Invalid token or recipient address');
+    if (amount <= BigInt(0)) throw new Error('Transfer amount must be greater than zero');
+
+    // Minimal ERC20 ABI
+    const ERC20_ABI = [
+      'function transfer(address to, uint256 amount) external returns (bool)',
+      'function balanceOf(address owner) external view returns (uint256)',
+    ];
+
+    try {
+      const signer = this.getSigner(signerPrivateKey);
+      const token = new Contract(tokenAddress, ERC20_ABI, signer);
+
+      // Optional: balance check before transfer
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bal = (await (token as any).balanceOf(await signer.getAddress())) as bigint;
+      if (bal < amount) {
+        throw new Error('Insufficient token balance for funding');
+      }
+
+      const tx = await (
+        token as unknown as { transfer: (to: string, amount: bigint) => Promise<TransactionResponse> }
+      ).transfer(to, amount);
+      const receipt = await tx.wait();
+      if (!receipt) throw new Error('Transaction receipt is null');
+      return tx.hash as string;
+    } catch (error) {
+      console.error('[Blockchain] ERC20 transfer failed:', error);
+      throw new Error(`ERC20 transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

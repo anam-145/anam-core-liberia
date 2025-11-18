@@ -17,6 +17,23 @@ import { EventPayment } from './entities/EventPayment';
 // - Auto-sync schema in development (MVP stage)
 // - Uses environment variables for connection settings
 
+// Resolve TypeORM logging level from env (quieter by default)
+function resolveDbLogging(): boolean | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log' | 'migration')[] {
+  const raw = (process.env.DB_LOGGING || '').toLowerCase().trim();
+  if (!raw) {
+    // default: only warn/error to prevent query noise during development
+    return ['error', 'warn'];
+  }
+  if (['false', '0', 'off', 'none'].includes(raw)) return false;
+  if (['true', '1', 'on', 'all'].includes(raw)) return true;
+  // comma-separated levels
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean) as ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log' | 'migration')[];
+  return parts.length ? parts : ['error', 'warn'];
+}
+
 export const AppDataSource = new DataSource({
   type: 'mariadb',
   host: process.env.DB_HOST || 'localhost',
@@ -37,7 +54,7 @@ export const AppDataSource = new DataSource({
     EventPayment,
   ],
   synchronize: true, // Auto-sync schema in development (MVP)
-  logging: process.env.NODE_ENV === 'development',
+  logging: resolveDbLogging(),
 });
 
 export default AppDataSource;

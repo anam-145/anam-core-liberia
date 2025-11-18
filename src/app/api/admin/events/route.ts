@@ -6,6 +6,8 @@ import { apiOk, apiError } from '@/lib/api-response';
 import { AdminRole } from '@/server/db/entities/Admin';
 import { randomUUID } from 'crypto';
 import { createEventOnChain } from '@/services/event-factory.service';
+import { blockchainService } from '@/services/blockchain.service';
+import { parseUnits } from 'ethers';
 
 /**
  * POST /api/admin/events
@@ -16,6 +18,7 @@ export async function POST(request: NextRequest) {
   if (authCheck) return authCheck;
 
   try {
+    // 0) 입력 검증 (이벤트명/기간/일일금액/최대 참가자)
     const body = await request.json();
 
     // Validate required fields (token is fixed to USDC via env; no token fields in body)
@@ -38,15 +41,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Additional domain validations
-    // 1) Event name length >= 2
+    // 0-1) 이벤트명 최소 길이 검증
     if (typeof body.name !== 'string' || body.name.trim().length < 2) {
       return apiError('Event name must be at least 2 characters', 400, 'VALIDATION_ERROR', {
         field: 'name',
       });
     }
 
-    // 2) Dates: only future events, must start from tomorrow (not today), and end >= start
+    // 0-2) 날짜 검증: 내일부터 시작, 종료일은 시작일 이상
     const toDateOnly = (d: string | Date) => {
       const dt = new Date(d);
       dt.setHours(0, 0, 0, 0);
@@ -70,9 +72,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3) Amount / participants constraints (temporary hard caps; TODO: fetch from contract)
-    const MAX_AMOUNT_PER_DAY_USDC = 1000; // TODO: Replace with contract limit
-    const MAX_PARTICIPANTS = 10000; // TODO: Replace with contract limit
+    // 0-3) 금액/참가자 수 제약 (임시 상한)
+    const MAX_AMOUNT_PER_DAY_USDC = 1000;
+    const MAX_PARTICIPANTS = 10000;
 
     const amount = Number(body.amountPerDay);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -90,67 +92,82 @@ export async function POST(request: NextRequest) {
         },
       );
     }
-    // normalize to 6 decimals (DB uses decimal(12,6))
+    // 0-4) 금액 정규화: 6 decimals (DB: decimal(12,6))
     const normalizedAmount = amount.toFixed(6);
 
-    let maxParticipants: number | undefined = undefined;
-    if (body.maxParticipants !== undefined && body.maxParticipants !== null && body.maxParticipants !== '') {
-      const n = Number(body.maxParticipants);
-      if (!Number.isInteger(n) || n <= 0) {
-        return apiError('Max participants must be a positive integer', 400, 'VALIDATION_ERROR', {
-          field: 'maxParticipants',
-        });
-      }
-      if (n > MAX_PARTICIPANTS) {
-        return apiError(`Max participants exceeds temporary limit (${MAX_PARTICIPANTS})`, 400, 'VALIDATION_ERROR', {
-          field: 'maxParticipants',
-        });
-      }
-      maxParticipants = n;
+    // Max participants required now (funding = amountPerDay * maxParticipants)
+    if (body.maxParticipants === undefined || body.maxParticipants === null || body.maxParticipants === '') {
+      return apiError('Max participants is required', 400, 'VALIDATION_ERROR', { field: 'maxParticipants' });
     }
+    const n = Number(body.maxParticipants);
+    if (!Number.isInteger(n) || n <= 0) {
+      return apiError('Max participants must be a positive integer', 400, 'VALIDATION_ERROR', {
+        field: 'maxParticipants',
+      });
+    }
+    if (n > MAX_PARTICIPANTS) {
+      return apiError(`Max participants exceeds temporary limit (${MAX_PARTICIPANTS})`, 400, 'VALIDATION_ERROR', {
+        field: 'maxParticipants',
+      });
+    }
+    const maxParticipants = n;
 
     const session = await getSession();
 
-    const event = await adminService.createEvent(
-      {
-        eventId: randomUUID(),
-        name: body.name,
-        description: body.description,
-        startDate: startDateOnly,
-        endDate: endDateOnly,
-        amountPerDay: normalizedAmount,
-        maxParticipants,
-      },
-      session.adminId,
-    );
-
-    // TODO: Blockchain Integration - Deploy Event Smart Contract via EventFactory
-    // 1) 실제 구현 시 signer(issuer) privateKey와 factory 주소/ABI 사용
-    // 2) approvers/verifiers 목록은 EventStaff(초기 배정)에서 가져와 전달
-    // 3) 아래 스텁 호출은 고정 address/txHash를 반환 (임시)
-    // 옵션 B (임시): 컨트랙트 미배포 상태 — eventId 기반 결정론적 플레이스홀더 주소/해시 생성
-    // 이유
-    //  - events.event_contract_address 컬럼은 UNIQUE 제약
-    //  - 하드코딩 동일 주소를 매번 저장하면 2번째 생성부터 UNIQUE 충돌 발생
-    //  - eventId에서 결정론적으로 파생하면 각 이벤트가 서로 다른 값을 가져 충돌을 피하고,
-    //    같은 eventId로 재시도 시에도 동일 값이 나와 idempotent합니다.
+    // 1) 컨트랙트 배포 (EventFactory) — DB 저장 전 반드시 온체인 완료
+    const eventId = randomUUID();
     const { address, txHash } = await createEventOnChain({
-      eventId: event.eventId,
-      usdcAddress: process.env.BASE_USDC_ADDRESS || '0x0000000000000000000000000000000000000000',
-      startTime: event.startDate,
-      endTime: event.endDate,
-      amountPerDay: event.amountPerDay,
-      maxParticipants: event.maxParticipants,
+      eventId,
+      startTime: startDateOnly,
+      endTime: endDateOnly,
+      amountPerDay: normalizedAmount,
+      maxParticipants,
       approvers: [],
       verifiers: [],
     });
 
-    const updated = await adminService.updateEvent(event.id, {
-      eventContractAddress: address,
-      deploymentTxHash: txHash,
-    });
+    // 2) 자금 입금(USDC): amountPerDay(6d) × maxParticipants — 체인 성공 후 즉시 입금
+    const tokenAddress = process.env.BASE_USDC_ADDRESS;
+    if (!tokenAddress) {
+      return apiError('USDC address not configured', 500, 'INTERNAL_ERROR');
+    }
+    const perDay = parseUnits(normalizedAmount, 6);
+    const fundingAmount = perDay * BigInt(maxParticipants);
 
-    return apiOk({ event: updated ?? event }, 201);
+    try {
+      // signer from system admin mnemonic
+      const { getSystemAdminWallet } = await import('@/services/system-init.service');
+      const wallet = getSystemAdminWallet();
+      const fundingTxHash = await blockchainService.transferERC20(
+        tokenAddress,
+        address,
+        fundingAmount,
+        wallet.privateKey,
+      );
+      // 3) DB 저장: 온체인(배포/입금) 성공 이후에만 이벤트 등록
+      const event = await adminService.createEvent(
+        {
+          eventId,
+          name: body.name,
+          description: body.description,
+          startDate: startDateOnly,
+          endDate: endDateOnly,
+          amountPerDay: normalizedAmount,
+          maxParticipants,
+        },
+        session.adminId,
+      );
+      const updated = await adminService.updateEvent(event.id, {
+        eventContractAddress: address,
+        deploymentTxHash: txHash,
+      });
+
+      return apiOk({ event: updated ?? event, funding: { ok: true, txHash: fundingTxHash } }, 201);
+    } catch (fundErr) {
+      // Funding failed — do not create DB record (chain-only). Caller may recover later.
+      const message = fundErr instanceof Error ? fundErr.message : 'Funding failed';
+      return apiError(`Funding failed: ${message}`, 400, 'VALIDATION_ERROR');
+    }
   } catch (error) {
     console.error('Error in POST /api/admin/events:', error);
     if (error instanceof Error && error.message.includes('already exists')) {

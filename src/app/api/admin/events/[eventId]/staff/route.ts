@@ -5,6 +5,11 @@ import { EventRole as EventRoleEnum } from '@/server/db/entities/EventStaff';
 import { apiOk, apiError } from '@/lib/api-response';
 import { AdminRole } from '@/server/db/entities/Admin';
 import { EventRole } from '@/server/db/entities/EventStaff';
+import { blockchainService } from '@/services/blockchain.service';
+import { getSystemAdminWallet } from '@/services/system-init.service';
+import { AppDataSource } from '@/server/db/datasource';
+import { Admin } from '@/server/db/entities/Admin';
+import { EventStaff as EventStaffEntity } from '@/server/db/entities/EventStaff';
 
 /**
  * POST /api/admin/events/[eventId]/staff
@@ -33,13 +38,56 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
       return apiError('Invalid eventRole. Must be APPROVER or VERIFIER', 400, 'VALIDATION_ERROR');
     }
 
+    // 0) Fast DB pre-check to avoid unnecessary on-chain calls
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const staffRepo = AppDataSource.getRepository(EventStaffEntity);
+    const exists = await staffRepo.findOne({ where: { eventId: params.eventId, adminId: body.adminId } });
+    if (exists) {
+      return apiError('Admin already assigned to this event', 409, 'CONFLICT');
+    }
+
+    // 1) Load event to get deployed contract address
+    const event = await adminService.getEventByEventId(params.eventId);
+    if (!event) {
+      return apiError('Event not found', 404, 'NOT_FOUND');
+    }
+    if (!event.eventContractAddress) {
+      return apiError('Event contract not deployed', 409, 'CONFLICT');
+    }
+
+    // 2) Load admin to obtain wallet address to grant role to
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const adminRepo = AppDataSource.getRepository(Admin);
+    const admin = await adminRepo.findOne({ where: { adminId: body.adminId } });
+    if (!admin) {
+      return apiError('Admin not found', 404, 'NOT_FOUND');
+    }
+    if (!admin.walletAddress) {
+      return apiError('Admin is not activated (missing walletAddress)', 400, 'VALIDATION_ERROR');
+    }
+
+    // 3) Grant on-chain role first (must succeed before DB assignment)
+    const issuer = getSystemAdminWallet();
+    const roleKey = body.eventRole === EventRole.APPROVER ? 'APPROVER' : 'VERIFIER';
+    const txHash = await blockchainService.grantEventRole(
+      event.eventContractAddress,
+      roleKey,
+      admin.walletAddress,
+      issuer.privateKey,
+    );
+
+    // 4) Persist staff assignment in DB only after successful on-chain grant
     const staff = await adminService.assignStaff({
       eventId: params.eventId,
       adminId: body.adminId,
       eventRole: body.eventRole,
     });
 
-    return apiOk({ staff }, 201);
+    return apiOk({ staff, onChainTxHash: txHash }, 201);
   } catch (error) {
     console.error('Error in POST /api/admin/events/[eventId]/staff:', error);
     if (error instanceof Error && error.message.includes('already assigned')) {
