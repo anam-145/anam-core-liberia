@@ -115,8 +115,13 @@ export default function PaperVoucherCard({ user, payload }: PaperVoucherCardProp
           display: flex;
           align-items: center;
           justify-content: center;
-          font-weight: bold;
-          color: #0066cc;
+          padding: 0;
+        }
+
+        .logo-box img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
         }
 
         .photo-box {
@@ -196,13 +201,16 @@ export default function PaperVoucherCard({ user, payload }: PaperVoucherCardProp
       `}</style>
 
       <div className="card-header">
-        <h2>UNITED NATIONS DEVELOPMENT PROGRAMME</h2>
-        <p>Digital Skills Training Workshop • Liberia</p>
+        <h2>Participant Payment Voucher • Liberia</h2>
+        <p>UNITED NATIONS DEVELOPMENT PROGRAMME</p>
       </div>
 
       <div className="card-body">
         <div className="left-panel">
-          <div className="logo-box">UNDP</div>
+          <div className="logo-box">
+            {/* eslint-disable-next-line @next/next/no-img-element -- Native img is required for print pages */}
+            <img src="/img/undp-logo.png" alt="UNDP Logo" />
+          </div>
           <div className="photo-box">
             {user.kycFacePath ? (
               // eslint-disable-next-line @next/next/no-img-element -- Native img is required for print pages
