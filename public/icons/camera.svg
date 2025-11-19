@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+     fill="none" stroke="black" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+     role="img" aria-label="Camera icon">
+  <title>Camera</title>
+  <!-- Camera body -->
+  <rect x="2.25" y="7.25" width="19.5" height="13.5" rx="2.5"/>
+  <!-- Top viewfinder hump -->
+  <path d="M7.5 7.25 L9.3 4.25 H14.7 L16.5 7.25"/>
+  <!-- Lens -->
+  <circle cx="12" cy="14" r="4"/>
+  <!-- Small indicator/flash -->
+  <circle cx="18.25" cy="10" r="0.9"/>
+</svg>

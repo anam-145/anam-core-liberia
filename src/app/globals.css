@@ -1,0 +1,313 @@
+/* globals.css - Design System for Admin Dashboard */
+
+/* Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand Colors - Deep Burgundy */
+  --brand: #8a1e1e;
+  --brand-600: #7a1a1a;
+  --brand-700: #6e1717;
+
+  /* Surface Colors */
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #0f1115;
+  --muted: #667085;
+  --line: #e6e8ec;
+
+  /* Design Tokens */
+  --radius: 12px;
+  --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.6 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    'Noto Sans KR',
+    'Apple SD Gothic Neo',
+    '맑은 고딕',
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ====== Cards ====== */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.card__header {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+}
+.card__body {
+  padding: 18px;
+}
+.card__footer {
+  padding: 16px 18px;
+  border-top: 1px solid var(--line);
+}
+
+/* ====== Form ====== */
+.label {
+  display: block;
+  font-size: 12px;
+  color: #475467;
+  margin-bottom: 6px;
+}
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: rgba(138, 30, 30, 0.45);
+  box-shadow: 0 0 0 3px rgba(138, 30, 30, 0.2);
+}
+.helper {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+/* ====== Buttons ====== */
+.btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.btn:focus-visible {
+  outline: 2px solid rgba(138, 30, 30, 0.35);
+  outline-offset: 2px;
+}
+.btn--primary {
+  background: linear-gradient(135deg, var(--brand), var(--brand-700));
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(138, 30, 30, 0.25);
+}
+.btn--primary:hover {
+  filter: brightness(1.04);
+}
+.btn--secondary {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--text);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--text);
+}
+.btn--danger {
+  background: #b42318;
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(10%);
+  box-shadow: none;
+}
+.btn:disabled:hover {
+  filter: grayscale(10%);
+}
+
+.btn--sm {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.btn--lg {
+  padding: 12px 16px;
+  font-size: 15px;
+}
+
+/* ====== Icon Button (e.g., Camera) ====== */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.05s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.icon-btn:active {
+  transform: scale(0.98);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid rgba(138, 30, 30, 0.35); /* brand ring */
+  outline-offset: 2px;
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.icon-btn img,
+.icon-btn svg {
+  width: 24px;
+  height: 24px;
+}
+@media (prefers-color-scheme: dark) {
+  .icon-btn {
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* ====== Badges ====== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #475467;
+}
+.badge--brand {
+  background: rgba(138, 30, 30, 0.08);
+  color: #7a1a1a;
+  border-color: rgba(138, 30, 30, 0.25);
+}
+
+/* ====== Table (display용) ====== */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+.table th {
+  text-align: left;
+  font-size: 12px;
+  color: #475467;
+  padding: 0 12px;
+}
+.table td {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 12px;
+}
+.table tr td:first-child {
+  border-radius: 10px 0 0 10px;
+}
+.table tr td:last-child {
+  border-radius: 0 10px 10px 0;
+}
+
+/* ====== Admin Shell ====== */
+/* Note: Layout is now handled by Tailwind in AdminShell.tsx */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.brand__title {
+  font-weight: 800;
+}
+.brand small {
+  color: #667085;
+}
+.nav {
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  overflow: auto;
+}
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 0 4px;
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+.nav a:hover {
+  background: #f7f7f9;
+  border-color: var(--line);
+  transform: translateX(2px);
+}
+.nav a.active {
+  background: linear-gradient(135deg, rgba(138, 30, 30, 0.12), rgba(138, 30, 30, 0.04));
+  border-color: rgba(138, 30, 30, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(138, 30, 30, 0.18);
+}
+.shell__header {
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+}
+.shell__main {
+  padding: 24px;
+}

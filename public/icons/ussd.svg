@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="USSD code *123">
+  <rect x="2.5" y="6.25" width="19" height="11.5" rx="3"></rect>
+  <path d="M6.2 9.4 V14.6 M5.0 12.0 H7.4 M5.35 10.75 L6.85 13.25 M5.35 13.25 L6.85 10.75"></path>
+  <line x1="9.8" y1="9.6" x2="9.8" y2="14.4"></line>
+  <line x1="11.9" y1="9.6" x2="14.2" y2="9.6"></line>
+  <line x1="14.2" y1="9.8" x2="14.2" y2="11.8"></line>
+  <line x1="11.9" y1="12.0" x2="14.2" y2="12.0"></line>
+  <line x1="11.9" y1="12.2" x2="11.9" y2="14.2"></line>
+  <line x1="11.9" y1="14.4" x2="14.2" y2="14.4"></line>
+  <line x1="16.0" y1="9.6" x2="18.3" y2="9.6"></line>
+  <line x1="18.3" y1="9.8" x2="18.3" y2="11.8"></line>
+  <line x1="16.0" y1="12.0" x2="18.3" y2="12.0"></line>
+  <line x1="18.3" y1="12.2" x2="18.3" y2="14.2"></line>
+  <line x1="16.0" y1="14.4" x2="18.3" y2="14.4"></line>
+</svg>

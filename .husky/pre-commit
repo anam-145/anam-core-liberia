@@ -1,0 +1,5 @@
+# Lint and format staged files only
+lint-staged
+
+# Run tests
+pnpm test --passWithNoTests
