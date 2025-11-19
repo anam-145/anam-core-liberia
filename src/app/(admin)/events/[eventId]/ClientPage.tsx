@@ -350,10 +350,10 @@ export default function ClientPage({ params }: Props) {
               <div className="card__header">관리자 등록</div>
               <div className="card__body">
                 <p className="text-sm text-[var(--muted)] mb-3">
-                  배정 가능한 관리자 목록에서 선택하고 역할을 지정해 이 이벤트에 배정할 수 있습니다.
+                  이 이벤트에 배정 가능한 관리자를 선택하고 역할을 지정할 수 있습니다.
                 </p>
                 <div className="flex gap-2">
-                  <Button onClick={() => setShowAddStaff(true)}>관리자 등록 시작</Button>
+                  <Button onClick={() => setShowAddStaff(true)}>관리자 등록</Button>
                 </div>
               </div>
             </div>

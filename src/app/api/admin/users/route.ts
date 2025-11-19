@@ -7,6 +7,9 @@ import type { USSDStatus } from '@/server/db/entities/User';
 import { AdminRole } from '@/server/db/entities/Admin';
 import { saveKycFile, deleteAllKycFiles } from '@/lib/file-upload';
 import { randomUUID } from 'crypto';
+import { AppDataSource } from '@/server/db/datasource';
+import { User } from '@/server/db/entities/User';
+import { EventParticipant } from '@/server/db/entities/EventParticipant';
 
 /**
  * GET /api/admin/users
@@ -14,6 +17,7 @@ import { randomUUID } from 'crypto';
  *
  * Query Parameters:
  * - ussdStatus?: 'NOT_APPLICABLE' | 'PENDING' | 'ACTIVE'
+ * - eligibleForEvent?: string (eventId) - Filter users eligible for event registration
  * - limit?: number
  * - offset?: number
  *
@@ -29,9 +33,31 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     const ussdStatus = searchParams.get('ussdStatus') as USSDStatus | undefined;
+    const eligibleForEvent = searchParams.get('eligibleForEvent');
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
+    // If filtering for eligibility to register to a specific event
+    if (eligibleForEvent) {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+      const repo = AppDataSource.getRepository(User);
+      // Build query: only active users, not already registered to this event
+      const qb = repo
+        .createQueryBuilder('u')
+        .leftJoin(EventParticipant, 'p', 'p.event_id = :eventId AND p.user_id = u.user_id', {
+          eventId: eligibleForEvent,
+        })
+        .where('u.is_active = true')
+        .andWhere('p.id IS NULL') // Not registered to this event yet
+        .orderBy('u.name', 'ASC');
+
+      const list = await qb.getMany();
+      return apiOk({ users: list, total: list.length });
+    }
+
+    // Default: return all users with filters
     const { users, total } = await adminService.getUsers({
       ussdStatus,
       limit,

@@ -381,28 +381,99 @@ export default function AdminsClient() {
                 ✕
               </button>
             </div>
-            <div className="card__body" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 16rem)' }}>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <strong>이름</strong>: {selectedAdmin.fullName} (@{selectedAdmin.username})
+            <div className="card__body max-h-[calc(100vh-12rem)] overflow-y-auto">
+              {/* 기본 정보 */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3">기본 정보</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">이름:</span>
+                    <span className="ml-2 font-medium">{selectedAdmin.fullName}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">사용자명:</span>
+                    <span className="ml-2">@{selectedAdmin.username}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Admin ID:</span>
+                    <span className="ml-2">{selectedAdmin.adminId}</span>
+                  </div>
+                  {selectedAdmin.email && (
+                    <div>
+                      <span className="text-gray-600">이메일:</span>
+                      <span className="ml-2">{selectedAdmin.email}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-600">역할:</span>
+                    <span className="ml-2">{selectedAdmin.role === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">생성일:</span>
+                    <span className="ml-2">{formatDate(selectedAdmin.createdAt)}</span>
+                  </div>
                 </div>
-                <div>
-                  <strong>이메일</strong>: {selectedAdmin.email || '-'}
+              </div>
+
+              {/* DID 정보 */}
+              {selectedAdmin.did && (
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold mb-3">DID 정보</h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">DID:</span>
+                      <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">{selectedAdmin.did}</div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <strong>역할</strong>: {selectedAdmin.role}
-                </div>
-                <div>
-                  <strong>온보딩</strong>: {getOnboardingLabel(selectedAdmin.onboardingStatus || 'ACTIVE')}
-                </div>
-                <div>
-                  <strong>상태</strong>: {getStatusLabel(getEffectiveStatus(selectedAdmin))}
-                </div>
-                <div className="break-all">
-                  <strong>DID</strong>: {selectedAdmin.did || '(없음)'}
-                </div>
-                <div>
-                  <strong>생성일</strong>: {formatDate(selectedAdmin.createdAt)}
+              )}
+
+              {/* 상태 정보 */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3">상태 정보</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-sm text-gray-600">온보딩 상태:</span>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getOnboardingBadgeColor(selectedAdmin.onboardingStatus || 'ACTIVE')}`}
+                      >
+                        {getOnboardingLabel(selectedAdmin.onboardingStatus || 'ACTIVE')}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-600">VC 상태:</span>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(getEffectiveStatus(selectedAdmin))}`}
+                      >
+                        {getStatusLabel(getEffectiveStatus(selectedAdmin))}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-600">활성 상태:</span>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                          selectedAdmin.isActive
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {selectedAdmin.isActive ? '활성' : '비활성'}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedAdmin.vcId && (
+                    <div>
+                      <span className="text-sm text-gray-600">VC ID:</span>
+                      <div className="mt-1 font-mono text-xs truncate" title={selectedAdmin.vcId}>
+                        {selectedAdmin.vcId}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -454,7 +525,8 @@ export default function AdminsClient() {
                   )}
 
                   {/* VC 액션 섹션: VC 존재/활성화 상태에서만 노출 */}
-                  {selectedAdmin.onboardingStatus === 'ACTIVE' && getEffectiveStatus(selectedAdmin) === 'ACTIVE' && (
+                  {/* TODO: API 엔드포인트 구현 후 활성화 (POST /api/vcs/suspend, /api/vcs/activate 필요) */}
+                  {/* {selectedAdmin.onboardingStatus === 'ACTIVE' && getEffectiveStatus(selectedAdmin) === 'ACTIVE' && (
                     <>
                       <Button
                         variant="danger"
@@ -505,7 +577,7 @@ export default function AdminsClient() {
                     <Button variant="secondary" disabled>
                       폐기됨
                     </Button>
-                  )}
+                  )} */}
                   <Button variant="secondary" onClick={() => setShowDetails(false)}>
                     닫기
                   </Button>

@@ -1,10 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-// Simple Modal Component
+import ProgressModal from '@/components/ui/ProgressModal';
+
+// Simple Modal Component (참가자 등록 모달 래퍼)
 interface SimpleModalProps {
-  children: React.ReactNode;
+  children: ReactNode;
   onClose: () => void;
   className?: string; // allow width/size override
 }
@@ -19,258 +21,15 @@ function SimpleModal({ children, onClose, className }: SimpleModalProps) {
   );
 }
 
-// Check-in modal with three methods and per-method forms
-function CheckInModal({ onClose }: { onClose: () => void }) {
-  const [method, setMethod] = useState<'ANAMWALLET' | 'USSD' | 'PAPER' | null>(null);
-  const [ussdPin, setUssdPin] = useState('');
-  const [paperPin, setPaperPin] = useState('');
-
-  function resetAndClose() {
-    setMethod(null);
-    setUssdPin('');
-    setPaperPin('');
-    onClose();
-  }
-
-  return (
-    <SimpleModal onClose={resetAndClose} className="max-w-xl">
-      <div className="card w-full max-w-xl mx-auto">
-        <div className="card__header">체크인</div>
-        <div className="card__body">
-          {!method && (
-            <div className="py-2">
-              <p className="text-sm text-gray-600 mb-4">체크인 방법을 선택하세요.</p>
-              <div className="flex flex-col gap-3">
-                {/* AnamWallet */}
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                  onClick={() => {
-                    // TODO: 휴대폰 api 연결 예정 (AnamWallet)
-                    console.log('AnamWallet 체크인 (휴대폰 API 연결 예정)');
-                  }}
-                  aria-label="AnamWallet 체크인"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/smartphone.svg" alt="" className="w-6 h-6" />
-                  <div className="flex-1 text-left">
-                    <div className="text-base font-semibold">AnamWallet</div>
-                    <div className="text-xs text-gray-500">앱으로 체크인</div>
-                  </div>
-                </button>
-
-                {/* USSD */}
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                  onClick={() => setMethod('USSD')}
-                  aria-label="USSD 체크인"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/ussd.svg" alt="" className="w-6 h-6" />
-                  <div className="flex-1 text-left">
-                    <div className="text-base font-semibold">USSD</div>
-                    <div className="text-xs text-gray-500">피처폰 사용자 체크인</div>
-                  </div>
-                </button>
-
-                {/* Paper Voucher */}
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                  onClick={() => setMethod('PAPER')}
-                  aria-label="Paper 바우처 체크인"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/paper.svg" alt="" className="w-6 h-6" />
-                  <div className="flex-1 text-left">
-                    <div className="text-base font-semibold">Paper 바우처</div>
-                    <div className="text-xs text-gray-500">QR 바우처로 체크인</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {method === 'USSD' && (
-            <div className="py-2">
-              <div className="mb-3">
-                <button
-                  type="button"
-                  className="text-sm text-[var(--brand)] hover:underline"
-                  onClick={() => setMethod(null)}
-                >
-                  ← 방법 선택으로 돌아가기
-                </button>
-              </div>
-              <h3 className="text-base font-semibold mb-3">USSD 체크인</h3>
-              <div className="grid gap-3">
-                <Input
-                  label="비밀번호(PIN)"
-                  type="number"
-                  placeholder="숫자만 입력"
-                  value={ussdPin}
-                  onChange={(e) => setUssdPin(e.target.value)}
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-          )}
-
-          {method === 'PAPER' && (
-            <div className="py-2">
-              <div className="mb-3">
-                <button
-                  type="button"
-                  className="text-sm text-[var(--brand)] hover:underline"
-                  onClick={() => setMethod(null)}
-                >
-                  ← 방법 선택으로 돌아가기
-                </button>
-              </div>
-              <h3 className="text-base font-semibold mb-3">Paper 바우처 체크인</h3>
-              <div className="grid gap-3">
-                <Input
-                  label="바우처 비밀번호"
-                  type="number"
-                  placeholder="숫자만 입력"
-                  value={paperPin}
-                  onChange={(e) => setPaperPin(e.target.value)}
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <Button variant="secondary" onClick={resetAndClose}>
-            닫기
-          </Button>
-        </div>
-      </div>
-    </SimpleModal>
-  );
-}
-
 interface ParticipantData {
   id: number;
-  participantId: string;
+  userDid: string | null;
+  adminDid: string | null;
   name: string;
-  did: string;
-  phoneNumber?: string;
-  email?: string;
-  gender?: string;
-  dateOfBirth?: string;
-  nationality?: string;
-  address?: string;
-  ussdStatus: 'NOT_APPLICABLE' | 'PENDING' | 'ACTIVE';
-  hasCustodyWallet: boolean;
-  vcStatus?: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'; // From join with VC table
-  kycDocumentPath?: string;
-  kycFacePath?: string;
+  assignedAt: string;
   isActive: boolean;
-  attendance: 'PRESENT' | 'ABSENT';
-  checkInTime?: string;
-  paymentStatus: 'AWAITING' | 'CONFIRMING' | 'PAID' | 'NOT_ELIGIBLE';
-  createdAt?: string;
-  walletAddress?: string;
+  assignedByAdminId?: string | null;
 }
-
-// Mock data
-const MOCK_PARTICIPANTS: ParticipantData[] = [
-  {
-    id: 1,
-    participantId: 'p_001',
-    name: 'Comfort Wleh',
-    did: 'did:anam:user:3Wv2H5MK8YGtDds8V',
-    phoneNumber: '+231886123456',
-    email: 'comfort.wleh@example.com',
-    gender: '여성',
-    dateOfBirth: '1990-05-15',
-    nationality: 'Liberian',
-    address: 'Monrovia, Montserrado County',
-    ussdStatus: 'ACTIVE',
-    hasCustodyWallet: true,
-    vcStatus: 'ACTIVE',
-    kycDocumentPath: '/docs/kyc_001.pdf',
-    kycFacePath: '/docs/face_001.jpg',
-    isActive: true,
-    attendance: 'PRESENT',
-    checkInTime: '8:55 AM',
-    paymentStatus: 'AWAITING',
-    createdAt: '2025-01-20T10:00:00Z',
-    walletAddress: '0x1234567890123456789012345678901234567890',
-  },
-  {
-    id: 2,
-    participantId: 'p_002',
-    name: 'Joseph Kpoto',
-    did: 'did:anam:user:4KpN3RHmLBxjdNfL9',
-    phoneNumber: '+231775234567',
-    ussdStatus: 'NOT_APPLICABLE',
-    hasCustodyWallet: false,
-    vcStatus: 'ACTIVE',
-    isActive: true,
-    attendance: 'PRESENT',
-    checkInTime: '8:54 AM',
-    paymentStatus: 'AWAITING',
-  },
-  {
-    id: 3,
-    participantId: 'p_003',
-    name: 'Grace Toe',
-    did: 'did:anam:user:9TmG8ZbWdKuQnPy4K',
-    phoneNumber: '+231880345678',
-    ussdStatus: 'PENDING',
-    hasCustodyWallet: true,
-    vcStatus: 'ACTIVE',
-    isActive: true,
-    attendance: 'PRESENT',
-    checkInTime: '8:53 AM',
-    paymentStatus: 'AWAITING',
-  },
-  {
-    id: 4,
-    participantId: 'p_004',
-    name: 'Martha Kollie',
-    did: 'did:anam:user:AFnH9PcXeLtRoPz5L',
-    phoneNumber: '+231777456789',
-    ussdStatus: 'NOT_APPLICABLE',
-    hasCustodyWallet: false,
-    vcStatus: 'ACTIVE',
-    isActive: true,
-    attendance: 'PRESENT',
-    checkInTime: '8:25 AM',
-    paymentStatus: 'PAID',
-  },
-  {
-    id: 5,
-    participantId: 'p_005',
-    name: 'Patrick Nyemah',
-    did: 'did:anam:user:BGpJ2QdYfMuSqQa6M',
-    phoneNumber: '+231886567890',
-    ussdStatus: 'ACTIVE',
-    hasCustodyWallet: true,
-    vcStatus: 'SUSPENDED',
-    isActive: false,
-    attendance: 'PRESENT',
-    checkInTime: '8:20 AM',
-    paymentStatus: 'PAID',
-  },
-  {
-    id: 6,
-    participantId: 'p_006',
-    name: 'James Kollie',
-    did: 'did:anam:user:2NEpo7TZRRrLZSi2U',
-    phoneNumber: '+231775678901',
-    ussdStatus: 'NOT_APPLICABLE',
-    hasCustodyWallet: false,
-    vcStatus: 'ACTIVE',
-    isActive: true,
-    attendance: 'ABSENT',
-    paymentStatus: 'NOT_ELIGIBLE',
-  },
-];
 
 interface EventDetailClientProps {
   eventId: string;
@@ -280,103 +39,203 @@ interface EventDetailClientProps {
 export default function EventDetailClient({ eventId, onBack }: EventDetailClientProps) {
   // eventId will be used for API calls
   console.log('Event ID:', eventId);
-  const [participants, _setParticipants] = useState<ParticipantData[]>(MOCK_PARTICIPANTS);
+  const [participants, setParticipants] = useState<ParticipantData[]>([]);
   const [activeTab, setActiveTab] = useState<'participants' | 'payment'>('participants');
   const [_filterStatus, _setFilterStatus] = useState<'all' | 'present' | 'absent'>('all');
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [addUserQuery, setAddUserQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [userList] = useState([
-    { userId: 'u_001', fullName: 'user', username: 'user', email: null as string | null },
-    { userId: 'u_002', fullName: 'user', username: 'user', email: null as string | null },
-  ]);
-  const [showQrScanModal, setShowQrScanModal] = useState(false);
+
+  // Fetch eligible users from API (server-side filtering)
+  const [userList, setUserList] = useState<Array<{ userId: string; name: string; email: string | null }>>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+  // Progress modal for long-running participant registration (on-chain + DB)
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressMsg, setProgressMsg] = useState('처리 중입니다...');
+  const [progressDone, setProgressDone] = useState(false);
+  const [eventInfo, setEventInfo] = useState<{
+    name: string;
+    startDate: string;
+    endDate: string;
+    dailyDsa: number;
+    currentDay: number;
+  }>({
+    name: '',
+    startDate: '',
+    endDate: '',
+    dailyDsa: 0,
+    currentDay: 1,
+  });
+
+  // Load eligible users when modal opens
+  useEffect(() => {
+    if (showRegisterModal) {
+      setIsLoadingUsers(true);
+      fetch(`/api/admin/users?eligibleForEvent=${eventId}`, { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log('[EventDetailClient] Loaded eligible users for event', {
+            eventId,
+            count: (data?.users || []).length,
+          });
+          setUserList(data?.users || []);
+        })
+        .catch((error) => {
+          console.error('[EventDetailClient] Failed to fetch eligible users', error);
+        })
+        .finally(() => {
+          setIsLoadingUsers(false);
+        });
+    }
+  }, [showRegisterModal, eventId]);
   // 참가자 상세 모달 제거 (간소화)
 
-  // Event info (mock)
-  const eventInfo = {
-    name: 'Youth Digital Skills Training Workshop',
-    startDate: '2025-01-25',
-    endDate: '2025-01-29',
-    dailyDsa: 15,
-    maxParticipants: 50,
-    status: 'ONGOING',
-    currentDay: 3,
-  };
+  // Load event info (name, dates, daily DSA, current day)
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        // 1) Try admin-only event API (SYSTEM_ADMIN)
+        let res = await fetch(`/api/admin/events/${eventId}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { event?: Record<string, unknown> };
+          const e = data.event;
+          if (e && !cancelled) {
+            const start = new Date(String(e.startDate));
+            const end = new Date(String(e.endDate));
+            const today = new Date();
+            const startDay = new Date(start);
+            startDay.setHours(0, 0, 0, 0);
+            const endDay = new Date(end);
+            endDay.setHours(0, 0, 0, 0);
+            const t = new Date(today);
+            t.setHours(0, 0, 0, 0);
+            const MS_PER_DAY = 24 * 60 * 60 * 1000;
+            const totalDays = Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1);
+            let idx = Math.floor((t.getTime() - startDay.getTime()) / MS_PER_DAY);
+            if (idx < 0) idx = 0;
+            if (idx > totalDays - 1) idx = totalDays - 1;
+            const currentDay = idx + 1;
+            setEventInfo({
+              name: String(e.name ?? ''),
+              startDate: start.toISOString().slice(0, 10),
+              endDate: end.toISOString().slice(0, 10),
+              dailyDsa: Number(e.amountPerDay ?? 0),
+              currentDay,
+            });
+            return;
+          }
+        }
+
+        // 2) Fallback for STAFF: use staff/me summary and pick this event
+        res = await fetch('/api/admin/events/staff/me?role=APPROVER', { cache: 'no-store' });
+        const data = (await res.json().catch(() => ({}))) as {
+          events?: Array<Record<string, unknown>>;
+        };
+        if (!res.ok) {
+          console.error('[EventDetailClient] Failed to fetch event info', data);
+          return;
+        }
+        const match = (data.events ?? []).find((e) => String(e.eventId) === eventId);
+        if (!match || cancelled) return;
+
+        const start = new Date(String(match.startDate));
+        const end = new Date(String(match.endDate));
+        const today = new Date();
+        const startDay = new Date(start);
+        startDay.setHours(0, 0, 0, 0);
+        const endDay = new Date(end);
+        endDay.setHours(0, 0, 0, 0);
+        const t = new Date(today);
+        t.setHours(0, 0, 0, 0);
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+        const totalDays = Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1);
+        let idx = Math.floor((t.getTime() - startDay.getTime()) / MS_PER_DAY);
+        if (idx < 0) idx = 0;
+        if (idx > totalDays - 1) idx = totalDays - 1;
+        const currentDay = idx + 1;
+
+        setEventInfo({
+          name: String(match.name ?? ''),
+          startDate: start.toISOString().slice(0, 10),
+          endDate: end.toISOString().slice(0, 10),
+          dailyDsa: Number(match.amountPerDay ?? 0),
+          currentDay,
+        });
+      } catch (error) {
+        console.error('[EventDetailClient] Error fetching event info', error);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  // Load participants for this event
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/events/${eventId}/participants`, { cache: 'no-store' });
+        const data = (await res.json().catch(() => ({}))) as { participants?: Array<Record<string, unknown>> };
+        if (!res.ok) {
+          console.error('[EventDetailClient] Failed to fetch participants', data);
+          return;
+        }
+        const rows = data.participants ?? [];
+        const mapped: ParticipantData[] = rows.map((row) => ({
+          id: Number(row.id ?? 0),
+          userDid: (row.userDid as string | null) ?? null,
+          adminDid: (row.adminDid as string | null) ?? null,
+          name: (row.name as string) || (row.userDid as string) || '',
+          assignedAt: String(row.assignedAt ?? ''),
+          isActive: Boolean(row.isActive ?? true),
+          assignedByAdminId: (row.assignedByAdminId as string | null) ?? null,
+        }));
+        if (!cancelled) {
+          setParticipants(mapped);
+        }
+      } catch (error) {
+        console.error('[EventDetailClient] Error fetching participants', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   // Calculate statistics
   const stats = {
     total: participants.length,
-    present: participants.filter((p) => p.attendance === 'PRESENT').length,
-    absent: participants.filter((p) => p.attendance === 'ABSENT').length,
-    awaiting: participants.filter((p) => p.paymentStatus === 'AWAITING').length,
-    paid: participants.filter((p) => p.paymentStatus === 'PAID').length,
-    totalDisbursed: participants.filter((p) => p.paymentStatus === 'PAID').length * eventInfo.dailyDsa,
+    present: 0,
+    absent: 0,
+    awaiting: 0,
+    paid: 0,
+    totalDisbursed: 0,
   };
 
   // Attendance visualization demo states
 
-  // Dates between start and end (inclusive)
-  const getDateRange = (start: string, end: string) => {
-    const s = new Date(start);
-    const e = new Date(end);
-    const list: string[] = [];
-    const d = new Date(s);
-    while (d <= e) {
-      list.push(d.toISOString().slice(0, 10));
-      d.setDate(d.getDate() + 1);
-    }
-    return list;
-  };
-  const eventDates = getDateRange(eventInfo.startDate, eventInfo.endDate);
-  const todayIdx = Math.max(0, Math.min(eventDates.length - 1, eventInfo.currentDay - 1));
-
-  // Build demo attendance pattern up to todayIdx
-  function computeAttendance(participant: ParticipantData, dates: string[], todayIndex: number): Array<boolean | null> {
-    return dates.map((_, idx) => {
-      if (idx > todayIndex) return null; // future 날짜는 null
-      // 현재 스켈레톤 데이터 기준: 오늘 출석 여부만 반영
-      return idx === todayIndex ? participant.attendance === 'PRESENT' : false;
-    });
-  }
-
-  // Participants list (no search filter)
+  // Participants list (no additional filtering for now)
   const filteredParticipants = participants;
-
-  // Placeholder functions - API 연결 예정
-  const approveDSA = (participantId: string) => {
-    // API 연결 예정
-    console.log('DSA 승인 API 연결 예정:', participantId);
-  };
-
-  const _approveAllPending = () => {
-    // API 연결 예정
-    console.log('전체 DSA 승인 API 연결 예정');
-  };
-
-  // Get status badge color
-  const _getPaymentBadgeColor = (status: string) => {
-    const map: Record<string, string> = {
-      AWAITING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      CONFIRMING: 'bg-blue-50 text-blue-700 border-blue-200',
-      PAID: 'bg-green-50 text-green-700 border-green-200',
-      NOT_ELIGIBLE: 'bg-gray-50 text-gray-700 border-gray-200',
-    };
-    return map[status];
-  };
-
-  const _getPaymentLabel = (status: string) => {
-    const map: Record<string, string> = {
-      AWAITING: '승인 대기',
-      CONFIRMING: '확인 중',
-      PAID: '지급 완료',
-      NOT_ELIGIBLE: '대상 아님',
-    };
-    return map[status];
-  };
 
   return (
     <div className="max-w-screen-2xl mx-auto">
+      <ProgressModal
+        open={progressOpen}
+        title={progressDone ? '완료' : '참가자를 등록하고 있습니다'}
+        message={progressMsg}
+        done={progressDone}
+        confirmText="확인"
+        onConfirm={() => {
+          setProgressOpen(false);
+          setProgressDone(false);
+          setProgressMsg('처리 중입니다...');
+        }}
+      />
       {/* Back Button */}
       {onBack && (
         <div className="mb-4">
@@ -472,10 +331,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
                 <h3 className="text-lg font-semibold">총 {participants.length}명 참가자</h3>
                 <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => setShowQrScanModal(true)}>
-                    체크인
-                  </Button>
-                  <Button onClick={() => setShowRegisterModal(true)}>사용자 등록</Button>
+                  <Button onClick={() => setShowRegisterModal(true)}>참가자 등록</Button>
                 </div>
               </div>
 
@@ -487,66 +343,31 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">참가자</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">출석</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">총 DSA</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">참가자 DID</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
+                        등록 관리자 DID
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">등록일시</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {filteredParticipants.map((participant) => (
-                      <tr key={participant.participantId} className="hover:bg-gray-50">
+                      <tr key={participant.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
                           <div>
                             <div className="font-semibold text-gray-900">{participant.name}</div>
-                            <div
-                              className="text-xs text-gray-500 font-mono truncate max-w-[200px]"
-                              title={participant.did}
-                            >
-                              {participant.did}
-                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 align-top">
-                          {(() => {
-                            const att = computeAttendance(participant, eventDates, todayIdx);
-                            const daysDone = todayIdx + 1;
-                            const presentCount = att.filter((v) => v === true).length;
-                            const pct = daysDone > 0 ? Math.round((presentCount / daysDone) * 100) : 0;
-                            return (
-                              <div className="min-w-[200px]">
-                                {/* 도트 */}
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {att.map((v, idx) => {
-                                    const isToday = idx === todayIdx;
-                                    const cls =
-                                      v === true ? 'bg-green-500' : v === false ? 'bg-gray-300' : 'bg-gray-100';
-                                    return (
-                                      <span
-                                        key={idx}
-                                        className={`inline-block w-2.5 h-2.5 rounded-full ${cls} ${isToday ? 'ring-1 ring-gray-400' : ''}`}
-                                        title={`${eventDates[idx]}`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                                {/* 막대 */}
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className="bg-[var(--brand)] h-2 rounded-full transition-all"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                                <div className="text-[11px] text-gray-500 mt-1">
-                                  {presentCount}/{daysDone}일 ({pct}%)
-                                </div>
-                              </div>
-                            );
-                          })()}
+                          <span className="text-xs font-mono text-gray-700">{participant.userDid ?? '-'}</span>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span className="text-xs font-mono text-gray-700">{participant.adminDid ?? '-'}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {(() => {
-                            const paid = participant.paymentStatus === 'PAID' ? eventInfo.dailyDsa : 0;
-                            return <div className="font-medium">${paid}</div>;
-                          })()}
+                          <span className="text-xs text-gray-600">
+                            {participant.assignedAt ? new Date(participant.assignedAt).toLocaleString() : '-'}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -622,72 +443,37 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {participants
-                          .filter((p) => p.attendance === 'PRESENT')
-                          .map((participant) => (
-                            <tr key={participant.participantId} className="hover:bg-gray-50">
-                              <td className="px-3 py-2">
-                                <div className="font-medium">{participant.name}</div>
-                                <div className="text-xs text-gray-500">{participant.phoneNumber}</div>
-                              </td>
-                              <td className="px-3 py-2 text-xs">{participant.checkInTime}</td>
-                              <td className="px-3 py-2">
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    participant.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                  }`}
-                                >
-                                  {participant.isActive ? '활성' : '비활성'}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2">
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    participant.vcStatus === 'ACTIVE'
-                                      ? 'bg-green-100 text-green-700'
-                                      : participant.vcStatus === 'SUSPENDED'
-                                        ? 'bg-yellow-100 text-yellow-700'
-                                        : 'bg-red-100 text-red-700'
-                                  }`}
-                                >
-                                  {participant.vcStatus === 'ACTIVE'
-                                    ? '활성'
-                                    : participant.vcStatus === 'SUSPENDED'
-                                      ? '정지'
-                                      : '폐기'}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2">
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    participant.paymentStatus === 'AWAITING'
-                                      ? 'bg-yellow-100 text-yellow-700'
-                                      : participant.paymentStatus === 'PAID'
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-gray-100 text-gray-700'
-                                  }`}
-                                >
-                                  {participant.paymentStatus === 'AWAITING'
-                                    ? '대기'
-                                    : participant.paymentStatus === 'PAID'
-                                      ? '완료'
-                                      : '-'}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2">
-                                {participant.paymentStatus === 'AWAITING' ? (
-                                  <button
-                                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                                    onClick={() => approveDSA(participant.participantId)}
-                                  >
-                                    승인
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-gray-400">-</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
+                        {participants.map((participant) => (
+                          <tr key={participant.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2">
+                              <div className="font-medium">{participant.name}</div>
+                              <div className="text-xs text-gray-500 font-mono">{participant.userDid ?? '-'}</div>
+                            </td>
+                            <td className="px-3 py-2 text-xs">-</td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  participant.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {participant.isActive ? '활성' : '비활성'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                -
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                -
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="text-xs text-gray-400">-</span>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -700,9 +486,17 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
 
       {/* Register Modal (UI only) — 스태프 모달과 동일 카드 레이아웃 */}
       {showRegisterModal && (
-        <SimpleModal onClose={() => setShowRegisterModal(false)} className="max-w-xl">
+        <SimpleModal
+          onClose={() => {
+            setShowRegisterModal(false);
+            setSelectedUserId('');
+            setAddUserQuery('');
+            setRegisterError('');
+          }}
+          className="max-w-xl"
+        >
           <div className="card w-full max-w-xl mx-auto">
-            <div className="card__header">유저 이벤트 등록</div>
+            <div className="card__header">참가자 이벤트 등록</div>
             <div className="card__body">
               <div className="grid gap-4">
                 <div>
@@ -714,76 +508,137 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                     onChange={(e) => setAddUserQuery(e.target.value)}
                   />
                   <div className="mt-3 space-y-2 max-h-72 overflow-auto">
-                    {(() => {
-                      const q = addUserQuery.trim().toLowerCase();
-                      const filtered = userList.filter((u) => {
-                        if (!q) return true;
-                        return (
-                          u.fullName.toLowerCase().includes(q) ||
-                          u.username.toLowerCase().includes(q) ||
-                          (u.email || '').toLowerCase().includes(q)
-                        );
-                      });
-                      if (filtered.length === 0) {
-                        return <div className="text-[12px] text-[var(--muted)]">검색 결과가 없습니다.</div>;
-                      }
-                      return filtered.map((u) => {
-                        const selected = selectedUserId === u.userId;
-                        return (
-                          <label
-                            key={u.userId}
-                            role="radio"
-                            aria-checked={selected}
-                            className={
-                              `flex items-center justify-between gap-3 p-2 border rounded-lg cursor-pointer transition-colors outline-none focus:outline-none focus-visible:outline-none ` +
-                              `hover:bg-gray-50 ` +
-                              (selected ? `border-[var(--brand)]` : `border-[var(--line)]`)
-                            }
-                          >
-                            <div>
-                              <div className="font-medium">{u.fullName}</div>
-                              <div className="text-[12px] text-[var(--muted)]">
-                                {u.username}
-                                {u.email ? ` · ${u.email}` : ''}
-                              </div>
+                    {isLoadingUsers ? (
+                      <div className="text-center py-4 text-[var(--muted)]">사용자 목록을 불러오는 중...</div>
+                    ) : (
+                      (() => {
+                        const q = addUserQuery.trim().toLowerCase();
+                        const filtered = userList.filter((u) => {
+                          if (!q) return true;
+                          return u.name.toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+                        });
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="text-[12px] text-[var(--muted)]">
+                              {userList.length === 0
+                                ? '등록 가능한 사용자가 없습니다. (모두 이미 등록되었거나 비활성 상태입니다)'
+                                : '검색 결과가 없습니다.'}
                             </div>
-                            <input
-                              type="radio"
-                              className="sr-only focus:outline-none focus:ring-0"
-                              name="selectedUser"
-                              checked={selected}
-                              onChange={() => setSelectedUserId(u.userId)}
-                            />
-                          </label>
-                        );
-                      });
-                    })()}
+                          );
+                        }
+                        return filtered.map((u) => {
+                          const selected = selectedUserId === u.userId;
+                          return (
+                            <label
+                              key={u.userId}
+                              role="radio"
+                              aria-checked={selected}
+                              className={
+                                `flex items-center justify-between gap-3 p-2 border rounded-lg cursor-pointer transition-colors outline-none focus:outline-none focus-visible:outline-none ` +
+                                `hover:bg-gray-50 ` +
+                                (selected ? `border-[var(--brand)]` : `border-[var(--line)]`)
+                              }
+                            >
+                              <div>
+                                <div className="font-medium">{u.name}</div>
+                                <div className="text-[12px] text-[var(--muted)]">{u.email || '이메일 없음'}</div>
+                              </div>
+                              <input
+                                type="radio"
+                                className="sr-only focus:outline-none focus:ring-0"
+                                name="selectedUser"
+                                checked={selected}
+                                onChange={() => setSelectedUserId(u.userId)}
+                              />
+                            </label>
+                          );
+                        });
+                      })()
+                    )}
                   </div>
                 </div>
+                {registerError && (
+                  <div className="text-[13px] p-2 rounded border border-red-200 bg-red-50 text-red-700">
+                    {registerError}
+                  </div>
+                )}
                 <div className="text-sm text-[var(--muted)]">💡 선택한 사용자는 이 이벤트에 등록됩니다.</div>
               </div>
             </div>
             <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <Button variant="secondary" onClick={() => setShowRegisterModal(false)}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowRegisterModal(false);
+                  setSelectedUserId('');
+                  setAddUserQuery('');
+                  setRegisterError('');
+                }}
+                disabled={registering}
+              >
                 취소
               </Button>
               <Button
-                disabled={!selectedUserId}
-                onClick={() => {
-                  // UI only: close modal, clear selection
+                disabled={!selectedUserId || registering}
+                onClick={async () => {
+                  if (!selectedUserId) return;
+                  // 선택된 사용자를 이벤트 참가자로 등록하는 API 호출
+                  // - 온체인 등록 + DB 기록까지 한 번에 수행
+                  setRegisterError('');
+                  setRegistering(true);
+                  // 선택 모달은 닫고, 진행 모달을 띄워 블록체인 상호작용 상태를 보여줌
                   setShowRegisterModal(false);
-                  setSelectedUserId('');
+                  setProgressMsg('참가자를 이벤트에 등록 중입니다. 잠시만 기다려 주세요...');
+                  setProgressDone(false);
+                  setProgressOpen(true);
+                  try {
+                    console.log('[EventDetailClient] Submitting participant registration', {
+                      eventId,
+                      userId: selectedUserId,
+                    });
+                    const res = await fetch(`/api/admin/events/${eventId}/participants`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: selectedUserId }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      const msg = (data as { error?: string })?.error || '참가자 등록에 실패했습니다.';
+                      setRegisterError(msg);
+                      console.error('[EventDetailClient] Participant registration failed', {
+                        status: res.status,
+                        error: msg,
+                      });
+                      // 에러가 난 경우 진행 모달을 닫고, 다시 선택 모달을 열어 에러 메시지를 보여줌
+                      setProgressOpen(false);
+                      setShowRegisterModal(true);
+                      return;
+                    }
+                    console.log('[EventDetailClient] Participant registration success', {
+                      eventId,
+                      userId: selectedUserId,
+                      participant: (data as { participant?: unknown }).participant,
+                      onChainTxHash: (data as { onChainTxHash?: string }).onChainTxHash,
+                    });
+                    // 성공 시 진행 모달에서 완료 상태로 전환
+                    setProgressMsg('참가자 등록이 완료되었습니다.');
+                    setProgressDone(true);
+                    setSelectedUserId('');
+                    setAddUserQuery('');
+                  } catch (e) {
+                    setRegisterError(e instanceof Error ? e.message : '참가자 등록에 실패했습니다.');
+                    console.error('[EventDetailClient] Participant registration error', e);
+                  } finally {
+                    setRegistering(false);
+                  }
                 }}
               >
-                등록
+                {registering ? '등록 중...' : '등록'}
               </Button>
             </div>
           </div>
         </SimpleModal>
       )}
-
-      {/* Check-in Modal */}
-      {showQrScanModal && <CheckInModal onClose={() => setShowQrScanModal(false)} />}
 
       {/* Participant Detail Modal (removed for simplified management) */}
     </div>

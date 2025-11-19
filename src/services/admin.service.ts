@@ -6,7 +6,7 @@ import { User, USSDStatus, RegistrationType } from '@/server/db/entities/User';
 import { Event, EventStatus } from '@/server/db/entities/Event';
 import type { EventRole } from '@/server/db/entities/EventStaff';
 import { EventStaff } from '@/server/db/entities/EventStaff';
-import { EventParticipant, RegistrationStatus } from '@/server/db/entities/EventParticipant';
+import { EventParticipant } from '@/server/db/entities/EventParticipant';
 import { EventCheckin } from '@/server/db/entities/EventCheckin';
 import type { PaymentMethod } from '@/server/db/entities/EventPayment';
 import { EventPayment, PaymentStatus } from '@/server/db/entities/EventPayment';
@@ -787,12 +787,23 @@ class AdminService {
   /**
    * Register participant for event
    */
-  async registerParticipant(data: { eventId: string; userId: string }): Promise<EventParticipant> {
+  async registerParticipant(data: {
+    eventId: string;
+    userId: string;
+    assignedByAdminId?: string;
+  }): Promise<EventParticipant> {
     await this.initialize();
 
     const eventParticipantRepository = AppDataSource.getRepository(EventParticipant);
 
+    console.log('[AdminService] registerParticipant called', {
+      eventId: data.eventId,
+      userId: data.userId,
+      assignedByAdminId: data.assignedByAdminId,
+    });
+
     // Check for existing registration
+    // 같은 이벤트에 동일 userId가 이미 등록되어 있으면 중복 방지
     const existing = await eventParticipantRepository.findOne({
       where: { eventId: data.eventId, userId: data.userId },
     });
@@ -800,39 +811,20 @@ class AdminService {
       throw new Error('User already registered for this event');
     }
 
+    // 온체인 등록이 성공한 이후에만 DB에 참가자 레코드를 생성
     const participant = eventParticipantRepository.create({
       eventId: data.eventId,
       userId: data.userId,
-      registrationStatus: RegistrationStatus.REGISTERED,
-      registeredAt: new Date(),
+      assignedAt: new Date(),
+      assignedByAdminId: data.assignedByAdminId ?? null,
     });
 
     await eventParticipantRepository.save(participant);
-    return participant;
-  }
-
-  /**
-   * Update participant status
-   */
-  async updateParticipantStatus(id: number, status: RegistrationStatus): Promise<EventParticipant | null> {
-    await this.initialize();
-
-    const eventParticipantRepository = AppDataSource.getRepository(EventParticipant);
-    const participant = await eventParticipantRepository.findOne({ where: { id } });
-
-    if (!participant) {
-      return null;
-    }
-
-    participant.registrationStatus = status;
-
-    if (status === RegistrationStatus.CONFIRMED) {
-      participant.confirmedAt = new Date();
-    } else if (status === RegistrationStatus.CANCELLED) {
-      participant.cancelledAt = new Date();
-    }
-
-    await eventParticipantRepository.save(participant);
+    console.log('[AdminService] Participant registered', {
+      id: participant.id,
+      eventId: participant.eventId,
+      userId: participant.userId,
+    });
     return participant;
   }
 
@@ -845,7 +837,7 @@ class AdminService {
     const eventParticipantRepository = AppDataSource.getRepository(EventParticipant);
     return eventParticipantRepository.find({
       where: { eventId },
-      order: { registeredAt: 'DESC' },
+      order: { assignedAt: 'DESC' },
     });
   }
 

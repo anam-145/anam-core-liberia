@@ -36,18 +36,20 @@ export default function DashboardClient() {
           const res = await fetch('/api/admin/events', { cache: 'no-store' });
           const data = (await res.json().catch(() => ({}))) as { events?: ApiEvent[]; error?: string };
           if (!res.ok) throw new Error((data as { error?: string })?.error || '이벤트를 불러오지 못했습니다');
-          const list: ApiEvent[] = (data.events ?? []).map((e) => ({
-            eventId: e.eventId,
-            name: e.name,
-            description: e.description ?? null,
-            startDate: e.startDate,
-            endDate: e.endDate,
-            amountPerDay: e.amountPerDay,
-            maxParticipants: e.maxParticipants ?? 0,
-            isActive: Boolean(e.isActive),
-            derivedStatus: e.derivedStatus as ApiEvent['derivedStatus'],
-            status: e.status as ApiEvent['status'],
-          }));
+          const list: ApiEvent[] = (data.events ?? [])
+            .filter((e) => e.isActive) // ✅ isActive가 true인 이벤트만 표시
+            .map((e) => ({
+              eventId: e.eventId,
+              name: e.name,
+              description: e.description ?? null,
+              startDate: e.startDate,
+              endDate: e.endDate,
+              amountPerDay: e.amountPerDay,
+              maxParticipants: e.maxParticipants ?? 0,
+              isActive: Boolean(e.isActive),
+              derivedStatus: e.derivedStatus as ApiEvent['derivedStatus'],
+              status: e.status as ApiEvent['status'],
+            }));
           if (!cancelled) setEvents(list);
         } else if (role === 'STAFF') {
           const res = await fetch('/api/admin/events/staff/me?role=APPROVER', { cache: 'no-store' });
@@ -58,25 +60,30 @@ export default function DashboardClient() {
           };
           if (!res.ok) throw new Error(data?.error || '이벤트를 불러오지 못했습니다');
 
-          const staffList: ApiEvent[] = (data.events ?? []).map((e) => {
-            const d = e as unknown as Record<string, unknown>;
-            const start = new Date(String(d.startDate));
-            const end = new Date(String(d.endDate));
-            const now = new Date();
-            const derived = now < start ? 'PENDING' : now > end ? 'COMPLETED' : 'ONGOING';
-            return {
-              eventId: String(d.eventId),
-              name: String(d.name),
-              description: d.description ?? null,
-              startDate: String(d.startDate),
-              endDate: String(d.endDate),
-              amountPerDay: String(d.amountPerDay ?? ''),
-              maxParticipants: Number(d.maxParticipants ?? 0),
-              isActive: Boolean(d.isActive),
-              derivedStatus: (d.derivedStatus as ApiEvent['derivedStatus']) ?? derived,
-              status: d.status as ApiEvent['status'],
-            } as ApiEvent;
-          });
+          const staffList: ApiEvent[] = (data.events ?? [])
+            .filter((e) => {
+              const d = e as unknown as Record<string, unknown>;
+              return Boolean(d.isActive); // ✅ isActive가 true인 이벤트만 표시
+            })
+            .map((e) => {
+              const d = e as unknown as Record<string, unknown>;
+              const start = new Date(String(d.startDate));
+              const end = new Date(String(d.endDate));
+              const now = new Date();
+              const derived = now < start ? 'PENDING' : now > end ? 'COMPLETED' : 'ONGOING';
+              return {
+                eventId: String(d.eventId),
+                name: String(d.name),
+                description: d.description ?? null,
+                startDate: String(d.startDate),
+                endDate: String(d.endDate),
+                amountPerDay: String(d.amountPerDay ?? ''),
+                maxParticipants: Number(d.maxParticipants ?? 0),
+                isActive: Boolean(d.isActive),
+                derivedStatus: (d.derivedStatus as ApiEvent['derivedStatus']) ?? derived,
+                status: d.status as ApiEvent['status'],
+              } as ApiEvent;
+            });
           if (!cancelled) setEvents(staffList);
         } else {
           if (!cancelled) setEvents([]);
