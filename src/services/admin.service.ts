@@ -11,7 +11,6 @@ import { EventCheckin } from '@/server/db/entities/EventCheckin';
 import type { PaymentMethod } from '@/server/db/entities/EventPayment';
 import { EventPayment, PaymentStatus } from '@/server/db/entities/EventPayment';
 import { hash, compare } from 'bcryptjs';
-import type { VerifiablePresentation } from '@/utils/crypto/did';
 import { randomUUID } from 'crypto';
 import { generateWallet } from '@/utils/crypto/wallet';
 import { encryptVault } from '@/utils/crypto/vault';
@@ -896,8 +895,8 @@ class AdminService {
   async checkInParticipant(data: {
     eventId: string;
     userId: string;
-    checkedInBy: string;
-    vpData?: VerifiablePresentation;
+    checkedInByAdminId: string;
+    checkinTxHash?: string | null;
   }): Promise<EventCheckin> {
     await this.initialize();
 
@@ -914,8 +913,8 @@ class AdminService {
     const checkin = eventCheckinRepository.create({
       eventId: data.eventId,
       userId: data.userId,
-      checkedInBy: data.checkedInBy,
-      vpData: data.vpData || null,
+      checkedInByAdminId: data.checkedInByAdminId,
+      checkinTxHash: data.checkinTxHash ?? null,
       checkedInAt: new Date(),
     });
 

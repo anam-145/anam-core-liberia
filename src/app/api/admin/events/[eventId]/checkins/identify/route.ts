@@ -15,7 +15,7 @@ import { EventRole } from '@/server/db/entities/EventStaff';
  * - user: Partial user info (id, userId, name, phoneNumber)
  */
 export async function POST(request: NextRequest, { params }: { params: { eventId: string } }) {
-  const authCheck = await requireEventRole(params.eventId, EventRole.VERIFIER);
+  const authCheck = await requireEventRole(params.eventId, [EventRole.APPROVER, EventRole.VERIFIER]);
   if (authCheck) return authCheck;
 
   try {

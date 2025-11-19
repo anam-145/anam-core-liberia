@@ -1,5 +1,4 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
-import type { VerifiablePresentation } from '@/utils/crypto/did';
 
 @Entity('event_checkins')
 export class EventCheckin {
@@ -33,20 +32,22 @@ export class EventCheckin {
   checkedInAt!: Date;
 
   @Column({
-    name: 'checked_in_by',
+    name: 'checked_in_by_admin_id',
     type: 'varchar',
     length: 36,
     comment: 'Admin ID who performed check-in (UUID)',
   })
-  checkedInBy!: string;
+  @Index()
+  checkedInByAdminId!: string;
 
   @Column({
-    name: 'vp_data',
-    type: 'json',
+    name: 'checkin_tx_hash',
+    type: 'varchar',
+    length: 66,
     nullable: true,
-    comment: 'Verifiable Presentation data (if VP-based check-in)',
+    comment: 'On-chain check-in transaction hash (if recorded)',
   })
-  vpData!: VerifiablePresentation | null;
+  checkinTxHash!: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

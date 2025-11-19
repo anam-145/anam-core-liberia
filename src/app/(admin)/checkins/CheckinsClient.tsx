@@ -4,18 +4,19 @@ import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
-interface Event {
+interface EventSummary {
   eventId: string;
   name: string;
   startDate: string;
   endDate: string;
+  isActive: boolean;
   derivedStatus?: 'PENDING' | 'ONGOING' | 'COMPLETED';
 }
 
 export default function CheckinsClient() {
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
   const [method, setMethod] = useState<'ANAMWALLET' | 'USSD' | 'PAPER' | null>(null);
   const [ussdPin, setUssdPin] = useState('');
   const [paperPin, setPaperPin] = useState('');
@@ -25,10 +26,22 @@ export default function CheckinsClient() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/admin/events/staff/me?role=VERIFIER', { cache: 'no-store' });
+        // APPROVER와 VERIFIER로 배정된 모든 이벤트를 불러온 뒤, 활성화된 이벤트만 필터링
+        const res = await fetch('/api/admin/events/staff/me', { cache: 'no-store' });
         const data = await res.json();
         if (!cancelled && res.ok) {
-          setEvents((data.events as Event[]) || []);
+          const raw = (data.events as Array<Record<string, unknown>>) || [];
+          const list: EventSummary[] = raw
+            .map((e) => ({
+              eventId: String(e.eventId),
+              name: String(e.name),
+              startDate: String(e.startDate),
+              endDate: String(e.endDate),
+              isActive: Boolean(e.isActive),
+              derivedStatus: e.derivedStatus as EventSummary['derivedStatus'],
+            }))
+            .filter((e) => e.isActive); // 활성화된 이벤트만 표시
+          setEvents(list);
         }
       } catch (error) {
         console.error('Failed to load events:', error);
