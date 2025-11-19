@@ -4,16 +4,20 @@ import { requireEventRole } from '@/lib/auth-middleware';
 import { getSession } from '@/lib/auth';
 import { apiOk, apiError } from '@/lib/api-response';
 import { EventRole } from '@/server/db/entities/EventStaff';
-import { PaymentMethod } from '@/server/db/entities/EventPayment';
+import { AppDataSource } from '@/server/db/datasource';
+import { Event } from '@/server/db/entities/Event';
+import { EventCheckin } from '@/server/db/entities/EventCheckin';
+import { User } from '@/server/db/entities/User';
+import { Admin } from '@/server/db/entities/Admin';
+import { blockchainService } from '@/services/blockchain.service';
+import { getSystemAdminWallet } from '@/services/system-init.service';
 
 /**
  * POST /api/admin/events/[eventId]/payments/approve
  * Approve payment (2차 승인) (APPROVER only)
  *
  * Request Body:
- * - userId: User UUID
- * - amount: Payment amount
- * - transactionHash: Blockchain transaction hash
+ * - checkinId: Check-in UUID (event_checkins.checkin_id)
  *
  * Response:
  * - payment: EventPayment object
@@ -25,42 +29,98 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
   try {
     const body = await request.json();
 
-    if (!body.userId || !body.amount || !body.transactionHash) {
-      return apiError('Missing required fields: userId, amount, transactionHash', 400, 'VALIDATION_ERROR');
+    if (!body.checkinId || typeof body.checkinId !== 'string') {
+      return apiError('Missing required field: checkinId', 400, 'VALIDATION_ERROR');
     }
 
     const session = await getSession();
 
-    // TODO: Blockchain Integration - Execute Token Transfer
-    // 설계서 요구사항 (system-design.md:2960-2977):
-    // Request 원본:
-    //   - checkinIds: array (승인할 체크인 ID 목록)
-    // Response 원본:
-    //   - paymentTxHash: 지급 트랜잭션 해시 (2차 승인)
-    //   - status: COMPLETED
-    //
-    // 현재 구현: 데이터베이스에 payment 레코드만 생성
-    // 구현 필요:
-    //   1. Blockchain Service 연동
-    //   2. checkinIds 기반으로 일괄 지급 처리
-    //   3. 실제 USDC/토큰 블록체인 전송 (Event Contract 호출)
-    //   4. 트랜잭션 해시를 payment 레코드에 저장
-    //   5. DID 서명을 통한 부인 방지 (Approver의 개인키 서명)
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
 
-    // Create payment record with COMPLETED status
-    // Note: Using BANK_TRANSFER for blockchain payments in MVP
+    const eventRepo = AppDataSource.getRepository(Event);
+    const checkinRepo = AppDataSource.getRepository(EventCheckin);
+    const userRepo = AppDataSource.getRepository(User);
+    const adminRepo = AppDataSource.getRepository(Admin);
+
+    // 1) 이벤트 로드 및 컨트랙트 주소 확인
+    const event = await eventRepo.findOne({ where: { eventId: params.eventId } });
+    if (!event) {
+      return apiError('Event not found', 404, 'NOT_FOUND');
+    }
+    if (!event.eventContractAddress) {
+      return apiError('Event contract not deployed', 409, 'CONFLICT');
+    }
+
+    // 2) 체크인 로드 (해당 이벤트의 체크인인지 확인)
+    const checkin = await checkinRepo.findOne({
+      where: { eventId: params.eventId, checkinId: body.checkinId },
+    });
+    if (!checkin) {
+      return apiError('Check-in not found for this event', 404, 'NOT_FOUND');
+    }
+
+    // 3) 이미 지급된 체크인인지 확인 (idempotency)
+    const existingPayments = await adminService.getEventPayments(params.eventId);
+    const alreadyPaid = existingPayments.some((p) => p.checkinId === body.checkinId);
+    if (alreadyPaid) {
+      return apiError('Payment already recorded for this check-in', 409, 'CONFLICT');
+    }
+
+    // 4) 참가자 로드 및 지갑 주소 확인
+    const user = await userRepo.findOne({ where: { userId: checkin.userId } });
+    if (!user) {
+      return apiError('User not found', 404, 'NOT_FOUND');
+    }
+    if (!user.walletAddress) {
+      return apiError('User does not have a wallet address', 400, 'VALIDATION_ERROR');
+    }
+
+    // 5) Approver 관리자 로드 (on-chain approver 주소 결정)
+    const admin = await adminRepo.findOne({ where: { adminId: session.adminId } });
+    if (!admin) {
+      return apiError('Admin not found', 404, 'NOT_FOUND');
+    }
+    if (!admin.walletAddress) {
+      return apiError('Approver admin does not have an on-chain wallet address', 409, 'CONFLICT');
+    }
+
+    // 6) 온체인 결제 승인 (LiberiaEvent.approvePayment)
+    if (!blockchainService.isAvailable()) {
+      return apiError('Blockchain unavailable. Cannot approve payment on-chain.', 500, 'INTERNAL_ERROR');
+    }
+
+    const systemAdminWallet = getSystemAdminWallet();
+    let paymentTxHash: string;
+    try {
+      paymentTxHash = await blockchainService.approveEventPayment(
+        event.eventContractAddress,
+        user.walletAddress,
+        admin.walletAddress,
+        systemAdminWallet.privateKey,
+      );
+    } catch (chainError) {
+      console.error('Error approving payment on-chain:', chainError);
+      return apiError(
+        chainError instanceof Error ? chainError.message : 'Failed to approve payment on-chain',
+        500,
+        'INTERNAL_ERROR',
+      );
+    }
+
+    // 7) 온체인 성공 후에만 DB 결제 기록
+    const amount = String(event.amountPerDay ?? '0');
     const payment = await adminService.createPayment({
       eventId: params.eventId,
-      userId: body.userId,
-      amount: body.amount,
-      paymentMethod: PaymentMethod.BANK_TRANSFER,
-      transactionId: body.transactionHash,
+      userId: checkin.userId,
+      checkinId: checkin.checkinId,
+      amount,
+      paymentTxHash,
+      paidByAdminId: session.adminId,
     });
 
-    // Immediately verify it
-    const verifiedPayment = await adminService.verifyPayment(payment.id, session.adminId);
-
-    return apiOk({ payment: verifiedPayment }, 201);
+    return apiOk({ payment }, 201);
   } catch (error) {
     console.error('Error in POST /api/admin/events/[eventId]/payments/approve:', error);
     return apiError(error instanceof Error ? error.message : 'Internal server error', 500, 'INTERNAL_ERROR');

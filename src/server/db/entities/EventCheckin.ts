@@ -6,6 +6,15 @@ export class EventCheckin {
   id!: number;
 
   @Column({
+    name: 'checkin_id',
+    type: 'varchar',
+    length: 36,
+    comment: 'Check-in ID (UUID for external references)',
+  })
+  @Index({ unique: true })
+  checkinId!: string;
+
+  @Column({
     name: 'event_id',
     type: 'varchar',
     length: 36,

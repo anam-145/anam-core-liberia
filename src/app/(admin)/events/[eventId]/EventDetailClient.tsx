@@ -21,14 +21,37 @@ function SimpleModal({ children, onClose, className }: SimpleModalProps) {
   );
 }
 
+function formatLocalDateYmd(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 interface ParticipantData {
   id: number;
+  userId: string;
   userDid: string | null;
   adminDid: string | null;
   name: string;
   assignedAt: string;
   isActive: boolean;
   assignedByAdminId?: string | null;
+}
+
+interface CheckinData {
+  id: number;
+  checkinId: string | null;
+  userId: string;
+  checkedInAt: string;
+}
+
+interface PaymentData {
+  id: number;
+  userId: string;
+  amount: string;
+  paidAt: string;
+  checkinId: string | null;
 }
 
 interface EventDetailClientProps {
@@ -55,6 +78,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressMsg, setProgressMsg] = useState('Processing...');
   const [progressDone, setProgressDone] = useState(false);
+  const [progressContext, setProgressContext] = useState<'register' | 'payment' | null>(null);
   const [eventInfo, setEventInfo] = useState<{
     name: string;
     startDate: string;
@@ -68,6 +92,12 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     dailyDsa: 0,
     currentDay: 1,
   });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [checkins, setCheckins] = useState<CheckinData[]>([]);
+  const [payments, setPayments] = useState<PaymentData[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [paymentsError, setPaymentsError] = useState('');
+  const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0);
 
   // Load eligible users when modal opens
   useEffect(() => {
@@ -118,13 +148,17 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
             if (idx < 0) idx = 0;
             if (idx > totalDays - 1) idx = totalDays - 1;
             const currentDay = idx + 1;
+            const startStr = formatLocalDateYmd(start);
+            const endStr = formatLocalDateYmd(end);
+            const selectedStr = formatLocalDateYmd(t);
             setEventInfo({
               name: String(e.name ?? ''),
-              startDate: start.toISOString().slice(0, 10),
-              endDate: end.toISOString().slice(0, 10),
+              startDate: startStr,
+              endDate: endStr,
               dailyDsa: Number(e.amountPerDay ?? 0),
               currentDay,
             });
+            setSelectedDate(selectedStr);
             return;
           }
         }
@@ -156,14 +190,18 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         if (idx < 0) idx = 0;
         if (idx > totalDays - 1) idx = totalDays - 1;
         const currentDay = idx + 1;
+        const startStr = formatLocalDateYmd(start);
+        const endStr = formatLocalDateYmd(end);
+        const selectedStr = formatLocalDateYmd(t);
 
         setEventInfo({
           name: String(match.name ?? ''),
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
+          startDate: startStr,
+          endDate: endStr,
           dailyDsa: Number(match.amountPerDay ?? 0),
           currentDay,
         });
+        setSelectedDate(selectedStr);
       } catch (error) {
         console.error('[EventDetailClient] Error fetching event info', error);
       }
@@ -188,6 +226,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         const rows = data.participants ?? [];
         const mapped: ParticipantData[] = rows.map((row) => ({
           id: Number(row.id ?? 0),
+          userId: String(row.userId ?? ''),
           userDid: (row.userDid as string | null) ?? null,
           adminDid: (row.adminDid as string | null) ?? null,
           name: (row.name as string) || (row.userDid as string) || '',
@@ -207,14 +246,95 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     };
   }, [eventId]);
 
+  // Load check-ins and payments when DSA Payments 탭이 활성화되면 호출
+  useEffect(() => {
+    if (activeTab !== 'payment') return;
+
+    let cancelled = false;
+    const load = async () => {
+      setIsLoadingPayments(true);
+      setPaymentsError('');
+
+      try {
+        const [checkinsRes, paymentsRes] = await Promise.all([
+          fetch(`/api/admin/events/${eventId}/checkins`, { cache: 'no-store' }),
+          fetch(`/api/admin/events/${eventId}/payments`, { cache: 'no-store' }),
+        ]);
+
+        const checkinsJson = (await checkinsRes.json().catch(() => ({}))) as {
+          checkins?: Array<Record<string, unknown>>;
+        };
+        const paymentsJson = (await paymentsRes.json().catch(() => ({}))) as {
+          payments?: Array<Record<string, unknown>>;
+        };
+
+        if (!checkinsRes.ok) {
+          console.error('[EventDetailClient] Failed to fetch checkins', checkinsJson);
+          if (!cancelled) setPaymentsError('Failed to load check-ins');
+          return;
+        }
+        if (!paymentsRes.ok) {
+          console.error('[EventDetailClient] Failed to fetch payments', paymentsJson);
+          if (!cancelled) setPaymentsError('Failed to load payments');
+          return;
+        }
+
+        const checkinRows = checkinsJson.checkins ?? [];
+        const mappedCheckins: CheckinData[] = checkinRows.map((row) => ({
+          id: Number(row.id ?? 0),
+          checkinId: (row.checkinId as string | null) ?? null,
+          userId: String(row.userId ?? ''),
+          checkedInAt: String(row.checkedInAt ?? ''),
+        }));
+
+        const paymentRows = paymentsJson.payments ?? [];
+        const mappedPayments: PaymentData[] = paymentRows.map((row) => ({
+          id: Number(row.id ?? 0),
+          userId: String(row.userId ?? ''),
+          amount: String(row.amount ?? '0'),
+          paidAt: String(row.paidAt ?? ''),
+          checkinId: (row.checkinId as string | null) ?? null,
+        }));
+
+        if (!cancelled) {
+          setCheckins(mappedCheckins);
+          setPayments(mappedPayments);
+        }
+      } catch (error) {
+        console.error('[EventDetailClient] Error fetching payments data', error);
+        if (!cancelled) setPaymentsError('Unexpected error while loading payments');
+      } finally {
+        if (!cancelled) setIsLoadingPayments(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, eventId, paymentsRefreshKey]);
+
   // Calculate statistics
+  const effectiveDateStr = selectedDate || formatLocalDateYmd(new Date());
+  const dateCheckins = checkins.filter((c) => c.checkedInAt && String(c.checkedInAt).slice(0, 10) === effectiveDateStr);
+  const paymentsForDate = payments.filter((p) => p.paidAt && String(p.paidAt).slice(0, 10) === effectiveDateStr);
+  const paidUserIdsForDate = new Set(paymentsForDate.map((p) => p.userId));
+  const presentCount = new Set(dateCheckins.map((c) => c.userId)).size;
+  const paidCount = paidUserIdsForDate.size;
+  const awaitingCount = Math.max(0, presentCount - paidCount);
+  const totalDisbursed = paymentsForDate.reduce((sum, p) => {
+    const n = Number(p.amount || 0);
+    if (!Number.isFinite(n)) return sum;
+    return sum + n;
+  }, 0);
+
   const stats = {
     total: participants.length,
-    present: 0,
+    present: presentCount,
     absent: 0,
-    awaiting: 0,
-    paid: 0,
-    totalDisbursed: 0,
+    awaiting: awaitingCount,
+    paid: paidCount,
+    totalDisbursed,
   };
 
   // Participants list (no additional filtering for now)
@@ -224,7 +344,15 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     <div className="max-w-screen-2xl mx-auto">
       <ProgressModal
         open={progressOpen}
-        title={progressDone ? 'Completed' : 'Registering participant'}
+        title={
+          progressDone
+            ? progressContext === 'payment'
+              ? 'Payment completed'
+              : 'Completed'
+            : progressContext === 'payment'
+              ? 'Approving payment'
+              : 'Registering participant'
+        }
         message={progressMsg}
         done={progressDone}
         confirmText="OK"
@@ -232,6 +360,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
           setProgressOpen(false);
           setProgressDone(false);
           setProgressMsg('Processing...');
+          setProgressContext(null);
         }}
       />
       {/* Back Button */}
@@ -384,15 +513,37 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-4">
                   <h3 className="text-lg font-semibold">DSA Payments</h3>
-                  <select className="border border-gray-300 rounded-md px-3 py-1 text-sm">
-                    <option value="2025-01-25">Day 1 - 2025-01-25</option>
-                    <option value="2025-01-26">Day 2 - 2025-01-26</option>
-                    <option value="2025-01-27" selected>
-                      Day 3 - 2025-01-27 (today)
-                    </option>
-                    <option value="2025-01-28">Day 4 - 2025-01-28</option>
-                    <option value="2025-01-29">Day 5 - 2025-01-29</option>
-                  </select>
+                  {eventInfo.startDate && eventInfo.endDate && (
+                    <select
+                      className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+                      value={effectiveDateStr}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                    >
+                      {(() => {
+                        const options: JSX.Element[] = [];
+                        const start = new Date(eventInfo.startDate);
+                        const end = new Date(eventInfo.endDate);
+                        start.setHours(0, 0, 0, 0);
+                        end.setHours(0, 0, 0, 0);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+                        const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+                        for (let i = 0; i < totalDays; i += 1) {
+                          const d = new Date(start.getTime() + i * MS_PER_DAY);
+                          const value = formatLocalDateYmd(d);
+                          const isToday = d.getTime() === today.getTime();
+                          const label = `Day ${i + 1} - ${value}${isToday ? ' (today)' : ''}`;
+                          options.push(
+                            <option key={value} value={value}>
+                              {label}
+                            </option>,
+                          );
+                        }
+                        return options;
+                      })()}
+                    </select>
+                  )}
                 </div>
                 {/* Daily amount display intentionally omitted */}
               </div>
@@ -437,44 +588,126 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                         <tr>
                           <th className="text-left px-3 py-2">Participant</th>
                           <th className="text-left px-3 py-2">Check-in time</th>
-                          <th className="text-left px-3 py-2">User status</th>
-                          <th className="text-left px-3 py-2">VC status</th>
                           <th className="text-left px-3 py-2">Payment status</th>
                           <th className="text-left px-3 py-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {participants.map((participant) => (
-                          <tr key={participant.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2">
-                              <div className="font-medium">{participant.name}</div>
-                              <div className="text-xs text-gray-500 font-mono">{participant.userDid ?? '-'}</div>
-                            </td>
-                            <td className="px-3 py-2 text-xs">-</td>
-                            <td className="px-3 py-2">
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  participant.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                }`}
-                              >
-                                {participant.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                -
-                              </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                -
-                              </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="text-xs text-gray-400">-</span>
+                        {isLoadingPayments && (
+                          <tr>
+                            <td className="px-3 py-4 text-center text-xs text-gray-500" colSpan={4}>
+                              Loading payment candidates...
                             </td>
                           </tr>
-                        ))}
+                        )}
+                        {!isLoadingPayments && paymentsError && (
+                          <tr>
+                            <td className="px-3 py-4 text-center text-xs text-red-500" colSpan={4}>
+                              {paymentsError}
+                            </td>
+                          </tr>
+                        )}
+                        {!isLoadingPayments && !paymentsError && dateCheckins.length === 0 && (
+                          <tr>
+                            <td className="px-3 py-4 text-center text-xs text-gray-500" colSpan={4}>
+                              해당 날짜에 체크인한 참가자가 없습니다.
+                            </td>
+                          </tr>
+                        )}
+                        {!isLoadingPayments &&
+                          !paymentsError &&
+                          dateCheckins.map((checkin) => {
+                            const participant = participants.find((p) => p.userId === checkin.userId);
+                            const when = checkin.checkedInAt ? new Date(checkin.checkedInAt) : null;
+                            const timeLabel = when
+                              ? when.toLocaleTimeString(undefined, {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '-';
+
+                            const paymentForCheckin = paymentsForDate.find(
+                              (p) =>
+                                (p.checkinId && checkin.checkinId && p.checkinId === checkin.checkinId) ||
+                                (!p.checkinId && p.userId === checkin.userId),
+                            );
+                            const isPaid = Boolean(paymentForCheckin);
+                            const canPay = Boolean(checkin.checkinId) && !isPaid;
+
+                            return (
+                              <tr key={checkin.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2">
+                                  <div className="font-medium">{participant?.name ?? checkin.userId}</div>
+                                  <div className="text-xs text-gray-500 font-mono">{participant?.userDid ?? '-'}</div>
+                                </td>
+                                <td className="px-3 py-2 text-xs">{timeLabel}</td>
+                                <td className="px-3 py-2">
+                                  {isPaid ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                                      PAID
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">
+                                      PENDING
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {canPay ? (
+                                    <Button
+                                      size="sm"
+                                      disabled={isLoadingPayments}
+                                      onClick={async () => {
+                                        if (!checkin.checkinId) return;
+                                        try {
+                                          setIsLoadingPayments(true);
+                                          setPaymentsError('');
+                                          setProgressContext('payment');
+                                          setProgressMsg('Approving payment. Please wait...');
+                                          setProgressDone(false);
+                                          setProgressOpen(true);
+                                          const res = await fetch(`/api/admin/events/${eventId}/payments/approve`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ checkinId: checkin.checkinId }),
+                                          });
+                                          const data = await res.json().catch(() => ({}));
+                                          if (!res.ok) {
+                                            console.error('[EventDetailClient] Failed to approve payment', data);
+                                            setPaymentsError(
+                                              (data as { error?: string })?.error || 'Failed to approve payment',
+                                            );
+                                            setProgressMsg(
+                                              (data as { error?: string })?.error || 'Failed to approve payment',
+                                            );
+                                            setProgressDone(true);
+                                            return;
+                                          }
+                                          setPaymentsRefreshKey((k) => k + 1);
+                                          setProgressMsg('Payment completed.');
+                                          setProgressDone(true);
+                                        } catch (error) {
+                                          console.error(
+                                            '[EventDetailClient] Unexpected error approving payment',
+                                            error,
+                                          );
+                                          setPaymentsError('Unexpected error approving payment');
+                                          setProgressMsg('Unexpected error approving payment');
+                                          setProgressDone(true);
+                                        } finally {
+                                          setIsLoadingPayments(false);
+                                        }
+                                      }}
+                                    >
+                                      Pay
+                                    </Button>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
@@ -591,6 +824,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                   setRegistering(true);
                   // Close selection modal and show progress modal while interacting with the blockchain
                   setShowRegisterModal(false);
+                  setProgressContext('register');
                   setProgressMsg('Registering participant to event. Please wait...');
                   setProgressDone(false);
                   setProgressOpen(true);

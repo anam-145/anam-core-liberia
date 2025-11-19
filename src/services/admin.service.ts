@@ -8,8 +8,7 @@ import type { EventRole } from '@/server/db/entities/EventStaff';
 import { EventStaff } from '@/server/db/entities/EventStaff';
 import { EventParticipant } from '@/server/db/entities/EventParticipant';
 import { EventCheckin } from '@/server/db/entities/EventCheckin';
-import type { PaymentMethod } from '@/server/db/entities/EventPayment';
-import { EventPayment, PaymentStatus } from '@/server/db/entities/EventPayment';
+import { EventPayment } from '@/server/db/entities/EventPayment';
 import { hash, compare } from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { generateWallet } from '@/utils/crypto/wallet';
@@ -911,6 +910,7 @@ class AdminService {
     }
 
     const checkin = eventCheckinRepository.create({
+      checkinId: randomUUID(),
       eventId: data.eventId,
       userId: data.userId,
       checkedInByAdminId: data.checkedInByAdminId,
@@ -941,9 +941,10 @@ class AdminService {
   async createPayment(data: {
     eventId: string;
     userId: string;
+    checkinId: string;
     amount: string;
-    paymentMethod: PaymentMethod;
-    transactionId?: string;
+    paymentTxHash: string | null;
+    paidByAdminId: string;
   }): Promise<EventPayment> {
     await this.initialize();
 
@@ -952,32 +953,12 @@ class AdminService {
     const payment = eventPaymentRepository.create({
       eventId: data.eventId,
       userId: data.userId,
+      checkinId: data.checkinId,
       amount: data.amount,
-      paymentMethod: data.paymentMethod,
-      transactionId: data.transactionId || null,
-      paymentStatus: PaymentStatus.PENDING,
+      paidAt: new Date(),
+      paidByAdminId: data.paidByAdminId,
+      paymentTxHash: data.paymentTxHash,
     });
-
-    await eventPaymentRepository.save(payment);
-    return payment;
-  }
-
-  /**
-   * Verify payment
-   */
-  async verifyPayment(id: number, verifiedBy: string): Promise<EventPayment | null> {
-    await this.initialize();
-
-    const eventPaymentRepository = AppDataSource.getRepository(EventPayment);
-    const payment = await eventPaymentRepository.findOne({ where: { id } });
-
-    if (!payment) {
-      return null;
-    }
-
-    payment.paymentStatus = PaymentStatus.COMPLETED;
-    payment.paidAt = new Date();
-    payment.verifiedBy = verifiedBy;
 
     await eventPaymentRepository.save(payment);
     return payment;

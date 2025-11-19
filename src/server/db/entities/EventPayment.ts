@@ -1,22 +1,19 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-export enum PaymentMethod {
-  MOBILE_MONEY = 'MOBILE_MONEY',
-  CASH = 'CASH',
-  BANK_TRANSFER = 'BANK_TRANSFER',
-}
-
-export enum PaymentStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  REFUNDED = 'REFUNDED',
-}
-
 @Entity('event_payments')
 export class EventPayment {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id!: number;
+
+  @Column({
+    name: 'checkin_id',
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+    comment: 'Check-in ID (UUID, references event_checkins.checkin_id)',
+  })
+  @Index()
+  checkinId!: string | null;
 
   @Column({
     name: 'event_id',
@@ -45,48 +42,32 @@ export class EventPayment {
   amount!: string;
 
   @Column({
-    name: 'payment_method',
-    type: 'enum',
-    enum: PaymentMethod,
-    comment: 'MOBILE_MONEY, CASH, or BANK_TRANSFER',
-  })
-  paymentMethod!: PaymentMethod;
-
-  @Column({
-    name: 'payment_status',
-    type: 'enum',
-    enum: PaymentStatus,
-    default: PaymentStatus.PENDING,
-    comment: 'Payment status',
-  })
-  @Index()
-  paymentStatus!: PaymentStatus;
-
-  @Column({
-    name: 'transaction_id',
+    name: 'payment_tx_hash',
     type: 'varchar',
-    length: 100,
+    length: 66,
     nullable: true,
-    comment: 'External transaction reference (e.g., mobile money transaction ID)',
+    comment: 'On-chain payment transaction hash (if recorded)',
   })
-  transactionId!: string | null;
+  paymentTxHash!: string | null;
 
   @Column({
     name: 'paid_at',
     type: 'timestamp',
-    nullable: true,
-    comment: 'Payment completion timestamp',
+    nullable: false,
+    comment: 'Payment timestamp',
   })
-  paidAt!: Date | null;
+  @Index()
+  paidAt!: Date;
 
   @Column({
-    name: 'verified_by',
+    name: 'paid_by_admin_id',
     type: 'varchar',
     length: 36,
-    nullable: true,
-    comment: 'Admin ID who verified the payment (UUID)',
+    nullable: false,
+    comment: 'Admin ID who approved the payment (UUID)',
   })
-  verifiedBy!: string | null;
+  @Index()
+  paidByAdminId!: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

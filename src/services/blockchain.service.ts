@@ -744,6 +744,62 @@ class BlockchainService {
   }
 
   /**
+   * Approve payment on LiberiaEvent contract
+   * Calls approvePayment(address participant, address approver)
+   *
+   * @param eventAddress - Deployed LiberiaEvent contract address
+   * @param participantAddress - Participant wallet address
+   * @param approverAddress - Approver wallet address (must have APPROVER_ROLE)
+   * @param signerPrivateKey - Private key with SYSTEM_ADMIN_ROLE on the event (System Admin)
+   * @returns Transaction hash
+   */
+  async approveEventPayment(
+    eventAddress: string,
+    participantAddress: string,
+    approverAddress: string,
+    signerPrivateKey: string,
+  ): Promise<string> {
+    this.initialize();
+
+    if (!this.provider) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    if (!eventAddress || !participantAddress || !approverAddress) {
+      throw new Error('Invalid event, participant, or approver address');
+    }
+
+    console.log('[Blockchain] approveEventPayment called', {
+      eventAddress,
+      participantAddress,
+      approverAddress,
+    });
+
+    const EVENT_PAYMENT_ABI = ['function approvePayment(address participant, address approver) external'];
+
+    try {
+      const signer = this.getSigner(signerPrivateKey);
+      const contract = new Contract(eventAddress, EVENT_PAYMENT_ABI, signer);
+
+      const tx = await (
+        contract as unknown as {
+          approvePayment: (participant: string, approver: string) => Promise<TransactionResponse>;
+        }
+      ).approvePayment(participantAddress, approverAddress);
+      const receipt = await tx.wait();
+      if (!receipt) {
+        throw new Error('Transaction receipt is null');
+      }
+      return tx.hash as string;
+    } catch (error) {
+      console.error('[Blockchain] Failed to approve event payment:', error);
+      throw new Error(
+        `Failed to approve event payment on blockchain: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
    * Check if blockchain service is available
    */
   isAvailable(): boolean {
