@@ -104,6 +104,7 @@ export default function LoginPage() {
       setBlockExit(false);
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (_err) {
+      console.error('>>> [LOGIN] ❌ Network error:', _err);
       setError('Network error. Please try again.');
       setLoading(false);
       setShowProgress(false);

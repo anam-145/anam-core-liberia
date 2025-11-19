@@ -6,7 +6,7 @@ import { EventRole } from '@/server/db/entities/EventStaff';
 import { getSession } from '@/lib/auth';
 import { AppDataSource } from '@/server/db/datasource';
 import { User } from '@/server/db/entities/User';
-import { Admin } from '@/server/db/entities/Admin';
+import { Admin, AdminRole } from '@/server/db/entities/Admin';
 import { EventParticipant } from '@/server/db/entities/EventParticipant';
 import { DidDocument, DIDType } from '@/server/db/entities/DidDocument';
 import { blockchainService } from '@/services/blockchain.service';
@@ -97,11 +97,31 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
       return apiError('Blockchain unavailable. Cannot register participant on-chain.', 500, 'INTERNAL_ERROR');
     }
 
-    const issuer = getSystemAdminWallet();
+    const systemAdminWallet = getSystemAdminWallet();
+
+    // 현재 로그인한 관리자 정보 로드 (on-chain manager 주소 결정)
+    let managerAddress: string;
+    if (session.role === AdminRole.SYSTEM_ADMIN) {
+      // System Admin은 env 기반 지갑 주소를 그대로 사용
+      managerAddress = systemAdminWallet.address;
+    } else {
+      const currentAdmin = await adminRepo.findOne({ where: { adminId: session.adminId } });
+      if (!currentAdmin) {
+        return apiError('Admin not found', 404, 'NOT_FOUND');
+      }
+
+      if (!currentAdmin.walletAddress) {
+        return apiError('Registrar admin does not have an on-chain wallet address', 409, 'CONFLICT');
+      }
+
+      managerAddress = currentAdmin.walletAddress;
+    }
+
     const onChainTxHash = await blockchainService.registerEventParticipant(
       event.eventContractAddress,
       user.walletAddress,
-      issuer.privateKey,
+      managerAddress,
+      systemAdminWallet.privateKey,
     );
     console.log('[API] On-chain participant registration success', {
       eventAddress: event.eventContractAddress,

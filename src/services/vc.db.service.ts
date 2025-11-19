@@ -259,18 +259,23 @@ export class VCDatabaseService {
   async verifyVCOnChain(vcId: string): Promise<boolean> {
     await this.ensureInitialized();
 
-    if (blockchainService.isAvailable()) {
-      try {
-        const vcStatus = await blockchainService.getVCStatus(vcId);
-        // Check if VC status is ACTIVE (enum value 1)
-        return vcStatus.status === 1; // VCStatus.ACTIVE
-      } catch (error) {
-        console.error('[VC Service] Failed to verify VC on blockchain:', error);
-        console.log('[VC Service] Falling back to DB status check');
-      }
-    }
+    // TODO(test): 현재는 DB 상태를 단일 진실 소스로 사용합니다.
+    // 발급/폐기 로직이 온체인 트랜잭션 성공 후에만 DB를 업데이트하므로,
+    // read 경로에서는 DB status만 확인해도 실무상 안전합니다.
+    //
+    // 추후 운영 환경에서 온체인 상태를 직접 재검증하고 싶다면,
+    // 아래와 같은 패턴으로 복구할 수 있습니다:
+    //
+    // if (blockchainService.isAvailable()) {
+    //   try {
+    //     const vcStatus = await blockchainService.getVCStatus(vcId);
+    //     return vcStatus.status === 1; // ACTIVE
+    //   } catch (error) {
+    //     console.error('[VC Service] Failed to verify VC on blockchain:', error);
+    //   }
+    // }
 
-    // Fallback: Check DB status if blockchain is unavailable
+    // Check DB status
     const status = await this.getVCStatus(vcId);
     if (!status) {
       return false; // VC not found

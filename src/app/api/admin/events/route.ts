@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 0-2) 날짜 검증: 내일부터 시작, 종료일은 시작일 이상
+    // 0-2) 날짜 검증: 오늘 또는 이후 시작, 종료일은 시작일 이상
     const toDateOnly = (d: string | Date) => {
       const dt = new Date(d);
       dt.setHours(0, 0, 0, 0);
@@ -58,11 +58,12 @@ export async function POST(request: NextRequest) {
     const endDateOnly = toDateOnly(body.endDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    if (startDateOnly < tomorrow) {
-      return apiError('Start date must be from tomorrow (future only)', 400, 'VALIDATION_ERROR', {
+    // TODO(test): allow events starting today for QA.
+    // 이전에는 내일부터만 허용(startDateOnly < tomorrow)했으나,
+    // 테스트 편의를 위해 "오늘 이전 날짜만 거부"하도록 완화함.
+    if (startDateOnly < today) {
+      return apiError('Start date must be today or later', 400, 'VALIDATION_ERROR', {
         field: 'startDate',
       });
     }

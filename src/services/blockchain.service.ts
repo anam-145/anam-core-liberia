@@ -631,12 +631,14 @@ class BlockchainService {
    * Register event participant on LiberiaEvent contract
    * @param eventAddress - Deployed LiberiaEvent contract address
    * @param participantAddress - Participant wallet address
-   * @param signerPrivateKey - Private key with APPROVER or SYSTEM_ADMIN role on the event
+   * @param managerAddress - Address of the admin who registered the participant
+   * @param signerPrivateKey - Private key with SYSTEM_ADMIN_ROLE on the event (System Admin)
    * @returns Transaction hash
    */
   async registerEventParticipant(
     eventAddress: string,
     participantAddress: string,
+    managerAddress: string,
     signerPrivateKey: string,
   ): Promise<string> {
     this.initialize();
@@ -645,27 +647,33 @@ class BlockchainService {
       throw new Error('Blockchain service not initialized');
     }
 
-    if (!eventAddress || !participantAddress) {
-      throw new Error('Invalid event or participant address');
+    if (!eventAddress || !participantAddress || !managerAddress) {
+      throw new Error('Invalid event, participant, or manager address');
     }
 
     console.log('[Blockchain] registerEventParticipant called', {
       eventAddress,
       participantAddress,
+      managerAddress,
     });
 
     // Minimal ABI for LiberiaEvent participant registration
     // - 컨트랙트 전체 ABI 대신 필요한 함수만 정의해서 가볍게 사용
-    const EVENT_PARTICIPANT_ABI = ['function registerParticipant(address participant) external'];
+    // - v2: registerParticipants(address[] participants, address manager)
+    const EVENT_PARTICIPANT_ABI = ['function registerParticipants(address[] participants, address manager) external'];
 
     try {
       // 이벤트 컨트랙트에 직접 서명해서 트랜잭션 전송
       const signer = this.getSigner(signerPrivateKey);
       const contract = new Contract(eventAddress, EVENT_PARTICIPANT_ABI, signer);
 
+      const participants = [participantAddress];
+
       const tx = await (
-        contract as unknown as { registerParticipant: (addr: string) => Promise<TransactionResponse> }
-      ).registerParticipant(participantAddress);
+        contract as unknown as {
+          registerParticipants: (participants: string[], manager: string) => Promise<TransactionResponse>;
+        }
+      ).registerParticipants(participants, managerAddress);
       const receipt = await tx.wait();
       if (!receipt) {
         throw new Error('Transaction receipt is null');
@@ -675,6 +683,62 @@ class BlockchainService {
       console.error('[Blockchain] Failed to register event participant:', error);
       throw new Error(
         `Failed to register participant on event: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Record check-in on LiberiaEvent contract
+   * Calls verifyCheckIn(address participant, address verifier)
+   *
+   * @param eventAddress - Deployed LiberiaEvent contract address
+   * @param participantAddress - Participant wallet address
+   * @param verifierAddress - Verifier wallet address (SYSTEM_ADMIN or STAFF)
+   * @param signerPrivateKey - Private key with SYSTEM_ADMIN_ROLE on the event (System Admin)
+   * @returns Transaction hash
+   */
+  async verifyEventCheckIn(
+    eventAddress: string,
+    participantAddress: string,
+    verifierAddress: string,
+    signerPrivateKey: string,
+  ): Promise<string> {
+    this.initialize();
+
+    if (!this.provider) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    if (!eventAddress || !participantAddress || !verifierAddress) {
+      throw new Error('Invalid event, participant, or verifier address');
+    }
+
+    console.log('[Blockchain] verifyEventCheckIn called', {
+      eventAddress,
+      participantAddress,
+      verifierAddress,
+    });
+
+    const EVENT_CHECKIN_ABI = ['function verifyCheckIn(address participant, address verifier) external'];
+
+    try {
+      const signer = this.getSigner(signerPrivateKey);
+      const contract = new Contract(eventAddress, EVENT_CHECKIN_ABI, signer);
+
+      const tx = await (
+        contract as unknown as {
+          verifyCheckIn: (participant: string, verifier: string) => Promise<TransactionResponse>;
+        }
+      ).verifyCheckIn(participantAddress, verifierAddress);
+      const receipt = await tx.wait();
+      if (!receipt) {
+        throw new Error('Transaction receipt is null');
+      }
+      return tx.hash as string;
+    } catch (error) {
+      console.error('[Blockchain] Failed to record event check-in:', error);
+      throw new Error(
+        `Failed to record event check-in on blockchain: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
