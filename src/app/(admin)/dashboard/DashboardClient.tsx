@@ -35,7 +35,7 @@ export default function DashboardClient() {
         if (role === 'SYSTEM_ADMIN') {
           const res = await fetch('/api/admin/events', { cache: 'no-store' });
           const data = (await res.json().catch(() => ({}))) as { events?: ApiEvent[]; error?: string };
-          if (!res.ok) throw new Error((data as { error?: string })?.error || '이벤트를 불러오지 못했습니다');
+          if (!res.ok) throw new Error((data as { error?: string })?.error || 'Failed to load events');
           const list: ApiEvent[] = (data.events ?? [])
             .filter((e) => e.isActive) // ✅ isActive가 true인 이벤트만 표시
             .map((e) => ({
@@ -58,7 +58,7 @@ export default function DashboardClient() {
             assignedEventIds?: string[];
             error?: string;
           };
-          if (!res.ok) throw new Error(data?.error || '이벤트를 불러오지 못했습니다');
+          if (!res.ok) throw new Error(data?.error || 'Failed to load events');
 
           const staffList: ApiEvent[] = (data.events ?? [])
             .filter((e) => {
@@ -89,7 +89,7 @@ export default function DashboardClient() {
           if (!cancelled) setEvents([]);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : '이벤트를 불러오지 못했습니다');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load events');
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -110,9 +110,9 @@ export default function DashboardClient() {
 
   const getStatusLabel = (status: string) => {
     const map: Record<string, string> = {
-      PENDING: '예정',
-      ONGOING: '진행중',
-      COMPLETED: '완료',
+      PENDING: 'Pending',
+      ONGOING: 'Ongoing',
+      COMPLETED: 'Completed',
     };
     return map[status] || status;
   };
@@ -148,20 +148,20 @@ export default function DashboardClient() {
     }
   };
 
-  // 이벤트가 없을 때는 체크인과 동일한 빈 화면만 표시
+  // Show empty screen when there are no events (same as checkins page)
   if (!error && events.length === 0) {
     return (
       <div className="min-h-[calc(100vh-200px)] flex items-center justify-center p-4">
         <div className="w-full max-w-xl">
           <div className="card">
-            <div className="card__header">대시보드</div>
+            <div className="card__header">Dashboard</div>
             <div className="card__body">
               {isLoading ? (
-                <div className="text-center py-8 text-gray-500">이벤트 목록을 불러오는 중...</div>
+                <div className="text-center py-8 text-gray-500">Loading event list...</div>
               ) : (
                 <div className="text-center py-8">
-                  <div className="text-gray-500 mb-2">배정된 이벤트가 없습니다</div>
-                  <p className="text-sm text-gray-400">관리자가 이벤트에 배정하면 여기에 표시됩니다</p>
+                  <div className="text-gray-500 mb-2">No assigned events</div>
+                  <p className="text-sm text-gray-400">Events will appear here when assigned by admin</p>
                 </div>
               )}
             </div>
@@ -176,8 +176,8 @@ export default function DashboardClient() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">대시보드</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">진행중인 이벤트와 참가자 현황을 확인하세요</p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Dashboard</h1>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">View ongoing events and participant status</p>
           </div>
         </div>
       </div>
@@ -185,13 +185,13 @@ export default function DashboardClient() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="card">
           <div className="card__body">
-            <div className="text-sm text-[var(--muted)]">전체 이벤트</div>
+            <div className="text-sm text-[var(--muted)]">Total Events</div>
             <div className="text-2xl font-bold mt-1">{events.length}</div>
           </div>
         </div>
         <div className="card">
           <div className="card__body">
-            <div className="text-sm text-[var(--muted)]">진행중</div>
+            <div className="text-sm text-[var(--muted)]">Ongoing</div>
             <div className="text-2xl font-bold mt-1 text-green-600">
               {events.filter((e) => getDerivedStatus(e) === 'ONGOING').length}
             </div>
@@ -199,7 +199,7 @@ export default function DashboardClient() {
         </div>
         <div className="card">
           <div className="card__body">
-            <div className="text-sm text-[var(--muted)]">예정</div>
+            <div className="text-sm text-[var(--muted)]">Pending</div>
             <div className="text-2xl font-bold mt-1 text-yellow-600">
               {events.filter((e) => getDerivedStatus(e) === 'PENDING').length}
             </div>
@@ -207,7 +207,7 @@ export default function DashboardClient() {
         </div>
         <div className="card">
           <div className="card__body">
-            <div className="text-sm text-[var(--muted)]">완료</div>
+            <div className="text-sm text-[var(--muted)]">Completed</div>
             <div className="text-2xl font-bold mt-1 text-gray-600">
               {events.filter((e) => getDerivedStatus(e) === 'COMPLETED').length}
             </div>
@@ -248,28 +248,28 @@ export default function DashboardClient() {
 
                 <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                   <div>
-                    <div className="text-[var(--muted)]">일정</div>
+                    <div className="text-[var(--muted)]">Schedule</div>
                     <div className="font-medium mt-1">
                       {formatDate(event.startDate)} - {formatDate(event.endDate)}
                     </div>
                     <div className="text-xs text-[var(--muted)] mt-1">
-                      {calculateDays(event.startDate, event.endDate)}일간
+                      {calculateDays(event.startDate, event.endDate)} days
                     </div>
                   </div>
                   <div>
-                    <div className="text-[var(--muted)]">일일 수당</div>
+                    <div className="text-[var(--muted)]">Daily Allowance</div>
                     <div className="font-medium mt-1">${event.amountPerDay} USDC</div>
                     <div className="text-xs text-[var(--muted)] mt-1">
-                      총 ${Number(event.amountPerDay) * calculateDays(event.startDate, event.endDate)} USDC
+                      Total ${Number(event.amountPerDay) * calculateDays(event.startDate, event.endDate)} USDC
                     </div>
                   </div>
                 </div>
 
                 <div>
                   <div className="flex justify-between items-center mb-2 text-sm">
-                    <span className="text-[var(--muted)]">참가자</span>
+                    <span className="text-[var(--muted)]">Participants</span>
                     <span className="font-medium">
-                      {0} / {event.maxParticipants}명
+                      {0} / {event.maxParticipants}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -278,7 +278,7 @@ export default function DashboardClient() {
                       style={{ width: `${Math.round((0 / (event.maxParticipants || 1)) * 100)}%` }}
                     />
                   </div>
-                  <div className="text-xs text-[var(--muted)] mt-1">0% 등록</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">0% registered</div>
                 </div>
 
                 <div className="mt-4 pt-4 border-t">
@@ -290,7 +290,7 @@ export default function DashboardClient() {
                       router.push(`/dashboard/${event.eventId}`);
                     }}
                   >
-                    상세 보기 →
+                    View Details →
                   </Button>
                 </div>
               </div>

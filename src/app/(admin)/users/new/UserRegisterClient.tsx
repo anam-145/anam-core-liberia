@@ -7,21 +7,21 @@ import ProgressModal from '@/components/ui/ProgressModal';
 
 export default function UserRegisterClient() {
   const router = useRouter();
-  const [registrationType, setRegistrationType] = useState<string>('ANAMWALLET'); // 기본값: AnamWallet
+  const [registrationType, setRegistrationType] = useState<string>('ANAMWALLET'); // Default: AnamWallet
   const [showCameraModal, setShowCameraModal] = useState(false);
 
-  // 참가자 등록 폼 상태 (개발용 샘플 데이터 포함)
+  // Participant registration form state (includes sample data for development)
   const [formData, setFormData] = useState({
-    name: 'John Doe', // 샘플 이름
-    phoneNumber: '886123456', // 샘플 전화번호 (9자리)
-    email: 'john.doe@example.com', // 샘플 이메일
+    name: 'John Doe', // Sample name
+    phoneNumber: '886123456', // Sample phone number (9 digits)
+    email: 'john.doe@example.com', // Sample email
     nationality: 'Liberia',
-    gender: 'MALE', // 샘플 성별
-    dateOfBirth: '1990-01-15', // 샘플 생년월일
-    address: 'Monrovia, Montserrado County', // 샘플 주소
-    kycType: 'NIR', // 샘플 KYC 타입 (National ID Registry)
-    walletAddress: '0x089b5956c702Fc6654040f46666bFE383f9a7dF0', // 샘플 지갑 주소
-    password: '', // Paper Voucher 비밀번호
+    gender: 'MALE', // Sample gender
+    dateOfBirth: '1990-01-15', // Sample date of birth
+    address: 'Monrovia, Montserrado County', // Sample address
+    kycType: 'NIR', // Sample KYC type (National ID Registry)
+    walletAddress: '0x089b5956c702Fc6654040f46666bFE383f9a7dF0', // Sample wallet address
+    password: '', // Paper Voucher password
   });
 
   // File state
@@ -37,96 +37,96 @@ export default function UserRegisterClient() {
   const [progressMsg, setProgressMsg] = useState('');
   const [progressDone, setProgressDone] = useState(false);
 
-  // 폼 유효성 검사
+  // Form validation
   const validateForm = () => {
     const errors: Record<string, string> = {};
 
-    // 필수 필드 검사
+    // Required field validation
     if (!formData.name.trim()) {
-      errors.name = '이름을 입력해주세요';
+      errors.name = 'Please enter name';
     }
 
-    // 전화번호는 USSD 선택시에만 필수
+    // Phone number is required only for USSD
     if (registrationType === 'USSD' && !formData.phoneNumber.trim()) {
-      errors.phoneNumber = 'USSD 서비스를 위해 전화번호가 필요합니다';
+      errors.phoneNumber = 'Phone number is required for USSD service';
     }
 
-    // 전화번호 형식 검사 (입력된 경우) - 9자리 숫자만 허용
+    // Phone number format validation (if entered) - 9 digits only
     if (formData.phoneNumber && !/^\d{9}$/.test(formData.phoneNumber)) {
-      errors.phoneNumber = '전화번호는 9자리 숫자로 입력해주세요 (예: 886123456)';
+      errors.phoneNumber = 'Phone number must be 9 digits (e.g., 886123456)';
     }
 
-    // 이메일 형식 검사 (입력된 경우)
+    // Email format validation (if entered)
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = '올바른 이메일 형식이 아닙니다';
+      errors.email = 'Invalid email format';
     }
 
     if (!formData.nationality.trim()) {
-      errors.nationality = '국적을 입력해주세요';
+      errors.nationality = 'Please enter nationality';
     }
 
     if (!formData.gender) {
-      errors.gender = '성별을 선택해주세요';
+      errors.gender = 'Please select gender';
     }
 
     if (!formData.dateOfBirth) {
-      errors.dateOfBirth = '생년월일을 입력해주세요';
+      errors.dateOfBirth = 'Please enter date of birth';
     }
 
     if (!formData.kycType) {
-      errors.kycType = '신분증 유형을 선택해주세요';
+      errors.kycType = 'Please select ID type';
     }
 
     if (!registrationType) {
-      errors.registrationType = '지갑 유형을 선택해주세요';
+      errors.registrationType = 'Please select wallet type';
     }
 
-    // AnamWallet 선택시 지갑 주소 필수
+    // Wallet address is required for AnamWallet
     if (registrationType === 'ANAMWALLET' && !formData.walletAddress.trim()) {
-      errors.walletAddress = '지갑 주소를 입력해주세요';
+      errors.walletAddress = 'Please enter wallet address';
     }
 
-    // 지갑 주소 형식 검사 (0x로 시작하는 40자리 hex)
+    // Wallet address format validation (0x followed by 40 hex chars)
     if (formData.walletAddress && !/^0x[a-fA-F0-9]{40}$/.test(formData.walletAddress)) {
-      errors.walletAddress = '올바른 이더리움 주소 형식이 아닙니다';
+      errors.walletAddress = 'Invalid Ethereum address format';
     }
 
-    // Paper Voucher 선택시 비밀번호 필수
+    // Password is required for Paper Voucher
     if (registrationType === 'PAPERVOUCHER' && !formData.password.trim()) {
-      errors.password = '종이 바우처 생성을 위해 비밀번호가 필요합니다';
+      errors.password = 'Password is required for paper voucher generation';
     }
 
-    // 비밀번호 최소 길이 검사 (입력된 경우)
+    // Password minimum length validation (if entered)
     if (registrationType === 'PAPERVOUCHER' && formData.password && formData.password.length < 4) {
-      errors.password = '비밀번호는 최소 4자 이상이어야 합니다';
+      errors.password = 'Password must be at least 4 characters';
     }
 
-    // 파일 검증
+    // File validation
     if (!kycDocument) {
-      errors.kycDocument = '신분증 사본을 업로드해주세요';
+      errors.kycDocument = 'Please upload ID document';
     } else {
-      // 파일 타입 검증
+      // File type validation
       const allowedDocTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
       if (!allowedDocTypes.includes(kycDocument.type)) {
-        errors.kycDocument = 'PDF, JPG, PNG, HEIC, WebP 파일만 업로드 가능합니다';
+        errors.kycDocument = 'Only PDF, JPG, PNG, HEIC, WebP files are allowed';
       }
-      // 파일 크기 검증 (10MB)
+      // File size validation (10MB)
       if (kycDocument.size > 10 * 1024 * 1024) {
-        errors.kycDocument = '파일 크기는 10MB를 초과할 수 없습니다';
+        errors.kycDocument = 'File size cannot exceed 10MB';
       }
     }
 
     if (!kycFace) {
-      errors.kycFace = '얼굴 사진을 업로드해주세요';
+      errors.kycFace = 'Please upload face photo';
     } else {
-      // 파일 타입 검증 (이미지만)
+      // File type validation (images only)
       const allowedImageTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
       if (!allowedImageTypes.includes(kycFace.type)) {
-        errors.kycFace = 'JPG, PNG, HEIC, WebP 파일만 업로드 가능합니다';
+        errors.kycFace = 'Only JPG, PNG, HEIC, WebP files are allowed';
       }
-      // 파일 크기 검증 (10MB)
+      // File size validation (10MB)
       if (kycFace.size > 10 * 1024 * 1024) {
-        errors.kycFace = '파일 크기는 10MB를 초과할 수 없습니다';
+        errors.kycFace = 'File size cannot exceed 10MB';
       }
     }
 
@@ -134,35 +134,35 @@ export default function UserRegisterClient() {
     return Object.keys(errors).length === 0;
   };
 
-  // 폼 제출 처리
+  // Form submission processing
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
-      setError('필수 항목을 모두 입력해주세요');
+      setError('Please fill in all required fields');
       return;
     }
 
     setLoading(true);
     setError('');
 
-    // 등록 유형에 따른 Progress Modal 설정
+    // Set Progress Modal based on registration type
     setShowProgress(true);
     setProgressDone(false);
 
     if (registrationType === 'PAPERVOUCHER') {
-      setProgressMsg('사용자 지갑을 생성 중입니다. 잠시만 기다려 주세요...');
+      setProgressMsg('Creating user wallet. Please wait...');
     } else if (registrationType === 'USSD') {
-      setProgressMsg('USSD 사용자를 등록하고 있습니다...');
+      setProgressMsg('Registering USSD user...');
     } else {
-      setProgressMsg('AnamWallet 사용자를 등록하고 있습니다...');
+      setProgressMsg('Registering AnamWallet user...');
     }
 
     try {
-      // 전화번호가 있으면 +231 추가
+      // Add +231 country code if phone number exists
       const phoneWithCountryCode = formData.phoneNumber ? `+231${formData.phoneNumber}` : '';
 
-      // FormData 생성
+      // Create FormData
       const submitData = new FormData();
       submitData.append('name', formData.name.trim());
       if (phoneWithCountryCode) submitData.append('phoneNumber', phoneWithCountryCode);
@@ -176,11 +176,11 @@ export default function UserRegisterClient() {
       if (formData.password) submitData.append('password', formData.password);
       if (formData.kycType) submitData.append('kycType', formData.kycType);
 
-      // 파일 추가
+      // Add files
       if (kycDocument) submitData.append('kycDocument', kycDocument);
       if (kycFace) submitData.append('kycFace', kycFace);
 
-      // API 호출 (multipart/form-data는 자동으로 Content-Type 설정됨)
+      // API call (Content-Type is automatically set for multipart/form-data)
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         body: submitData,
@@ -190,57 +190,57 @@ export default function UserRegisterClient() {
 
       if (!res.ok) {
         if (res.status === 409) {
-          // 중복 에러 처리 - details.field로 구분
+          // Duplicate error handling - distinguish by details.field
           if (data?.details?.field === 'phoneNumber') {
-            setFieldErrors({ phoneNumber: data.error || '이미 등록된 전화번호입니다.' });
-            setError(data.error || '이미 등록된 전화번호입니다. 다른 번호를 사용해주세요.');
+            setFieldErrors({ phoneNumber: data.error || 'Phone number already registered.' });
+            setError(data.error || 'Phone number already registered. Please use a different number.');
           } else if (data?.details?.field === 'walletAddress') {
-            setFieldErrors({ walletAddress: data.error || '이미 등록된 지갑 주소입니다.' });
-            setError(data.error || '이미 등록된 지갑 주소입니다. 다른 주소를 사용해주세요.');
+            setFieldErrors({ walletAddress: data.error || 'Wallet address already registered.' });
+            setError(data.error || 'Wallet address already registered. Please use a different address.');
           } else {
-            // field 정보가 없으면 메시지로 구분
-            if (data?.error?.includes('전화번호')) {
+            // If no field info, distinguish by message
+            if (data?.error?.includes('phone')) {
               setFieldErrors({ phoneNumber: data.error });
-            } else if (data?.error?.includes('지갑 주소')) {
+            } else if (data?.error?.includes('wallet')) {
               setFieldErrors({ walletAddress: data.error });
             }
-            setError(data?.error || '중복된 정보가 있습니다. 입력 정보를 확인해주세요.');
+            setError(data?.error || 'Duplicate information found. Please check your input.');
           }
-          // 409 에러시 Modal 닫고 return
+          // Close Modal on 409 error and return
           setShowProgress(false);
           setProgressDone(false);
           setLoading(false);
           return;
         }
-        throw new Error(data?.error || '등록에 실패했습니다.');
+        throw new Error(data?.error || 'Registration failed.');
       }
 
-      // 성공 시 모든 경우에 대해 Modal로 처리
+      // Handle success with Modal for all cases
       if (registrationType === 'PAPERVOUCHER' && data?.qrData) {
-        // Paper Voucher: 상세 정보 표시
+        // Paper Voucher: Show detailed info
         setProgressMsg(
-          `사용자 지갑이 성공적으로 생성되었습니다!\n\n지갑 주소: ${data.qrData.address}\n\n 사용자 탭에서 바우처 발급이 가능합니다.`,
+          `User wallet successfully created!\n\nWallet Address: ${data.qrData.address}\n\nVoucher issuance is available from the Users tab.`,
         );
       } else if (data?.message) {
-        // 서버에서 제공한 메시지 사용
+        // Use server-provided message
         setProgressMsg(data.message);
       } else {
-        // 기본 성공 메시지
-        setProgressMsg('참가자가 성공적으로 등록되었습니다');
+        // Default success message
+        setProgressMsg('Participant successfully registered');
       }
 
       setProgressDone(true);
       setLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '등록에 실패했습니다');
-      // 에러 발생 시 Modal 닫기
+      setError(err instanceof Error ? err.message : 'Registration failed');
+      // Close Modal on error
       setShowProgress(false);
       setProgressDone(false);
       setLoading(false);
     }
   };
 
-  // 폼 초기화
+  // Form reset
   const resetForm = () => {
     setFormData({
       name: '',
@@ -263,20 +263,20 @@ export default function UserRegisterClient() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">사용자 등록</h1>
+      <h1 className="text-2xl font-bold mb-6">User Registration</h1>
 
       <form onSubmit={handleRegisterSubmit} className="bg-white rounded-lg shadow p-6">
         {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">{error}</div>}
 
         <div className="space-y-4">
-          {/* 필수 정보 */}
+          {/* Required Information */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">이름 *</label>
+              <label className="block text-sm font-medium mb-1">Name *</label>
               <input
                 type="text"
                 className="input w-full"
-                placeholder="예: Comfort Wleh"
+                placeholder="e.g., Comfort Wleh"
                 value={formData.name}
                 onChange={(e) => {
                   setFormData({ ...formData, name: e.target.value });
@@ -288,7 +288,7 @@ export default function UserRegisterClient() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                전화번호 {registrationType === 'USSD' ? '*' : ''}
+                Phone Number {registrationType === 'USSD' ? '*' : ''}
               </label>
               <div className="flex gap-2">
                 <select
@@ -320,10 +320,10 @@ export default function UserRegisterClient() {
             </div>
           </div>
 
-          {/* 선택 정보 */}
+          {/* Optional Information */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">이메일</label>
+              <label className="block text-sm font-medium mb-1">Email</label>
               <input
                 type="email"
                 className="input w-full"
@@ -337,7 +337,7 @@ export default function UserRegisterClient() {
               {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">국적 *</label>
+              <label className="block text-sm font-medium mb-1">Nationality *</label>
               <input
                 type="text"
                 className="input w-full"
@@ -354,7 +354,7 @@ export default function UserRegisterClient() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">성별 *</label>
+              <label className="block text-sm font-medium mb-1">Gender *</label>
               <select
                 className="input w-full"
                 value={formData.gender}
@@ -364,15 +364,15 @@ export default function UserRegisterClient() {
                 }}
                 required
               >
-                <option value="">선택하세요</option>
-                <option value="MALE">남성</option>
-                <option value="FEMALE">여성</option>
-                <option value="OTHER">기타</option>
+                <option value="">Select</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
               </select>
               {fieldErrors.gender && <p className="text-red-500 text-xs mt-1">{fieldErrors.gender}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">생년월일 *</label>
+              <label className="block text-sm font-medium mb-1">Date of Birth *</label>
               <input
                 type="date"
                 className="input w-full"
@@ -388,11 +388,11 @@ export default function UserRegisterClient() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">주소</label>
+            <label className="block text-sm font-medium mb-1">Address</label>
             <textarea
               className="input w-full"
               rows={2}
-              placeholder="예: Monrovia, Montserrado County"
+              placeholder="e.g., Monrovia, Montserrado County"
               value={formData.address}
               onChange={(e) => {
                 setFormData({ ...formData, address: e.target.value });
@@ -400,12 +400,12 @@ export default function UserRegisterClient() {
             ></textarea>
           </div>
 
-          {/* KYC 정보 */}
+          {/* KYC Information */}
           <div className="border-t pt-4">
-            <h3 className="font-medium mb-3">KYC 정보 *</h3>
+            <h3 className="font-medium mb-3">KYC Information *</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">신분증 유형 *</label>
+                <label className="block text-sm font-medium mb-1">ID Type *</label>
                 <select
                   className="input w-full"
                   value={formData.kycType}
@@ -415,7 +415,7 @@ export default function UserRegisterClient() {
                   }}
                   required
                 >
-                  <option value="">선택하세요</option>
+                  <option value="">Select</option>
                   <option value="NIR">National ID Registry</option>
                   <option value="PASSPORT">Passport</option>
                   <option value="BIRTH_CERT">Birth Certificate</option>
@@ -428,7 +428,7 @@ export default function UserRegisterClient() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">신분증 사본 *</label>
+                  <label className="block text-sm font-medium mb-1">ID Document Copy *</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
@@ -444,7 +444,7 @@ export default function UserRegisterClient() {
                     <button
                       type="button"
                       className="icon-btn h-11 w-11"
-                      aria-label="카메라 열기"
+                      aria-label="Open camera"
                       onClick={() => setShowCameraModal(true)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -453,14 +453,14 @@ export default function UserRegisterClient() {
                   </div>
                   {kycDocument && (
                     <p className="text-xs text-gray-600 mt-1">
-                      선택된 파일: {kycDocument.name} ({(kycDocument.size / 1024).toFixed(1)} KB)
+                      Selected file: {kycDocument.name} ({(kycDocument.size / 1024).toFixed(1)} KB)
                     </p>
                   )}
                   {fieldErrors.kycDocument && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycDocument}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">얼굴 사진 *</label>
+                  <label className="block text-sm font-medium mb-1">Face Photo *</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
@@ -476,7 +476,7 @@ export default function UserRegisterClient() {
                     <button
                       type="button"
                       className="icon-btn h-11 w-11"
-                      aria-label="카메라 열기"
+                      aria-label="Open camera"
                       onClick={() => setShowCameraModal(true)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -485,7 +485,7 @@ export default function UserRegisterClient() {
                   </div>
                   {kycFace && (
                     <p className="text-xs text-gray-600 mt-1">
-                      선택된 파일: {kycFace.name} ({(kycFace.size / 1024).toFixed(1)} KB)
+                      Selected file: {kycFace.name} ({(kycFace.size / 1024).toFixed(1)} KB)
                     </p>
                   )}
                   {fieldErrors.kycFace && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycFace}</p>}
@@ -494,9 +494,9 @@ export default function UserRegisterClient() {
             </div>
           </div>
 
-          {/* 지갑 유형 선택 */}
+          {/* Wallet Type Selection */}
           <div className="border-t pt-4">
-            <label className="block text-sm font-medium mb-1">최초 지갑 유형 *</label>
+            <label className="block text-sm font-medium mb-1">Initial Wallet Type *</label>
             <select
               className="input w-full"
               required
@@ -506,26 +506,26 @@ export default function UserRegisterClient() {
                 if (fieldErrors.registrationType) setFieldErrors({ ...fieldErrors, registrationType: '' });
               }}
             >
-              <option value="">선택하세요</option>
+              <option value="">Select</option>
               <option value="ANAMWALLET">AnamWallet</option>
               <option value="USSD">USSD</option>
-              <option value="PAPERVOUCHER">종이 바우처</option>
+              <option value="PAPERVOUCHER">Paper Voucher</option>
             </select>
             {fieldErrors.registrationType && (
               <p className="text-red-500 text-xs mt-1">{fieldErrors.registrationType}</p>
             )}
           </div>
 
-          {/* 지갑 주소 등록 - AnamWallet 선택시에만 표시 */}
+          {/* Wallet Address Registration - Only shown when AnamWallet is selected */}
           {registrationType === 'ANAMWALLET' && (
             <div className="pt-4">
               <label className="block text-sm font-medium mb-1">
-                지갑 주소 등록 <span className="text-red-500">*</span>
+                Wallet Address Registration <span className="text-red-500">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="0x로 시작하는 이더리움 주소를 입력하세요"
+                  placeholder="Enter Ethereum address starting with 0x"
                   className="input flex-1"
                   value={formData.walletAddress}
                   onChange={(e) => {
@@ -537,7 +537,7 @@ export default function UserRegisterClient() {
                 <button
                   type="button"
                   className="icon-btn h-11 w-11"
-                  aria-label="QR 스캔"
+                  aria-label="Scan QR"
                   onClick={() => setShowCameraModal(true)}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -545,19 +545,19 @@ export default function UserRegisterClient() {
                 </button>
               </div>
               {fieldErrors.walletAddress && <p className="text-red-500 text-xs mt-1">{fieldErrors.walletAddress}</p>}
-              <p className="text-xs text-gray-500 mt-1">AnamWallet 사용자는 지갑 주소를 등록해야합니다</p>
+              <p className="text-xs text-gray-500 mt-1">AnamWallet users must register wallet address</p>
             </div>
           )}
 
-          {/* 비밀번호 입력 - Paper Voucher 선택시에만 표시 */}
+          {/* Password Input - Only shown when Paper Voucher is selected */}
           {registrationType === 'PAPERVOUCHER' && (
             <div className="pt-4">
               <label className="block text-sm font-medium mb-1">
-                바우처 비밀번호 <span className="text-red-500">*</span>
+                Voucher Password <span className="text-red-500">*</span>
               </label>
               <input
                 type="password"
-                placeholder="최소 4자 이상의 비밀번호를 입력하세요"
+                placeholder="Enter password (minimum 4 characters)"
                 className="input w-full"
                 value={formData.password}
                 onChange={(e) => {
@@ -568,7 +568,7 @@ export default function UserRegisterClient() {
               />
               {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
               <p className="text-xs text-gray-500 mt-1">
-                종이 바우처 사용자를 위한 비밀번호입니다. 사용자에게 안전하게 전달해주세요.
+                Password for paper voucher users. Please deliver it securely to the user.
               </p>
             </div>
           )}
@@ -582,10 +582,10 @@ export default function UserRegisterClient() {
                 router.push('/users');
               }}
             >
-              취소
+              Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? '등록 중...' : '등록하기'}
+              {loading ? 'Registering...' : 'Register'}
             </Button>
           </div>
         </div>
@@ -595,15 +595,15 @@ export default function UserRegisterClient() {
       {showCameraModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-lg w-full p-6">
-            <h3 className="text-lg font-semibold mb-4">카메라</h3>
+            <h3 className="text-lg font-semibold mb-4">Camera</h3>
             <div className="h-64 bg-gray-100 rounded flex items-center justify-center mb-4">
-              <p className="text-gray-500">카메라 기능 (추후 구현)</p>
+              <p className="text-gray-500">Camera feature (to be implemented)</p>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowCameraModal(false)}>
-                닫기
+                Close
               </Button>
-              <Button onClick={() => setShowCameraModal(false)}>촬영</Button>
+              <Button onClick={() => setShowCameraModal(false)}>Capture</Button>
             </div>
           </div>
         </div>
@@ -612,10 +612,10 @@ export default function UserRegisterClient() {
       {/* Progress Modal for Registration */}
       <ProgressModal
         open={showProgress}
-        title={progressDone ? '등록 완료' : '등록 처리 중'}
+        title={progressDone ? 'Registration Complete' : 'Processing Registration'}
         message={progressMsg}
         done={progressDone}
-        confirmText="확인"
+        confirmText="Confirm"
         onConfirm={() => {
           setShowProgress(false);
           setProgressDone(false);

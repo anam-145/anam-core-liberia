@@ -27,14 +27,14 @@ export default function AdminSignupPage() {
 
     const fe: Record<string, string> = {};
     if (password !== confirmPassword) {
-      fe.confirmPassword = '비밀번호 확인이 일치하지 않습니다.';
+      fe.confirmPassword = 'Passwords do not match.';
     }
-    if (!username.trim()) fe.username = '아이디를 입력해 주세요.';
-    if (!fullName.trim()) fe.fullName = '이름을 입력해 주세요.';
-    if (!password) fe.password = '비밀번호를 입력해 주세요.';
+    if (!username.trim()) fe.username = 'Please enter username.';
+    if (!fullName.trim()) fe.fullName = 'Please enter full name.';
+    if (!password) fe.password = 'Please enter password.';
     if (Object.keys(fe).length > 0) {
       setFieldErrors(fe);
-      setError('입력값을 확인해 주세요.');
+      setError('Please check your input.');
       return;
     }
 
@@ -50,13 +50,13 @@ export default function AdminSignupPage() {
         const details = (data && data.details) || {};
         const serverFieldErrors = (details && (details.fieldErrors as Record<string, string>)) || {};
         setFieldErrors(serverFieldErrors);
-        setError(data.error || '신청에 실패했습니다');
+        setError(data.error || 'Application failed');
         return;
       }
-      setModalMsg('신청이 접수되었습니다. 관리자의 승인을 기다려 주세요.');
+      setModalMsg('Application submitted. Please wait for admin approval.');
       setShowModal(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '신청에 실패했습니다');
+      setError(err instanceof Error ? err.message : 'Application failed');
     } finally {
       setLoading(false);
     }
@@ -67,10 +67,10 @@ export default function AdminSignupPage() {
       <Card>
         <ProgressModal
           open={showModal}
-          title="신청 완료"
+          title="Application Complete"
           message={modalMsg}
           done
-          confirmText="확인"
+          confirmText="Confirm"
           onConfirm={() => {
             setShowModal(false);
             router.push('/login');
@@ -82,7 +82,7 @@ export default function AdminSignupPage() {
               <Logo size={36} />
               <div>
                 <div style={{ fontWeight: 800 }}>ANAM Admin</div>
-                <small style={{ color: 'var(--muted)' }}>신규 관리자 신청</small>
+                <small style={{ color: 'var(--muted)' }}>New Admin Application</small>
               </div>
             </div>
           </CardHeader>
@@ -103,7 +103,7 @@ export default function AdminSignupPage() {
                 </div>
               )}
               <Input
-                label="아이디"
+                label="Username"
                 placeholder="admin"
                 value={username}
                 onChange={(e) => {
@@ -115,8 +115,8 @@ export default function AdminSignupPage() {
               {fieldErrors.username && <div style={{ color: '#c33', fontSize: 12 }}>{fieldErrors.username}</div>}
 
               <Input
-                label="이름"
-                placeholder="홍길동"
+                label="Full Name"
+                placeholder="John Doe"
                 value={fullName}
                 onChange={(e) => {
                   setFullName(e.target.value);
@@ -127,7 +127,7 @@ export default function AdminSignupPage() {
               {fieldErrors.fullName && <div style={{ color: '#c33', fontSize: 12 }}>{fieldErrors.fullName}</div>}
 
               <Input
-                label="이메일(선택)"
+                label="Email (Optional)"
                 type="email"
                 placeholder="name@example.org"
                 value={email}
@@ -139,7 +139,7 @@ export default function AdminSignupPage() {
               {fieldErrors.email && <div style={{ color: '#c33', fontSize: 12 }}>{fieldErrors.email}</div>}
 
               <Input
-                label="비밀번호"
+                label="Password"
                 type="password"
                 placeholder="••••••••"
                 value={password}
@@ -152,7 +152,7 @@ export default function AdminSignupPage() {
               {fieldErrors.password && <div style={{ color: '#c33', fontSize: 12 }}>{fieldErrors.password}</div>}
 
               <Input
-                label="비밀번호 확인"
+                label="Confirm Password"
                 type="password"
                 placeholder="••••••••"
                 value={confirmPassword}
@@ -166,14 +166,15 @@ export default function AdminSignupPage() {
                 <div style={{ color: '#c33', fontSize: 12 }}>{fieldErrors.confirmPassword}</div>
               )}
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                신청이 승인되면 최초 로그인 시 지갑/DID/ADMIN VC 생성 및 Vault 보관(암호화) 절차가 진행됩니다.
+                Once approved, wallet/DID/ADMIN VC creation and encrypted vault storage will be completed on first
+                login.
               </div>
             </div>
           </CardBody>
           <CardFooter>
             <div style={{ display: 'flex', gap: 10, width: '100%' }}>
               <Button type="submit" style={{ width: '100%' }} disabled={loading}>
-                {loading ? '신청 중...' : '신청하기'}
+                {loading ? 'Submitting...' : 'Submit Application'}
               </Button>
             </div>
             <div style={{ marginTop: 10, textAlign: 'center' }}>
@@ -183,7 +184,7 @@ export default function AdminSignupPage() {
                 onClick={() => router.push('/login')}
                 style={{ fontSize: 13 }}
               >
-                로그인으로 돌아가기
+                Back to Login
               </button>
             </div>
           </CardFooter>

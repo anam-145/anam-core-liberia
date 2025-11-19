@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import ProgressModal from '@/components/ui/ProgressModal';
 
-// Simple Modal Component (참가자 등록 모달 래퍼)
+// Simple Modal Component (participant registration modal wrapper)
 interface SimpleModalProps {
   children: ReactNode;
   onClose: () => void;
@@ -53,7 +53,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   const [registerError, setRegisterError] = useState('');
   // Progress modal for long-running participant registration (on-chain + DB)
   const [progressOpen, setProgressOpen] = useState(false);
-  const [progressMsg, setProgressMsg] = useState('처리 중입니다...');
+  const [progressMsg, setProgressMsg] = useState('Processing...');
   const [progressDone, setProgressDone] = useState(false);
   const [eventInfo, setEventInfo] = useState<{
     name: string;
@@ -90,7 +90,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         });
     }
   }, [showRegisterModal, eventId]);
-  // 참가자 상세 모달 제거 (간소화)
+  // Participant detail modal removed (simplified)
 
   // Load event info (name, dates, daily DSA, current day)
   useEffect(() => {
@@ -217,8 +217,6 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     totalDisbursed: 0,
   };
 
-  // Attendance visualization demo states
-
   // Participants list (no additional filtering for now)
   const filteredParticipants = participants;
 
@@ -226,21 +224,21 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     <div className="max-w-screen-2xl mx-auto">
       <ProgressModal
         open={progressOpen}
-        title={progressDone ? '완료' : '참가자를 등록하고 있습니다'}
+        title={progressDone ? 'Completed' : 'Registering participant'}
         message={progressMsg}
         done={progressDone}
-        confirmText="확인"
+        confirmText="OK"
         onConfirm={() => {
           setProgressOpen(false);
           setProgressDone(false);
-          setProgressMsg('처리 중입니다...');
+          setProgressMsg('Processing...');
         }}
       />
       {/* Back Button */}
       {onBack && (
         <div className="mb-4">
           <Button variant="secondary" onClick={onBack}>
-            ← 대시보드로 돌아가기
+            ← Back to dashboard
           </Button>
         </div>
       )}
@@ -254,14 +252,13 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               <span>
                 {eventInfo.startDate} ~ {eventInfo.endDate}
               </span>
-              <span>{stats.total} 참가자</span>
+              <span>{stats.total} participants</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">
               <span className="text-sm">Day {eventInfo.currentDay}</span>
             </div>
-            {/* 헤더 우측의 QR 스캔 버튼 제거 (하단 툴바에 이미 존재) */}
           </div>
         </div>
       </div>
@@ -269,14 +266,14 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
       {/* DSA Info */}
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-5 mb-6 flex items-center gap-4">
         <div className="flex-1">
-          <h3 className="font-semibold text-green-900">일일 체재비(DSA) 시스템 활성화</h3>
+          <h3 className="font-semibold text-green-900">Daily Subsistence Allowance (DSA) System</h3>
           <p className="text-sm text-green-700 mt-1">
-            참가자는 QR 체크인 확인 후 DSA를 받습니다. 지급은 관리자 승인이 필요합니다.
+            Participants receive DSA after QR check-in verification. Payments require admin approval.
           </p>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-green-900">${eventInfo.dailyDsa} USDC</div>
-          <div className="text-xs text-green-700">일일 지급액</div>
+          <div className="text-xs text-green-700">Daily amount</div>
         </div>
       </div>
 
@@ -284,19 +281,19 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="card">
           <div className="card__body">
-            <div className="text-sm text-[var(--muted)]">전체 참가자</div>
+            <div className="text-sm text-[var(--muted)]">Total participants</div>
             <div className="text-2xl font-bold mt-1">{stats.total}</div>
           </div>
         </div>
         <div className="card">
           <div className="card__body">
-            <div className="text-sm text-[var(--muted)]">오늘 출석</div>
+            <div className="text-sm text-[var(--muted)]">Present today</div>
             <div className="text-2xl font-bold mt-1 text-green-600">{stats.present}</div>
           </div>
         </div>
         <div className="card border-yellow-200 bg-yellow-50">
           <div className="card__body">
-            <div className="text-sm text-yellow-700">DSA 승인 대기</div>
+            <div className="text-sm text-yellow-700">DSA awaiting approval</div>
             <div className="text-2xl font-bold mt-1 text-yellow-700">{stats.awaiting}</div>
           </div>
         </div>
@@ -306,8 +303,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
       <div className="bg-white rounded-xl border mb-6">
         <div className="flex border-b overflow-x-auto">
           {[
-            { key: 'participants', label: '참가자 관리' },
-            { key: 'payment', label: 'DSA 지급' },
+            { key: 'participants', label: 'Participants' },
+            { key: 'payment', label: 'DSA Payments' },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -329,25 +326,29 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
             <div>
               {/* Header (title + action) */}
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
-                <h3 className="text-lg font-semibold">총 {participants.length}명 참가자</h3>
+                <h3 className="text-lg font-semibold">Total participants: {participants.length}</h3>
                 <div className="flex gap-2">
-                  <Button onClick={() => setShowRegisterModal(true)}>참가자 등록</Button>
+                  <Button onClick={() => setShowRegisterModal(true)}>Add participant</Button>
                 </div>
               </div>
 
-              {/* 검색창 제거됨 */}
+              {/* Search field removed */}
 
-              {/* Participants Table (참가자 관리: 출석 날짜/총 DSA만 표시) */}
+              {/* Participants Table (participant management: shows basic registration info) */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">참가자</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">참가자 DID</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Participant</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
-                        등록 관리자 DID
+                        Participant DID
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">등록일시</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
+                        Registering admin DID
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
+                        Registration time
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -382,43 +383,43 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               {/* Date Selection */}
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-4">
-                  <h3 className="text-lg font-semibold">DSA 지급 관리</h3>
+                  <h3 className="text-lg font-semibold">DSA Payments</h3>
                   <select className="border border-gray-300 rounded-md px-3 py-1 text-sm">
                     <option value="2025-01-25">Day 1 - 2025-01-25</option>
                     <option value="2025-01-26">Day 2 - 2025-01-26</option>
                     <option value="2025-01-27" selected>
-                      Day 3 - 2025-01-27 (오늘)
+                      Day 3 - 2025-01-27 (today)
                     </option>
                     <option value="2025-01-28">Day 4 - 2025-01-28</option>
                     <option value="2025-01-29">Day 5 - 2025-01-29</option>
                   </select>
                 </div>
-                {/* 일일 지급액 표시 제거 */}
+                {/* Daily amount display intentionally omitted */}
               </div>
 
               {/* Daily Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="card">
                   <div className="card__body">
-                    <div className="text-xs text-gray-600">체크인 완료</div>
-                    <div className="text-xl font-bold">{stats.present}명</div>
+                    <div className="text-xs text-gray-600">Checked in</div>
+                    <div className="text-xl font-bold">{stats.present}</div>
                   </div>
                 </div>
                 <div className="card">
                   <div className="card__body">
-                    <div className="text-xs text-gray-600">승인 대기</div>
-                    <div className="text-xl font-bold text-yellow-600">{stats.awaiting}명</div>
+                    <div className="text-xs text-gray-600">Awaiting approval</div>
+                    <div className="text-xl font-bold text-yellow-600">{stats.awaiting}</div>
                   </div>
                 </div>
                 <div className="card">
                   <div className="card__body">
-                    <div className="text-xs text-gray-600">지급 완료</div>
-                    <div className="text-xl font-bold text-green-600">{stats.paid}명</div>
+                    <div className="text-xs text-gray-600">Paid</div>
+                    <div className="text-xl font-bold text-green-600">{stats.paid}</div>
                   </div>
                 </div>
                 <div className="card">
                   <div className="card__body">
-                    <div className="text-xs text-gray-600">총 지급액</div>
+                    <div className="text-xs text-gray-600">Total amount</div>
                     <div className="text-xl font-bold">${stats.totalDisbursed}</div>
                   </div>
                 </div>
@@ -427,19 +428,19 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               {/* Payment List */}
               <div className="card">
                 <div className="card__header flex justify-between items-center">
-                  <h4 className="font-medium">지급 대상자 목록</h4>
+                  <h4 className="font-medium">Payment candidates</h4>
                 </div>
                 <div className="card__body">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="text-left px-3 py-2">참가자</th>
-                          <th className="text-left px-3 py-2">체크인 시간</th>
-                          <th className="text-left px-3 py-2">사용자 상태</th>
-                          <th className="text-left px-3 py-2">VC 상태</th>
-                          <th className="text-left px-3 py-2">지급 상태</th>
-                          <th className="text-left px-3 py-2">액션</th>
+                          <th className="text-left px-3 py-2">Participant</th>
+                          <th className="text-left px-3 py-2">Check-in time</th>
+                          <th className="text-left px-3 py-2">User status</th>
+                          <th className="text-left px-3 py-2">VC status</th>
+                          <th className="text-left px-3 py-2">Payment status</th>
+                          <th className="text-left px-3 py-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -456,7 +457,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                                   participant.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                                 }`}
                               >
-                                {participant.isActive ? '활성' : '비활성'}
+                                {participant.isActive ? 'Active' : 'Inactive'}
                               </span>
                             </td>
                             <td className="px-3 py-2">
@@ -484,7 +485,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         </div>
       </div>
 
-      {/* Register Modal (UI only) — 스태프 모달과 동일 카드 레이아웃 */}
+      {/* Register Modal (UI only) — same card layout as staff modal */}
       {showRegisterModal && (
         <SimpleModal
           onClose={() => {
@@ -496,20 +497,20 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
           className="max-w-xl"
         >
           <div className="card w-full max-w-xl mx-auto">
-            <div className="card__header">참가자 이벤트 등록</div>
+            <div className="card__header">Register participant to event</div>
             <div className="card__body">
               <div className="grid gap-4">
                 <div>
                   <Input
                     type="text"
-                    label="사용자 검색"
-                    placeholder="이름, 아이디, 이메일"
+                    label="Search users"
+                    placeholder="Name, ID, email"
                     value={addUserQuery}
                     onChange={(e) => setAddUserQuery(e.target.value)}
                   />
                   <div className="mt-3 space-y-2 max-h-72 overflow-auto">
                     {isLoadingUsers ? (
-                      <div className="text-center py-4 text-[var(--muted)]">사용자 목록을 불러오는 중...</div>
+                      <div className="text-center py-4 text-[var(--muted)]">Loading user list...</div>
                     ) : (
                       (() => {
                         const q = addUserQuery.trim().toLowerCase();
@@ -521,8 +522,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                           return (
                             <div className="text-[12px] text-[var(--muted)]">
                               {userList.length === 0
-                                ? '등록 가능한 사용자가 없습니다. (모두 이미 등록되었거나 비활성 상태입니다)'
-                                : '검색 결과가 없습니다.'}
+                                ? 'No more users can be registered. (All are already registered or inactive)'
+                                : 'No search results.'}
                             </div>
                           );
                         }
@@ -541,7 +542,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                             >
                               <div>
                                 <div className="font-medium">{u.name}</div>
-                                <div className="text-[12px] text-[var(--muted)]">{u.email || '이메일 없음'}</div>
+                                <div className="text-[12px] text-[var(--muted)]">{u.email || 'No email'}</div>
                               </div>
                               <input
                                 type="radio"
@@ -562,7 +563,9 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                     {registerError}
                   </div>
                 )}
-                <div className="text-sm text-[var(--muted)]">💡 선택한 사용자는 이 이벤트에 등록됩니다.</div>
+                <div className="text-sm text-[var(--muted)]">
+                  💡 The selected user will be registered to this event.
+                </div>
               </div>
             </div>
             <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -576,19 +579,19 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                 }}
                 disabled={registering}
               >
-                취소
+                Cancel
               </Button>
               <Button
                 disabled={!selectedUserId || registering}
                 onClick={async () => {
                   if (!selectedUserId) return;
-                  // 선택된 사용자를 이벤트 참가자로 등록하는 API 호출
-                  // - 온체인 등록 + DB 기록까지 한 번에 수행
+                  // Call API to register the selected user as an event participant
+                  // - Performs on-chain registration + DB persistence in a single flow
                   setRegisterError('');
                   setRegistering(true);
-                  // 선택 모달은 닫고, 진행 모달을 띄워 블록체인 상호작용 상태를 보여줌
+                  // Close selection modal and show progress modal while interacting with the blockchain
                   setShowRegisterModal(false);
-                  setProgressMsg('참가자를 이벤트에 등록 중입니다. 잠시만 기다려 주세요...');
+                  setProgressMsg('Registering participant to event. Please wait...');
                   setProgressDone(false);
                   setProgressOpen(true);
                   try {
@@ -603,13 +606,13 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok) {
-                      const msg = (data as { error?: string })?.error || '참가자 등록에 실패했습니다.';
+                      const msg = (data as { error?: string })?.error || 'Failed to register participant.';
                       setRegisterError(msg);
                       console.error('[EventDetailClient] Participant registration failed', {
                         status: res.status,
                         error: msg,
                       });
-                      // 에러가 난 경우 진행 모달을 닫고, 다시 선택 모달을 열어 에러 메시지를 보여줌
+                      // On error, close progress modal and reopen selection modal to show the error message
                       setProgressOpen(false);
                       setShowRegisterModal(true);
                       return;
@@ -620,20 +623,20 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                       participant: (data as { participant?: unknown }).participant,
                       onChainTxHash: (data as { onChainTxHash?: string }).onChainTxHash,
                     });
-                    // 성공 시 진행 모달에서 완료 상태로 전환
-                    setProgressMsg('참가자 등록이 완료되었습니다.');
+                    // On success, switch the progress modal to the completed state
+                    setProgressMsg('Participant registration completed.');
                     setProgressDone(true);
                     setSelectedUserId('');
                     setAddUserQuery('');
                   } catch (e) {
-                    setRegisterError(e instanceof Error ? e.message : '참가자 등록에 실패했습니다.');
+                    setRegisterError(e instanceof Error ? e.message : 'Failed to register participant.');
                     console.error('[EventDetailClient] Participant registration error', e);
                   } finally {
                     setRegistering(false);
                   }
                 }}
               >
-                {registering ? '등록 중...' : '등록'}
+                {registering ? 'Registering...' : 'Register'}
               </Button>
             </div>
           </div>

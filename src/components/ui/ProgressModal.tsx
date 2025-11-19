@@ -16,7 +16,7 @@ export default function ProgressModal({
   title,
   message,
   done = false,
-  confirmText = '확인',
+  confirmText = 'Confirm',
   onConfirm,
 }: ProgressModalProps) {
   if (!open) return null;
@@ -45,11 +45,9 @@ export default function ProgressModal({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>{title || '처리 중입니다'}</div>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{title || 'Processing'}</div>
         </div>
-        <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
-          {message || '잠시만 기다려 주세요...'}
-        </div>
+        <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>{message || 'Please wait...'}</div>
         {!done ? (
           <div style={{ height: 54, display: 'grid', placeItems: 'center' }}>
             <Bouncer />

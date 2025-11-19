@@ -51,7 +51,7 @@ export default function ClientPage({ params }: Props) {
   const [eventActive, setEventActive] = useState<boolean | null>(null);
   // Progress modal for long-running assign/revoke actions
   const [progressOpen, setProgressOpen] = useState(false);
-  const [progressMsg, setProgressMsg] = useState('처리 중입니다...');
+  const [progressMsg, setProgressMsg] = useState('Processing...');
   const [progressDone, setProgressDone] = useState(false);
 
   // ESC to close modal
@@ -154,13 +154,13 @@ export default function ClientPage({ params }: Props) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setActivateError(true);
-        throw new Error(data?.error || (nextActive ? '활성화에 실패했습니다' : '비활성화에 실패했습니다'));
+        throw new Error(data?.error || (nextActive ? 'Failed to activate event' : 'Failed to deactivate event'));
       }
       setActivateError(false);
-      setActivateMsg(nextActive ? '이벤트가 활성화되었습니다.' : '이벤트가 비활성화되었습니다.');
+      setActivateMsg(nextActive ? 'Event has been activated.' : 'Event has been deactivated.');
       setEventActive(nextActive);
     } catch (e) {
-      setActivateMsg(e instanceof Error ? e.message : '활성화에 실패했습니다');
+      setActivateMsg(e instanceof Error ? e.message : 'Failed to update event status');
     } finally {
       setActivating(false);
     }
@@ -178,7 +178,7 @@ export default function ClientPage({ params }: Props) {
         ]);
         if (!staffRes.ok) {
           const data = await staffRes.json().catch(() => ({}));
-          throw new Error(data?.error || '스태프 목록을 불러오지 못했습니다');
+          throw new Error(data?.error || 'Failed to load staff list');
         }
         const staffData = (await staffRes.json()) as {
           staff: Array<{ adminId: string; eventRole: 'APPROVER' | 'VERIFIER'; assignedAt: string }>;
@@ -202,21 +202,21 @@ export default function ClientPage({ params }: Props) {
         });
         setStaffRows(merged);
       } catch (e) {
-        setStaffError(e instanceof Error ? e.message : '오류가 발생했습니다');
+        setStaffError(e instanceof Error ? e.message : 'An error occurred while loading staff');
       }
     })();
   }, [tab, eventId]);
 
-  // (역할 변경 UI 제거됨)
+  // (Role change UI removed)
 
   return (
     <div className="max-w-screen-2xl mx-auto">
       <ProgressModal
         open={progressOpen}
-        title={progressDone ? '완료' : '처리 중입니다'}
+        title={progressDone ? 'Completed' : 'Processing'}
         message={progressMsg}
         done={progressDone}
-        confirmText="확인"
+        confirmText="OK"
         onConfirm={() => {
           setProgressOpen(false);
           setProgressDone(false);
@@ -240,7 +240,7 @@ export default function ClientPage({ params }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <Link href="/events">
-              <Button variant="secondary">목록으로</Button>
+              <Button variant="secondary">Back to list</Button>
             </Link>
           </div>
         </div>
@@ -252,11 +252,11 @@ export default function ClientPage({ params }: Props) {
           <div className="flex gap-2 overflow-auto">
             {(
               [
-                ['overview', '개요'],
-                ['staff', '관리자'],
-                ['participants', '참가자'],
-                ['checkins', '체크인'],
-                ['payments', '지급'],
+                ['overview', 'Overview'],
+                ['staff', 'Staff'],
+                ['participants', 'Participants'],
+                ['checkins', 'Check-ins'],
+                ['payments', 'Payments'],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -278,16 +278,16 @@ export default function ClientPage({ params }: Props) {
           {/* Left: Basic details */}
           <div className="lg:col-span-2 grid grid-cols-1 gap-4">
             <div className="card">
-              <div className="card__header">세부 정보</div>
+              <div className="card__header">Details</div>
               <div className="card__body">
                 <div className="space-y-3 text-sm text-[var(--muted)]">
-                  <div>이벤트 ID: {event.eventId}</div>
+                  <div>Event ID: {event.eventId}</div>
                   <div>
-                    기간: {formatDate(event.startDate)} ~ {formatDate(event.endDate)}
+                    Period: {formatDate(event.startDate)} ~ {formatDate(event.endDate)}
                   </div>
-                  <div>생성일: {formatDate(event.createdAt)}</div>
+                  <div>Created At: {formatDate(event.createdAt)}</div>
                   <div>
-                    내용:{' '}
+                    Description:{' '}
                     {event.description ? (
                       <span className="text-[var(--text)]">{event.description}</span>
                     ) : (
@@ -298,15 +298,15 @@ export default function ClientPage({ params }: Props) {
               </div>
             </div>
 
-            {/* 역할/권한 표 */}
+            {/* Roles/permissions table */}
             <div className="card">
-              <div className="card__header">역할/권한</div>
+              <div className="card__header">Roles & Permissions</div>
               <div className="card__body">
                 <div className="overflow-x-auto">
                   <table className="table min-w-[680px]">
                     <thead>
                       <tr>
-                        <th>기능</th>
+                        <th>Function</th>
                         <th>System Admin</th>
                         <th>Approver</th>
                         <th>Verifier</th>
@@ -314,27 +314,27 @@ export default function ClientPage({ params }: Props) {
                     </thead>
                     <tbody>
                       <tr>
-                        <td>이벤트 생성/수정/활성화/비활성/배정/해제</td>
-                        <td>✓ 허용</td>
+                        <td>Create/modify/activate/deactivate/assign/unassign event</td>
+                        <td>✓ Allowed</td>
                         <td>-</td>
                         <td>-</td>
                       </tr>
                       <tr>
-                        <td>참가자 등록</td>
-                        <td>✓ 허용</td>
-                        <td>✓ 허용</td>
-                        <td>✓ 허용</td>
+                        <td>Register participants</td>
+                        <td>✓ Allowed</td>
+                        <td>✓ Allowed</td>
+                        <td>✓ Allowed</td>
                       </tr>
                       <tr>
-                        <td>체크인 (1차 승인)</td>
-                        <td>✓ 허용</td>
-                        <td>✓ 허용</td>
-                        <td>✓ 허용</td>
+                        <td>Check-ins (1st approval)</td>
+                        <td>✓ Allowed</td>
+                        <td>✓ Allowed</td>
+                        <td>✓ Allowed</td>
                       </tr>
                       <tr>
-                        <td>지급 승인 (2차 승인)</td>
-                        <td>✓ 허용</td>
-                        <td>✓ 허용</td>
+                        <td>Payment approval (2nd approval)</td>
+                        <td>✓ Allowed</td>
+                        <td>✓ Allowed</td>
                         <td>-</td>
                       </tr>
                     </tbody>
@@ -347,33 +347,33 @@ export default function ClientPage({ params }: Props) {
           {/* Right: Admin registration & activation (Skeleton UI only) */}
           <div className="grid grid-cols-1 gap-4">
             <div className="card">
-              <div className="card__header">관리자 등록</div>
+              <div className="card__header">Assign staff</div>
               <div className="card__body">
                 <p className="text-sm text-[var(--muted)] mb-3">
-                  이 이벤트에 배정 가능한 관리자를 선택하고 역할을 지정할 수 있습니다.
+                  Select admins who can be assigned to this event and configure their roles.
                 </p>
                 <div className="flex gap-2">
-                  <Button onClick={() => setShowAddStaff(true)}>관리자 등록</Button>
+                  <Button onClick={() => setShowAddStaff(true)}>Add staff</Button>
                 </div>
               </div>
             </div>
             <div className="card">
-              <div className="card__header">이벤트 활성화</div>
+              <div className="card__header">Event activation</div>
               <div className="card__body">
                 <div className="text-sm text-[var(--muted)] mb-2">
-                  현재 상태: <strong>{eventActive === null ? '-' : eventActive ? '활성' : '비활성'}</strong>
+                  Current status: <strong>{eventActive === null ? '-' : eventActive ? 'Active' : 'Inactive'}</strong>
                 </div>
                 <div className="text-[12px] text-[var(--muted)] space-y-1">
-                  <div>이 이벤트를 활성화하려면 최소 1명의 Approver가 배정되어 있어야 합니다.</div>
+                  <div>At least one Approver must be assigned before this event can be activated.</div>
                 </div>
                 <div className="flex gap-2 mt-3 items-center">
                   {eventActive ? (
                     <Button disabled={activating} onClick={() => handleToggleEvent(false)}>
-                      {activating ? '비활성화 중...' : '이벤트 비활성화'}
+                      {activating ? 'Deactivating...' : 'Deactivate event'}
                     </Button>
                   ) : (
                     <Button disabled={!hasApprover || activating} onClick={() => handleToggleEvent(true)}>
-                      {activating ? '활성화 중...' : '이벤트 활성화'}
+                      {activating ? 'Activating...' : 'Activate event'}
                     </Button>
                   )}
                 </div>
@@ -383,9 +383,7 @@ export default function ClientPage({ params }: Props) {
                   </div>
                 )}
                 {!hasApprover && !eventActive && (
-                  <div className="text-[12px] text-red-600 mt-2">
-                    Approver가 1명 이상 배정되어야 활성화할 수 있습니다.
-                  </div>
+                  <div className="text-[12px] text-red-600 mt-2">At least one Approver is required to activate.</div>
                 )}
               </div>
             </div>
@@ -396,7 +394,7 @@ export default function ClientPage({ params }: Props) {
       {tab === 'staff' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">관리자</h2>
+            <h2 className="text-lg font-semibold">Staff</h2>
           </div>
           {staffError && (
             <div className="text-[13px] p-3 rounded-lg border border-red-200 bg-red-50 text-red-700">{staffError}</div>
@@ -405,17 +403,17 @@ export default function ClientPage({ params }: Props) {
             <table className="table min-w-[720px]">
               <thead>
                 <tr>
-                  <th>관리자</th>
-                  <th>역할</th>
-                  <th>할당일</th>
-                  <th>액션</th>
+                  <th>Admin</th>
+                  <th>Role</th>
+                  <th>Assigned At</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {staffRows.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="text-center text-[var(--muted)]">
-                      등록된 관리자가 없습니다.
+                      No staff assigned yet.
                     </td>
                   </tr>
                 ) : (
@@ -439,7 +437,7 @@ export default function ClientPage({ params }: Props) {
                             size="sm"
                             onClick={async () => {
                               // Progress modal during on-chain revoke
-                              setProgressMsg('관리자 배정 해제 중입니다. 잠시만 기다려 주세요...');
+                              setProgressMsg('Removing staff assignment. Please wait...');
                               setProgressDone(false);
                               setProgressOpen(true);
                               setStaffRows((list) =>
@@ -450,12 +448,14 @@ export default function ClientPage({ params }: Props) {
                                   method: 'DELETE',
                                 });
                                 const data = await res.json().catch(() => ({}));
-                                if (!res.ok) throw new Error(data?.error || '배정 해제에 실패했습니다.');
+                                if (!res.ok) throw new Error(data?.error || 'Failed to remove assignment.');
                                 setStaffRows((list) => list.filter((x) => x.adminId !== r.adminId));
-                                setProgressMsg('관리자 배정 해제가 완료되었습니다.');
+                                setProgressMsg('Staff assignment removal completed.');
                                 setProgressDone(true);
                               } catch (e) {
-                                setStaffError(e instanceof Error ? e.message : '오류가 발생했습니다');
+                                setStaffError(
+                                  e instanceof Error ? e.message : 'An error occurred while updating staff',
+                                );
                                 setStaffRows((list) =>
                                   list.map((x) => (x.adminId === r.adminId ? { ...x, updating: false } : x)),
                                 );
@@ -464,7 +464,7 @@ export default function ClientPage({ params }: Props) {
                             }}
                             disabled={r.updating}
                           >
-                            배정 해제
+                            Remove assignment
                           </Button>
                         </div>
                       </td>
@@ -477,7 +477,7 @@ export default function ClientPage({ params }: Props) {
           <div className="lg:hidden space-y-3">
             {staffRows.length === 0 ? (
               <div className="card">
-                <div className="card__body text-center text-[var(--muted)]">등록된 관리자가 없습니다.</div>
+                <div className="card__body text-center text-[var(--muted)]">No staff assigned yet.</div>
               </div>
             ) : (
               staffRows.map((r) => (
@@ -488,13 +488,13 @@ export default function ClientPage({ params }: Props) {
                       {r.username}
                       {r.email ? ` · ${r.email}` : ''}
                     </div>
-                    <div className="text-[12px]">역할: {r.eventRole}</div>
+                    <div className="text-[12px]">Role: {r.eventRole}</div>
                     <div>
                       <Button
                         variant="secondary"
                         size="sm"
                         onClick={async () => {
-                          setProgressMsg('관리자 배정 해제 중입니다. 잠시만 기다려 주세요...');
+                          setProgressMsg('Removing staff assignment. Please wait...');
                           setProgressDone(false);
                           setProgressOpen(true);
                           setStaffRows((list) =>
@@ -505,12 +505,12 @@ export default function ClientPage({ params }: Props) {
                               method: 'DELETE',
                             });
                             const data = await res.json().catch(() => ({}));
-                            if (!res.ok) throw new Error(data?.error || '배정 해제에 실패했습니다.');
+                            if (!res.ok) throw new Error(data?.error || 'Failed to remove assignment.');
                             setStaffRows((list) => list.filter((x) => x.adminId !== r.adminId));
-                            setProgressMsg('관리자 배정 해제가 완료되었습니다.');
+                            setProgressMsg('Staff assignment removal completed.');
                             setProgressDone(true);
                           } catch (e) {
-                            setStaffError(e instanceof Error ? e.message : '오류가 발생했습니다');
+                            setStaffError(e instanceof Error ? e.message : 'An error occurred while updating staff');
                             setStaffRows((list) =>
                               list.map((x) => (x.adminId === r.adminId ? { ...x, updating: false } : x)),
                             );
@@ -519,7 +519,7 @@ export default function ClientPage({ params }: Props) {
                         }}
                         disabled={r.updating}
                       >
-                        배정 해제
+                        Remove assignment
                       </Button>
                     </div>
                   </div>
@@ -533,17 +533,17 @@ export default function ClientPage({ params }: Props) {
       {tab === 'participants' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">참가자</h2>
+            <h2 className="text-lg font-semibold">Participants</h2>
           </div>
           <div className="hidden lg:block overflow-x-auto">
             <table className="table min-w-[820px]">
               <thead>
                 <tr>
-                  <th>이름</th>
-                  <th>지갑/DID</th>
+                  <th>Name</th>
+                  <th>Wallet/DID</th>
                   <th>KYC</th>
-                  <th>상태</th>
-                  <th>액션</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -590,16 +590,16 @@ export default function ClientPage({ params }: Props) {
       {tab === 'checkins' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">체크인</h2>
+            <h2 className="text-lg font-semibold">Check-ins</h2>
           </div>
           <div className="hidden lg:block overflow-x-auto">
             <table className="table min-w-[820px]">
               <thead>
                 <tr>
-                  <th>시간</th>
-                  <th>참가자</th>
-                  <th>확인자</th>
-                  <th>방법</th>
+                  <th>Time</th>
+                  <th>Participant</th>
+                  <th>Verifier</th>
+                  <th>Method</th>
                 </tr>
               </thead>
               <tbody>
@@ -640,16 +640,16 @@ export default function ClientPage({ params }: Props) {
       {tab === 'payments' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">지급</h2>
+            <h2 className="text-lg font-semibold">Payments</h2>
           </div>
           <div className="hidden lg:block overflow-x-auto">
             <table className="table min-w-[820px]">
               <thead>
                 <tr>
-                  <th>시간</th>
-                  <th>참가자</th>
-                  <th>승인자</th>
-                  <th>금액</th>
+                  <th>Time</th>
+                  <th>Participant</th>
+                  <th>Approver</th>
+                  <th>Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -698,7 +698,7 @@ export default function ClientPage({ params }: Props) {
         >
           <div className="card w-full max-w-xl" onClick={(e) => e.stopPropagation()}>
             <div className="card__header" id="add-staff-title">
-              이벤트 스태프 추가
+              Add event staff
             </div>
             <div className="card__body">
               {assignError && (
@@ -709,7 +709,7 @@ export default function ClientPage({ params }: Props) {
               {(() => {
                 const baseAvailable = (admins || []).filter((a) => a.role === 'STAFF');
                 if (baseAvailable.length === 0) {
-                  return <div className="text-sm text-[var(--muted)]">등록할 관리자가 더 이상 없습니다.</div>;
+                  return <div className="text-sm text-[var(--muted)]">There are no more staff to assign.</div>;
                 }
                 const filtered = baseAvailable.filter((a) => {
                   const q = addStaffQuery.trim().toLowerCase();
@@ -725,14 +725,14 @@ export default function ClientPage({ params }: Props) {
                     <div>
                       <Input
                         type="text"
-                        label="관리자 검색"
-                        placeholder="이름, 아이디, 이메일"
+                        label="Search staff"
+                        placeholder="Name, username, email"
                         value={addStaffQuery}
                         onChange={(e) => setAddStaffQuery(e.target.value)}
                       />
                       <div className="mt-3 space-y-2 max-h-72 overflow-auto">
                         {filtered.length === 0 ? (
-                          <div className="text-[12px] text-[var(--muted)]">검색 결과가 없습니다.</div>
+                          <div className="text-[12px] text-[var(--muted)]">No search results.</div>
                         ) : (
                           filtered.map((a) => {
                             const selected = selectedAdminId === a.adminId;
@@ -776,7 +776,7 @@ export default function ClientPage({ params }: Props) {
                     </div>
                     <div>
                       <Select
-                        label="역할"
+                        label="Role"
                         value={addStaffRole}
                         onChange={(e) => {
                           setAddStaffRole(e.target.value as 'APPROVER' | 'VERIFIER');
@@ -791,7 +791,7 @@ export default function ClientPage({ params }: Props) {
                       )}
                     </div>
                     <div className="text-sm text-[var(--muted)]">
-                      💡 선택한 관리자는 이 이벤트에 지정한 역할로 할당됩니다.
+                      💡 The selected staff will be assigned to this event with the chosen role.
                     </div>
                   </div>
                 );
@@ -803,7 +803,7 @@ export default function ClientPage({ params }: Props) {
                 return (
                   <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <Button variant="secondary" onClick={() => setShowAddStaff(false)}>
-                      닫기
+                      Close
                     </Button>
                   </div>
                 );
@@ -811,7 +811,7 @@ export default function ClientPage({ params }: Props) {
               return (
                 <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                   <Button variant="secondary" onClick={() => setShowAddStaff(false)}>
-                    취소
+                    Cancel
                   </Button>
                   <Button
                     disabled={assigning}
@@ -821,11 +821,11 @@ export default function ClientPage({ params }: Props) {
                       setAssignFieldErrors({});
                       // Client-side validation
                       const fe: Record<string, string> = {};
-                      if (!selectedAdminId) fe.admin = '관리자를 선택해 주세요.';
-                      if (!addStaffRole) fe.role = '역할을 선택해 주세요.';
+                      if (!selectedAdminId) fe.admin = 'Please select a staff member.';
+                      if (!addStaffRole) fe.role = 'Please select a role.';
                       if (Object.keys(fe).length > 0) {
                         setAssignFieldErrors(fe);
-                        setAssignError('입력값을 확인해 주세요.');
+                        setAssignError('Please check the input values.');
                         return;
                       }
 
@@ -833,7 +833,7 @@ export default function ClientPage({ params }: Props) {
                       try {
                         // Close selection modal and show progress modal during on-chain grant
                         setShowAddStaff(false);
-                        setProgressMsg('관리자를 이벤트에 배정 중입니다. 잠시만 기다려 주세요...');
+                        setProgressMsg('Assigning staff to event. Please wait...');
                         setProgressDone(false);
                         setProgressOpen(true);
 
@@ -844,12 +844,13 @@ export default function ClientPage({ params }: Props) {
                         });
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok) {
-                          const msg = data?.error || '할당에 실패했습니다.';
+                          const msg = data?.error || 'Failed to assign staff.';
                           const feServer: Record<string, string> = {};
                           const lower = (msg as string).toLowerCase();
-                          if (lower.includes('adminid')) feServer.admin = '관리자를 선택해 주세요.';
-                          if (lower.includes('eventrole')) feServer.role = '역할을 선택해 주세요.';
-                          if (res.status === 409) feServer.admin = '이미 이 이벤트에 배정된 관리자입니다.';
+                          if (lower.includes('adminid')) feServer.admin = 'Please select a staff member.';
+                          if (lower.includes('eventrole')) feServer.role = 'Please select a role.';
+                          if (res.status === 409)
+                            feServer.admin = 'This staff member is already assigned to the event.';
                           setAssignFieldErrors(feServer);
                           setAssignError(msg);
                           setProgressOpen(false);
@@ -870,7 +871,7 @@ export default function ClientPage({ params }: Props) {
                             ]);
                           }
                           setSelectedAdminId('');
-                          setProgressMsg('관리자 배정이 완료되었습니다.');
+                          setProgressMsg('Staff assignment completed.');
                           setProgressDone(true);
                         }
                       } finally {
@@ -878,7 +879,7 @@ export default function ClientPage({ params }: Props) {
                       }
                     }}
                   >
-                    {assigning ? '할당 중...' : '할당'}
+                    {assigning ? 'Assigning...' : 'Assign'}
                   </Button>
                 </div>
               );

@@ -57,10 +57,10 @@ export default function EventsClient() {
       setEvents(list);
     } catch (e) {
       // Common helpful messages for auth errors
-      const msg = e instanceof Error ? e.message : '네트워크 오류';
-      if (/Unauthorized|401/.test(msg)) setError('권한이 없습니다. 다시 로그인해 주세요.');
-      else if (/Forbidden|403/.test(msg)) setError('접근 권한이 없습니다.');
-      else if (msg.startsWith('<!DOCTYPE')) setError('서버 오류가 발생했습니다.');
+      const msg = e instanceof Error ? e.message : 'Network error';
+      if (/Unauthorized|401/.test(msg)) setError('You are not authorized. Please log in again.');
+      else if (/Forbidden|403/.test(msg)) setError('You do not have permission to access this page.');
+      else if (msg.startsWith('<!DOCTYPE')) setError('A server error has occurred.');
       else setError(msg);
     } finally {
       setLoading(false);
@@ -102,11 +102,13 @@ export default function EventsClient() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">이벤트</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">워크숍/트레이닝/배포 이벤트 관리</p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Events</h1>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
+              Manage workshops, trainings, and distribution events
+            </p>
           </div>
           <Link href="/events/new">
-            <Button>+ 새 이벤트</Button>
+            <Button>+ New Event</Button>
           </Link>
         </div>
       </div>
@@ -116,7 +118,7 @@ export default function EventsClient() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
               type="text"
-              placeholder="이벤트명, ID 검색..."
+              placeholder="Search by event name or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -126,10 +128,10 @@ export default function EventsClient() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as KnownStatus | 'ALL')}
             >
-              <option value="ALL">모든 상태</option>
-              <option value="PENDING">대기</option>
-              <option value="ONGOING">진행중</option>
-              <option value="COMPLETED">완료</option>
+              <option value="ALL">All</option>
+              <option value="PENDING">Upcoming</option>
+              <option value="ONGOING">Ongoing</option>
+              <option value="COMPLETED">Completed</option>
             </select>
             <div />
           </div>
@@ -151,9 +153,9 @@ export default function EventsClient() {
       {error && !loading && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-red-600 mb-4">문제가 발생했어요. {error}</p>
+            <p className="text-red-600 mb-4">Something went wrong. {error}</p>
             <Button variant="secondary" onClick={() => fetchEvents(statusFilter)}>
-              다시 시도
+              Try again
             </Button>
           </div>
         </div>
@@ -162,7 +164,7 @@ export default function EventsClient() {
       {isEmpty && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-[var(--muted)] mb-4">아직 이벤트가 없습니다.</p>
+            <p className="text-[var(--muted)] mb-4">There are no events yet.</p>
             {/* 새 이벤트 만들기 버튼은 임시로 숨김 처리 */}
           </div>
         </div>
@@ -174,11 +176,11 @@ export default function EventsClient() {
             <table className="table min-w-[820px]">
               <thead>
                 <tr>
-                  <th>이벤트</th>
-                  <th>상태</th>
-                  <th>기간</th>
-                  <th>생성일</th>
-                  <th>액션</th>
+                  <th>Event</th>
+                  <th>Status</th>
+                  <th>Period</th>
+                  <th>Created At</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -207,7 +209,7 @@ export default function EventsClient() {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <Link href={`/events/${ev.eventId}`}>
                           <Button variant="secondary" size="sm">
-                            상세
+                            Details
                           </Button>
                         </Link>
                       </div>
@@ -238,13 +240,13 @@ export default function EventsClient() {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                     <div>
-                      기간: {formatDate(ev.startDate)} ~ {formatDate(ev.endDate)}
+                      Period: {formatDate(ev.startDate)} ~ {formatDate(ev.endDate)}
                     </div>
-                    <div>생성일: {formatDate(ev.createdAt)}</div>
+                    <div>Created At: {formatDate(ev.createdAt)}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Link href={`/events/${ev.eventId}`}>
-                      <Button variant="secondary">상세</Button>
+                      <Button variant="secondary">Details</Button>
                     </Link>
                   </div>
                 </div>
