@@ -187,16 +187,28 @@ class MemoryChallengeService {
 }
 
 // Singleton instance
-let challengeServiceInstance: MemoryChallengeService | null = null;
+// Use globalThis to ensure a single instance across route bundles
+const globalKey = '__anamChallengeService';
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (!(globalThis as Record<string, unknown>)[globalKey]) {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  (globalThis as Record<string, unknown>)[globalKey] = new MemoryChallengeService();
+}
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+let challengeServiceInstance: MemoryChallengeService | null = (globalThis as Record<string, unknown>)[
+  globalKey
+] as MemoryChallengeService | null;
 
 /**
  * Get the singleton challenge service instance
  */
 export function getChallengeService(): MemoryChallengeService {
-  if (!challengeServiceInstance) {
-    challengeServiceInstance = new MemoryChallengeService();
-  }
-  return challengeServiceInstance;
+  return challengeServiceInstance as MemoryChallengeService;
 }
 
 /**
@@ -205,8 +217,11 @@ export function getChallengeService(): MemoryChallengeService {
 export function resetChallengeService(): void {
   if (challengeServiceInstance) {
     challengeServiceInstance.destroy();
-    challengeServiceInstance = null;
   }
+  challengeServiceInstance = new MemoryChallengeService();
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  (globalThis as Record<string, unknown>)[globalKey] = challengeServiceInstance;
 }
 
 export default getChallengeService;

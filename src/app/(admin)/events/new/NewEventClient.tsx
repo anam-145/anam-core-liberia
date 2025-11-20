@@ -18,7 +18,7 @@ export default function NewEventClient() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMsg, setModalMsg] = useState('이벤트를 생성 중입니다...');
+  const [modalMsg, setModalMsg] = useState('Creating event...');
   const [modalDone, setModalDone] = useState(false);
   const [nextHref, setNextHref] = useState('/events');
 
@@ -26,29 +26,29 @@ export default function NewEventClient() {
     setError('');
     // Client-side validation with per-field messages (like admin-signup)
     const fe: Record<string, string> = {};
-    if (!name.trim()) fe.name = '이벤트명을 입력해 주세요.';
-    if (!start) fe.start = '시작일을 선택해 주세요.';
-    if (!end) fe.end = '종료일을 선택해 주세요.';
-    if (!amountPerDay) fe.amountPerDay = '지급 금액을 입력해 주세요.';
+    if (!name.trim()) fe.name = 'Please enter an event name.';
+    if (!start) fe.start = 'Please select a start date.';
+    if (!end) fe.end = 'Please select an end date.';
+    if (!amountPerDay) fe.amountPerDay = 'Please enter the daily DSA amount.';
     const amt = Number(amountPerDay);
     if (amountPerDay && (!Number.isFinite(amt) || amt <= 0)) {
-      fe.amountPerDay = '지급 금액은 0보다 큰 숫자여야 합니다.';
+      fe.amountPerDay = 'Amount per day must be a positive number.';
     }
     if (!maxParticipants) {
-      fe.maxParticipants = '참가자 수를 입력해 주세요.';
+      fe.maxParticipants = 'Please enter the maximum number of participants.';
     } else {
       const mp = parseInt(maxParticipants, 10);
       if (!Number.isInteger(mp) || mp <= 0) {
-        fe.maxParticipants = '참가자 수는 1 이상의 정수여야 합니다.';
+        fe.maxParticipants = 'Max participants must be an integer greater than or equal to 1.';
       }
     }
     if (Object.keys(fe).length > 0) {
       setFieldErrors(fe);
-      setError('입력값을 확인해 주세요.');
+      setError('Please check the input values.');
       return;
     }
     setSubmitting(true);
-    setModalMsg('컨트랙트 배포 및 자금 입금 중입니다. 잠시만 기다려 주세요...');
+    setModalMsg('Deploying contract and funding event. Please wait...');
     setModalDone(false);
     setModalOpen(true);
     try {
@@ -85,7 +85,7 @@ export default function NewEventClient() {
         // Single field hint
         if (details.field && typeof details.field === 'string') {
           const f = details.field as string;
-          const msg = data?.error || '입력값을 확인해 주세요.';
+          const msg = data?.error || 'Please check the input values.';
           if (f === 'name') feServer.name = msg;
           if (f === 'startDate') feServer.start = msg;
           if (f === 'endDate') feServer.end = msg;
@@ -93,16 +93,16 @@ export default function NewEventClient() {
           if (f === 'maxParticipants') feServer.maxParticipants = msg;
         }
         setFieldErrors(feServer);
-        setError(data?.error || '이벤트 생성에 실패했습니다');
+        setError(data?.error || 'Failed to create event.');
         setModalOpen(false);
         return;
       }
-      setModalMsg('이벤트가 생성되었습니다.');
+      setModalMsg('Event has been created.');
       setModalDone(true);
       const eventId = data?.event?.eventId as string | undefined;
       setNextHref(eventId ? `/events/${eventId}` : '/events');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '네트워크 오류가 발생했습니다');
+      setError(e instanceof Error ? e.message : 'A network error has occurred.');
       setModalOpen(false);
     } finally {
       setSubmitting(false);
@@ -113,10 +113,10 @@ export default function NewEventClient() {
     <>
       <ProgressModal
         open={modalOpen}
-        title={modalDone ? '완료' : '처리 중입니다'}
+        title={modalDone ? 'Completed' : 'Processing'}
         message={modalMsg}
         done={modalDone}
-        confirmText="확인"
+        confirmText="OK"
         onConfirm={() => {
           setModalOpen(false);
           setModalDone(false);

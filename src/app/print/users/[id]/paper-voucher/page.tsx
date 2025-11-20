@@ -39,9 +39,9 @@ export default async function PaperVoucherPage({ params }: PageProps) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="card max-w-md">
-          <div className="card__header">종이바우처 발급 불가</div>
+          <div className="card__header">Unable to issue paper voucher</div>
           <div className="card__body">
-            <p>이 사용자는 커스터디 지갑이 없어 종이바우처를 발급할 수 없습니다.</p>
+            <p>This user does not have a custody wallet, so a paper voucher cannot be issued.</p>
           </div>
         </div>
       </div>
@@ -57,9 +57,9 @@ export default async function PaperVoucherPage({ params }: PageProps) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="card max-w-md">
-          <div className="card__header">커스터디 지갑 없음</div>
+          <div className="card__header">Custody wallet not found</div>
           <div className="card__body">
-            <p>커스터디 지갑을 찾을 수 없습니다.</p>
+            <p>We could not find a custody wallet for this user.</p>
           </div>
         </div>
       </div>

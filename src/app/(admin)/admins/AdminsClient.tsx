@@ -87,11 +87,11 @@ export default function AdminsClient() {
   const getStatusLabel = (status: VCStatus) => {
     switch (status) {
       case 'ACTIVE':
-        return '활성화';
+        return 'Active';
       case 'SUSPENDED':
-        return '비활성화';
+        return 'Suspended';
       case 'REVOKED':
-        return '폐기됨';
+        return 'Revoked';
       default:
         return status;
     }
@@ -110,24 +110,24 @@ export default function AdminsClient() {
   const getOnboardingLabel = (status: OnboardingStatus) => {
     switch (status) {
       case 'PENDING_REVIEW':
-        return '검토 대기';
+        return 'Pending Review';
       case 'APPROVED':
-        return '승인됨';
+        return 'Approved';
       case 'ACTIVE':
-        return '활성';
+        return 'Active';
       case 'REJECTED':
-        return '거부됨';
+        return 'Rejected';
       default:
         return status;
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    try {
+      return new Date(dateString).toISOString().slice(0, 10) + ' UTC';
+    } catch {
+      return '-';
+    }
   };
 
   const [pendingAction, setPendingAction] = useState<'suspend' | 'activate' | 'revoke' | null>(null);
@@ -164,8 +164,10 @@ export default function AdminsClient() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">관리자</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">스태프 계정 관리 (역할은 이벤트별 할당)</p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Admins</h1>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
+              Manage staff accounts (roles assigned per event)
+            </p>
           </div>
           <div />
         </div>
@@ -176,7 +178,7 @@ export default function AdminsClient() {
           <div className="grid grid-cols-1 gap-4">
             <Input
               type="text"
-              placeholder="이름, DID, 이메일 검색..."
+              placeholder="Search by name, DID, email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -199,7 +201,7 @@ export default function AdminsClient() {
       {admins.length === 0 && !isLoading && !hasError && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-[var(--muted)]">아직 관리자가 없습니다.</p>
+            <p className="text-[var(--muted)]">No admins yet.</p>
           </div>
         </div>
       )}
@@ -207,9 +209,9 @@ export default function AdminsClient() {
       {hasError && !isLoading && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-red-600 mb-4">문제가 발생했어요.</p>
+            <p className="text-red-600 mb-4">An error occurred.</p>
             <Button variant="secondary" onClick={() => window.location.reload()}>
-              다시 시도
+              Retry
             </Button>
           </div>
         </div>
@@ -222,11 +224,11 @@ export default function AdminsClient() {
               <table className="table min-w-[640px]">
                 <thead>
                   <tr>
-                    <th>이름 / DID</th>
-                    <th>상태</th>
-                    <th>VC 상태</th>
-                    <th>생성일</th>
-                    <th>액션</th>
+                    <th>Name / DID</th>
+                    <th>Status</th>
+                    <th>VC Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -244,7 +246,7 @@ export default function AdminsClient() {
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {admin.did || '(DID 없음)'}
+                            {admin.did || '(No DID)'}
                           </div>
                         </div>
                       </td>
@@ -279,7 +281,7 @@ export default function AdminsClient() {
                               setShowDetails(true);
                             }}
                           >
-                            상세
+                            Details
                           </button>
                         </div>
                       </td>
@@ -308,7 +310,7 @@ export default function AdminsClient() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {admin.did || '(DID 없음)'}
+                        {admin.did || '(No DID)'}
                       </div>
                       {(() => {
                         const s = getEffectiveStatus(admin);
@@ -321,13 +323,13 @@ export default function AdminsClient() {
                         );
                       })()}
                     </div>
-                    <button className="btn btn--ghost btn--sm" aria-label="메뉴">
+                    <button className="btn btn--ghost btn--sm" aria-label="Menu">
                       ⋯
                     </button>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      상태:
+                      Status:
                       {admin.onboardingStatus && (
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getOnboardingBadgeColor(admin.onboardingStatus)}`}
@@ -336,7 +338,7 @@ export default function AdminsClient() {
                         </span>
                       )}
                     </div>
-                    <div>생성일: {formatDate(admin.createdAt)}</div>
+                    <div>Created: {formatDate(admin.createdAt)}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Button
@@ -346,7 +348,7 @@ export default function AdminsClient() {
                         setShowDetails(true);
                       }}
                     >
-                      상세
+                      Details
                     </Button>
                   </div>
                 </div>
@@ -375,23 +377,23 @@ export default function AdminsClient() {
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
               <h2 id="admin-details-title" style={{ fontWeight: 800 }}>
-                관리자 상세
+                Admin Details
               </h2>
-              <button className="btn btn--ghost btn--sm" onClick={() => setShowDetails(false)} aria-label="닫기">
+              <button className="btn btn--ghost btn--sm" onClick={() => setShowDetails(false)} aria-label="Close">
                 ✕
               </button>
             </div>
             <div className="card__body max-h-[calc(100vh-12rem)] overflow-y-auto">
-              {/* 기본 정보 */}
+              {/* Basic Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">기본 정보</h3>
+                <h3 className="font-semibold mb-3">Basic Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-600">이름:</span>
+                    <span className="text-gray-600">Name:</span>
                     <span className="ml-2 font-medium">{selectedAdmin.fullName}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">사용자명:</span>
+                    <span className="text-gray-600">Username:</span>
                     <span className="ml-2">@{selectedAdmin.username}</span>
                   </div>
                   <div>
@@ -400,25 +402,25 @@ export default function AdminsClient() {
                   </div>
                   {selectedAdmin.email && (
                     <div>
-                      <span className="text-gray-600">이메일:</span>
+                      <span className="text-gray-600">Email:</span>
                       <span className="ml-2">{selectedAdmin.email}</span>
                     </div>
                   )}
                   <div>
-                    <span className="text-gray-600">역할:</span>
+                    <span className="text-gray-600">Role:</span>
                     <span className="ml-2">{selectedAdmin.role === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">생성일:</span>
+                    <span className="text-gray-600">Created:</span>
                     <span className="ml-2">{formatDate(selectedAdmin.createdAt)}</span>
                   </div>
                 </div>
               </div>
 
-              {/* DID 정보 */}
+              {/* DID Information */}
               {selectedAdmin.did && (
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold mb-3">DID 정보</h3>
+                  <h3 className="font-semibold mb-3">DID Information</h3>
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-gray-600">DID:</span>
@@ -428,12 +430,12 @@ export default function AdminsClient() {
                 </div>
               )}
 
-              {/* 상태 정보 */}
+              {/* Status Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">상태 정보</h3>
+                <h3 className="font-semibold mb-3">Status Information</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-sm text-gray-600">온보딩 상태:</span>
+                    <span className="text-sm text-gray-600">Onboarding Status:</span>
                     <div className="mt-1">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getOnboardingBadgeColor(selectedAdmin.onboardingStatus || 'ACTIVE')}`}
@@ -443,7 +445,7 @@ export default function AdminsClient() {
                     </div>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-600">VC 상태:</span>
+                    <span className="text-sm text-gray-600">VC Status:</span>
                     <div className="mt-1">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(getEffectiveStatus(selectedAdmin))}`}
@@ -453,7 +455,7 @@ export default function AdminsClient() {
                     </div>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-600">활성 상태:</span>
+                    <span className="text-sm text-gray-600">Active Status:</span>
                     <div className="mt-1">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
@@ -462,7 +464,7 @@ export default function AdminsClient() {
                             : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}
                       >
-                        {selectedAdmin.isActive ? '활성' : '비활성'}
+                        {selectedAdmin.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                   </div>
@@ -481,20 +483,20 @@ export default function AdminsClient() {
               className="card__footer"
               style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}
             >
-              {/* System Admin은 파괴적 액션 숨김 */}
+              {/* System Admin has no destructive actions */}
               {selectedAdmin.role === 'SYSTEM_ADMIN' ? (
                 <Button variant="secondary" onClick={() => setShowDetails(false)}>
-                  닫기
+                  Close
                 </Button>
               ) : (
                 <>
-                  {/* 온보딩 섹션: PENDING_REVIEW에서만 노출 (일회성) */}
+                  {/* Onboarding section: only shown for PENDING_REVIEW (one-time) */}
                   {selectedAdmin.onboardingStatus === 'PENDING_REVIEW' && (
                     <>
                       <div className="text-[var(--muted)]" style={{ fontSize: 12, marginRight: 'auto' }}>
-                        승인 시, 해당 사용자는 다음 로그인에서 자동으로 초기 설정이 진행됩니다.
+                        Once approved, initial setup will proceed automatically on next login.
                         <br />
-                        (지갑 생성 → DID 온체인 등록 → ADMIN VC 발급/등록 → Vault 암호화 후 Custody 저장)
+                        (Wallet creation → DID on-chain registration → ADMIN VC issuance → Encrypted vault storage)
                       </div>
                       <Button
                         onClick={async () => {
@@ -504,7 +506,7 @@ export default function AdminsClient() {
                             setAdmins((list) =>
                               list.map((a) => (a.id === selectedAdmin.id ? { ...a, onboardingStatus: 'APPROVED' } : a)),
                             );
-                            // modal 내 즉시 반영
+                            // immediately reflect in modal
                             setSelectedAdmin((cur) =>
                               cur ? ({ ...cur, onboardingStatus: 'APPROVED' } as AdminData) : cur,
                             );
@@ -513,19 +515,19 @@ export default function AdminsClient() {
                         }}
                         disabled={busy}
                       >
-                        승인 (온보딩)
+                        Approve (Onboarding)
                       </Button>
                     </>
                   )}
-                  {/* 승인은 되었지만 최초 로그인 전이면 VC 액션 숨김 */}
+                  {/* Approved but not yet logged in - hide VC actions */}
                   {selectedAdmin.onboardingStatus === 'APPROVED' && selectedAdmin.isActive === false && (
                     <div className="text-[var(--muted)]" style={{ fontSize: 12, width: '100%', marginBottom: 8 }}>
-                      최초 로그인 시 자동 활성화(VC 발급) 대기 중
+                      Waiting for first login (auto-activation and VC issuance)
                     </div>
                   )}
 
-                  {/* VC 액션 섹션: VC 존재/활성화 상태에서만 노출 */}
-                  {/* TODO: API 엔드포인트 구현 후 활성화 (POST /api/vcs/suspend, /api/vcs/activate 필요) */}
+                  {/* VC action section: only shown when VC exists and is active */}
+                  {/* TODO: Enable after API endpoints are implemented (POST /api/vcs/suspend, /api/vcs/activate required) */}
                   {/* {selectedAdmin.onboardingStatus === 'ACTIVE' && getEffectiveStatus(selectedAdmin) === 'ACTIVE' && (
                     <>
                       <Button
@@ -536,7 +538,7 @@ export default function AdminsClient() {
                         }}
                         disabled={busy}
                       >
-                        VC 일시정지
+                        Suspend VC
                       </Button>
                       <Button
                         variant="secondary"
@@ -546,7 +548,7 @@ export default function AdminsClient() {
                         }}
                         disabled={busy}
                       >
-                        VC 폐기(영구)
+                        Revoke VC (Permanent)
                       </Button>
                     </>
                   )}
@@ -559,7 +561,7 @@ export default function AdminsClient() {
                         }}
                         disabled={busy}
                       >
-                        VC 재활성화
+                        Reactivate VC
                       </Button>
                       <Button
                         variant="secondary"
@@ -569,17 +571,17 @@ export default function AdminsClient() {
                         }}
                         disabled={busy}
                       >
-                        VC 폐기(영구)
+                        Revoke VC (Permanent)
                       </Button>
                     </>
                   )}
                   {getEffectiveStatus(selectedAdmin) === 'REVOKED' && (
                     <Button variant="secondary" disabled>
-                      폐기됨
+                      Revoked
                     </Button>
                   )} */}
                   <Button variant="secondary" onClick={() => setShowDetails(false)}>
-                    닫기
+                    Close
                   </Button>
                 </>
               )}
@@ -604,24 +606,24 @@ export default function AdminsClient() {
           >
             <div className="card__header">
               <h2 id="confirm-dialog-title" style={{ fontWeight: 700 }}>
-                {pendingAction === 'suspend' && 'VC 일시정지 확인'}
-                {pendingAction === 'activate' && 'VC 재활성화 확인'}
-                {pendingAction === 'revoke' && 'VC 폐기(영구) 확인'}
+                {pendingAction === 'suspend' && 'Confirm VC Suspension'}
+                {pendingAction === 'activate' && 'Confirm VC Reactivation'}
+                {pendingAction === 'revoke' && 'Confirm VC Revocation (Permanent)'}
               </h2>
             </div>
             <div className="card__body">
               <p style={{ fontSize: 14, lineHeight: 1.6 }}>
                 {pendingAction === 'suspend' &&
-                  `${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 일시정지하시겠습니까? (나중에 재활성화 가능)`}
+                  `Are you sure you want to suspend the ADMIN VC for ${selectedAdmin.fullName} (@${selectedAdmin.username})? (Can be reactivated later)`}
                 {pendingAction === 'activate' &&
-                  `${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 재활성화하시겠습니까?`}
+                  `Are you sure you want to reactivate the ADMIN VC for ${selectedAdmin.fullName} (@${selectedAdmin.username})?`}
                 {pendingAction === 'revoke' &&
-                  `주의: ${selectedAdmin.fullName} (@${selectedAdmin.username})의 ADMIN VC를 영구 폐기하시겠습니까? (되돌릴 수 없음)`}
+                  `Warning: Are you sure you want to permanently revoke the ADMIN VC for ${selectedAdmin.fullName} (@${selectedAdmin.username})? (This cannot be undone)`}
               </p>
             </div>
             <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <Button variant="secondary" onClick={() => setShowConfirmDialog(false)}>
-                취소
+                Cancel
               </Button>
               <Button
                 variant={pendingAction === 'revoke' ? 'danger' : pendingAction === 'suspend' ? 'danger' : 'primary'}
@@ -629,12 +631,12 @@ export default function AdminsClient() {
                 onClick={applyAction}
               >
                 {busy
-                  ? '처리 중…'
+                  ? 'Processing…'
                   : pendingAction === 'suspend'
-                    ? '일시정지'
+                    ? 'Suspend'
                     : pendingAction === 'activate'
-                      ? '재활성화'
-                      : '폐기(영구)'}
+                      ? 'Reactivate'
+                      : 'Revoke (Permanent)'}
               </Button>
             </div>
           </div>

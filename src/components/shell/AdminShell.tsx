@@ -10,6 +10,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const router = useRouter();
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [utcNow, setUtcNow] = React.useState<string>('');
 
   // Use Zustand store for session management
   const { role, isLoaded: sessionLoaded, fetchSession } = useSessionStore();
@@ -42,6 +43,23 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     fetchSession();
   }, [fetchSession]);
 
+  // Update UTC clock every second
+  React.useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(now.getUTCDate()).padStart(2, '0');
+      const hours = String(now.getUTCHours()).padStart(2, '0');
+      const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+      setUtcNow(`${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`);
+    };
+    update();
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
     <div className="flex h-dvh overflow-hidden">
       {/* Mobile Overlay */}
@@ -58,7 +76,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         id="sidebar"
         role={sidebarOpen ? 'dialog' : undefined}
         aria-modal={sidebarOpen ? true : undefined}
-        aria-label={sidebarOpen ? '사이드바 메뉴' : undefined}
+        aria-label={sidebarOpen ? 'Sidebar Menu' : undefined}
         className={`
           fixed lg:static inset-y-0 left-0 z-50 w-[280px]
           bg-white border-r border-[var(--line)]
@@ -76,31 +94,31 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
         </div>
         <nav className="nav">
-          {/* 체크인 */}
+          {/* Check-in */}
           <Link
             href="/checkins"
             className={pathname?.startsWith('/checkins') ? 'active' : ''}
             onClick={() => setSidebarOpen(false)}
           >
-            <span>체크인</span>
+            <span>Check-in</span>
           </Link>
-          {/* 대시보드 */}
+          {/* Dashboard */}
           <Link
             href="/dashboard"
             className={pathname?.startsWith('/dashboard') ? 'active' : ''}
             onClick={() => setSidebarOpen(false)}
           >
-            <span>대시보드</span>
+            <span>Dashboard</span>
           </Link>
-          {/* 사용자 (SYSTEM_ADMIN, STAFF 모두 접근 가능) */}
+          {/* Users (accessible to both SYSTEM_ADMIN and STAFF) */}
           <Link
             href="/users"
             className={pathname?.startsWith('/users') ? 'active' : ''}
             onClick={() => setSidebarOpen(false)}
           >
-            <span>참가자</span>
+            <span>Participants</span>
           </Link>
-          {/* SYSTEM_ADMIN 전용 메뉴 */}
+          {/* SYSTEM_ADMIN only menu */}
           {sessionLoaded && role === 'SYSTEM_ADMIN' && (
             <>
               <Link
@@ -108,14 +126,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 className={pathname?.startsWith('/admins') ? 'active' : ''}
                 onClick={() => setSidebarOpen(false)}
               >
-                <span>관리자</span>
+                <span>Admins</span>
               </Link>
               <Link
                 href="/events"
                 className={pathname?.startsWith('/events') ? 'active' : ''}
                 onClick={() => setSidebarOpen(false)}
               >
-                <span>이벤트</span>
+                <span>Events</span>
               </Link>
             </>
           )}
@@ -131,7 +149,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             type="button"
             className="lg:hidden p-2 -ml-2 rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="메뉴 열기"
+            aria-label="Open menu"
             aria-expanded={sidebarOpen}
             aria-controls="sidebar"
           >
@@ -148,6 +166,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
           <div style={{ fontWeight: 700 }}>Admin Dashboard</div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+            {utcNow && (
+              <div className="hidden md:flex items-center text-xs text-[var(--muted)] gap-2 px-2 py-1 rounded bg-gray-50 border border-[var(--line)]">
+                <span className="font-semibold text-gray-700">UTC</span>
+                <span className="font-mono tracking-tight">{utcNow}</span>
+              </div>
+            )}
             {sessionLoaded && (
               <div className="badge badge--brand">{role === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'}</div>
             )}
@@ -165,7 +189,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               }}
               disabled={loggingOut}
             >
-              {loggingOut ? '로그아웃 중…' : '로그아웃'}
+              {loggingOut ? 'Logging out…' : 'Logout'}
             </button>
           </div>
         </header>

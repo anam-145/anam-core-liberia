@@ -38,16 +38,16 @@ export async function POST(request: NextRequest) {
 
     // Collect field errors (MVP minimal)
     const fieldErrors: Record<string, string> = {};
-    if (!normalized.username) fieldErrors.username = '아이디를 입력해 주세요.';
-    if (!normalized.password) fieldErrors.password = '비밀번호를 입력해 주세요.';
-    if (!normalized.fullName) fieldErrors.fullName = '이름을 입력해 주세요.';
+    if (!normalized.username) fieldErrors.username = 'Please enter a username.';
+    if (!normalized.password) fieldErrors.password = 'Please enter a password.';
+    if (!normalized.fullName) fieldErrors.fullName = 'Please enter a full name.';
 
     if (normalized.username && normalized.username.length < 3) {
-      fieldErrors.username = '아이디는 최소 3자 이상이어야 합니다.';
+      fieldErrors.username = 'Username must be at least 3 characters long.';
     }
-    // MVP: 허용 정책(4자 이상) - 이후 강화 가능
+    // MVP policy: at least 4 characters – can be strengthened later
     if (normalized.password && normalized.password.length < 4) {
-      fieldErrors.password = '비밀번호는 최소 4자 이상이어야 합니다.';
+      fieldErrors.password = 'Password must be at least 4 characters long.';
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (existingUsername) {
       return apiError('Username already exists', 409, 'CONFLICT', {
         conflict: 'USERNAME_TAKEN',
-        fieldErrors: { username: '이미 사용 중인 아이디입니다.' },
+        fieldErrors: { username: 'This username is already in use.' },
       });
     }
     const emailValue = normalized.email || null;
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       if (existingEmail) {
         return apiError('Email already exists', 409, 'CONFLICT', {
           conflict: 'EMAIL_TAKEN',
-          fieldErrors: { email: '이미 사용 중인 이메일입니다.' },
+          fieldErrors: { email: 'This email address is already in use.' },
         });
       }
     }

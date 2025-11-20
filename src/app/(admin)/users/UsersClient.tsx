@@ -75,7 +75,7 @@ export default function UsersClient() {
   const formatDate = (iso?: string | null) => {
     if (!iso) return '-';
     try {
-      return new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+      return new Date(iso).toISOString().slice(0, 10) + ' UTC';
     } catch {
       return '-';
     }
@@ -96,7 +96,7 @@ export default function UsersClient() {
       const response = await fetch(`/api/admin/files?path=${encodeURIComponent(filePath)}`);
 
       if (!response.ok) {
-        setDownloadError('파일 다운로드에 실패했습니다.');
+        setDownloadError('Failed to download file.');
         return;
       }
 
@@ -116,7 +116,7 @@ export default function UsersClient() {
       document.body.removeChild(a);
     } catch (error) {
       console.error('Download error:', error);
-      setDownloadError('파일 다운로드 중 오류가 발생했습니다.');
+      setDownloadError('An error occurred while downloading the file.');
     }
   };
 
@@ -131,11 +131,11 @@ export default function UsersClient() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">사용자</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">참가자 계정 관리</p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Users</h1>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">Manage participant accounts</p>
           </div>
           <Link href="/users/new">
-            <Button>+ 새 사용자</Button>
+            <Button>+ New User</Button>
           </Link>
         </div>
       </div>
@@ -146,7 +146,7 @@ export default function UsersClient() {
           <div className="grid grid-cols-1 gap-4">
             <Input
               type="text"
-              placeholder="이름, 전화, 이메일, 지갑 주소 검색..."
+              placeholder="Search by name, phone, email, wallet address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -169,9 +169,9 @@ export default function UsersClient() {
       {hasError && !isLoading && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-red-600 mb-4">사용자 목록을 불러오지 못했습니다.</p>
+            <p className="text-red-600 mb-4">Failed to load user list.</p>
             <Button variant="secondary" onClick={() => window.location.reload()}>
-              다시 시도
+              Retry
             </Button>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function UsersClient() {
       {!hasError && !isLoading && filtered.length === 0 && (
         <div className="card">
           <div className="card__body text-center py-12">
-            <p className="text-[var(--muted)]">표시할 사용자가 없습니다.</p>
+            <p className="text-[var(--muted)]">No users to display.</p>
           </div>
         </div>
       )}
@@ -194,13 +194,13 @@ export default function UsersClient() {
               <table className="table min-w-[900px]">
                 <thead>
                   <tr>
-                    <th>사용자 / DID</th>
-                    <th>초기 등록 유형</th>
-                    <th>활성화</th>
+                    <th>User / DID</th>
+                    <th>Registration Type</th>
+                    <th>Active</th>
                     <th>USSD</th>
-                    <th>VC 상태</th>
-                    <th>등록일</th>
-                    <th>액션</th>
+                    <th>VC Status</th>
+                    <th>Registered</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -218,7 +218,7 @@ export default function UsersClient() {
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {u.did || '(DID 없음)'}
+                            {u.did || '(No DID)'}
                           </div>
                         </div>
                       </td>
@@ -239,7 +239,7 @@ export default function UsersClient() {
                             : u.registrationType === 'USSD'
                               ? 'USSD'
                               : u.registrationType === 'PAPERVOUCHER'
-                                ? '종이 바우처'
+                                ? 'Paper Voucher'
                                 : '-'}
                         </span>
                       </td>
@@ -251,7 +251,7 @@ export default function UsersClient() {
                               : 'bg-gray-50 text-gray-700 border-gray-200'
                           }`}
                         >
-                          {u.isActive ? '활성' : '비활성'}
+                          {u.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td>
@@ -264,7 +264,7 @@ export default function UsersClient() {
                                 : 'bg-gray-50 text-gray-700 border-gray-200'
                           }`}
                         >
-                          {u.ussdStatus === 'ACTIVE' ? '활성' : u.ussdStatus === 'PENDING' ? '대기중' : 'N/A'}
+                          {u.ussdStatus === 'ACTIVE' ? 'Active' : u.ussdStatus === 'PENDING' ? 'Pending' : 'N/A'}
                         </span>
                       </td>
                       <td>
@@ -280,11 +280,11 @@ export default function UsersClient() {
                           }`}
                         >
                           {u.vcStatus === 'ACTIVE'
-                            ? '활성'
+                            ? 'Active'
                             : u.vcStatus === 'SUSPENDED'
-                              ? '일시정지'
+                              ? 'Suspended'
                               : u.vcStatus === 'REVOKED'
-                                ? '폐기'
+                                ? 'Revoked'
                                 : 'N/A'}
                         </span>
                       </td>
@@ -299,15 +299,15 @@ export default function UsersClient() {
                               setDownloadError(''); // 에러 초기화
                             }}
                           >
-                            상세
+                            Details
                           </button>
                           {u.hasCustodyWallet && (
                             <button
                               className="btn btn--primary btn--sm"
                               onClick={() => handleIssuePaperVoucher(u.id)}
-                              title="종이바우처 발급"
+                              title="Issue Paper Voucher"
                             >
-                              종이바우처 발급
+                              Issue Paper Voucher
                             </button>
                           )}
                         </div>
@@ -343,15 +343,15 @@ export default function UsersClient() {
                         DID: <code style={{ fontSize: 12 }}>{shorten(u.did || '') || '-'}</code>
                       </div>
                     </div>
-                    <button className="btn btn--ghost btn--sm" aria-label="메뉴">
+                    <button className="btn btn--ghost btn--sm" aria-label="Menu">
                       ⋯
                     </button>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                     <div>
-                      지갑: <code style={{ fontSize: 12 }}>{shorten(u.walletAddress)}</code>
+                      Wallet: <code style={{ fontSize: 12 }}>{shorten(u.walletAddress)}</code>
                     </div>
-                    <div>생성일: {formatDate(u.createdAt)}</div>
+                    <div>Created: {formatDate(u.createdAt)}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <Button
@@ -361,11 +361,11 @@ export default function UsersClient() {
                         setShowDetails(true);
                       }}
                     >
-                      상세
+                      Details
                     </Button>
                     {u.hasCustodyWallet && (
                       <Button variant="primary" onClick={() => handleIssuePaperVoucher(u.id)}>
-                        종이바우처 발급
+                        Issue Paper Voucher
                       </Button>
                     )}
                   </div>
@@ -387,15 +387,15 @@ export default function UsersClient() {
         >
           <div className="card w-full max-w-xl" onClick={(e) => e.stopPropagation()}>
             <div className="card__header" id="user-details-title">
-              참가자 상세 정보
+              Participant Details
             </div>
             <div className="card__body max-h-[calc(100vh-12rem)] overflow-y-auto">
-              {/* 기본 정보 */}
+              {/* Basic Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">기본 정보</h3>
+                <h3 className="font-semibold mb-3">Basic Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-600">이름:</span>
+                    <span className="text-gray-600">Name:</span>
                     <span className="ml-2 font-medium">{selectedUser.name}</span>
                   </div>
                   <div>
@@ -404,46 +404,46 @@ export default function UsersClient() {
                   </div>
                   {selectedUser.phoneNumber && (
                     <div>
-                      <span className="text-gray-600">전화번호:</span>
+                      <span className="text-gray-600">Phone:</span>
                       <span className="ml-2">{selectedUser.phoneNumber}</span>
                     </div>
                   )}
                   {selectedUser.email && (
                     <div>
-                      <span className="text-gray-600">이메일:</span>
+                      <span className="text-gray-600">Email:</span>
                       <span className="ml-2">{selectedUser.email}</span>
                     </div>
                   )}
                   {selectedUser.gender && (
                     <div>
-                      <span className="text-gray-600">성별:</span>
+                      <span className="text-gray-600">Gender:</span>
                       <span className="ml-2">{selectedUser.gender}</span>
                     </div>
                   )}
                   {selectedUser.dateOfBirth && (
                     <div>
-                      <span className="text-gray-600">생년월일:</span>
+                      <span className="text-gray-600">Date of Birth:</span>
                       <span className="ml-2">{formatDate(selectedUser.dateOfBirth)}</span>
                     </div>
                   )}
                   {selectedUser.nationality && (
                     <div>
-                      <span className="text-gray-600">국적:</span>
+                      <span className="text-gray-600">Nationality:</span>
                       <span className="ml-2">{selectedUser.nationality}</span>
                     </div>
                   )}
                   {selectedUser.address && (
                     <div className="md:col-span-2">
-                      <span className="text-gray-600">주소:</span>
+                      <span className="text-gray-600">Address:</span>
                       <p className="mt-1">{selectedUser.address}</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* DID/지갑 정보 */}
+              {/* DID/Wallet Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">DID/지갑 정보</h3>
+                <h3 className="font-semibold mb-3">DID/Wallet Information</h3>
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="text-gray-600">DID:</span>
@@ -453,7 +453,7 @@ export default function UsersClient() {
                   </div>
                   {selectedUser.walletAddress && (
                     <div>
-                      <span className="text-gray-600">지갑 주소:</span>
+                      <span className="text-gray-600">Wallet Address:</span>
                       <div className="font-mono text-xs bg-white p-2 rounded mt-1 break-all">
                         {selectedUser.walletAddress}
                       </div>
@@ -462,12 +462,12 @@ export default function UsersClient() {
                 </div>
               </div>
 
-              {/* 상태 정보 */}
+              {/* Status Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">상태 정보</h3>
+                <h3 className="font-semibold mb-3">Status Information</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-sm text-gray-600">사용자 상태:</span>
+                    <span className="text-sm text-gray-600">User Status:</span>
                     <div className="mt-1">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
@@ -476,12 +476,12 @@ export default function UsersClient() {
                             : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}
                       >
-                        {selectedUser.isActive ? '활성' : '비활성'}
+                        {selectedUser.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-600">VC 상태:</span>
+                    <span className="text-sm text-gray-600">VC Status:</span>
                     <div className="mt-1">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
@@ -493,19 +493,19 @@ export default function UsersClient() {
                         }`}
                       >
                         {selectedUser.vcStatus === 'ACTIVE'
-                          ? '활성'
+                          ? 'Active'
                           : selectedUser.vcStatus === 'SUSPENDED'
-                            ? '일시정지'
-                            : '없음'}
+                            ? 'Suspended'
+                            : 'None'}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* KYC 문서 */}
+              {/* KYC Documents */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3">KYC 문서</h3>
+                <h3 className="font-semibold mb-3">KYC Documents</h3>
                 <div className="flex gap-2">
                   {selectedUser.kycDocumentPath ? (
                     <>
@@ -514,11 +514,11 @@ export default function UsersClient() {
                         onClick={() =>
                           handleDownload(
                             selectedUser.kycDocumentPath!,
-                            `${selectedUser.name}_신분증.${selectedUser.kycDocumentPath!.split('.').pop()}`,
+                            `${selectedUser.name}_ID.${selectedUser.kycDocumentPath!.split('.').pop()}`,
                           )
                         }
                       >
-                        신분증 다운로드
+                        Download ID
                       </button>
                       {selectedUser.kycFacePath && (
                         <button
@@ -526,16 +526,16 @@ export default function UsersClient() {
                           onClick={() =>
                             handleDownload(
                               selectedUser.kycFacePath!,
-                              `${selectedUser.name}_얼굴사진.${selectedUser.kycFacePath!.split('.').pop()}`,
+                              `${selectedUser.name}_Photo.${selectedUser.kycFacePath!.split('.').pop()}`,
                             )
                           }
                         >
-                          얼굴 사진 다운로드
+                          Download Photo
                         </button>
                       )}
                     </>
                   ) : (
-                    <span className="text-sm text-gray-500">KYC 문서가 없습니다</span>
+                    <span className="text-sm text-gray-500">No KYC documents</span>
                   )}
                 </div>
                 {downloadError && <div style={{ color: '#c33', fontSize: 12, marginTop: 8 }}>{downloadError}</div>}
@@ -543,7 +543,7 @@ export default function UsersClient() {
             </div>
             <div className="card__footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <Button variant="secondary" onClick={() => setShowDetails(false)}>
-                닫기
+                Close
               </Button>
             </div>
           </div>

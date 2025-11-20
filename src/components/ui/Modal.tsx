@@ -38,15 +38,15 @@ export default function Modal({
             >
               <div>{title}</div>
               <button className="btn btn--ghost" onClick={() => setOpen(false)}>
-                닫기
+                Close
               </button>
             </div>
             <div className="card__body">{children}</div>
             <div className="card__footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <Button variant="secondary" onClick={() => setOpen(false)}>
-                취소
+                Cancel
               </Button>
-              <Button>저장</Button>
+              <Button>Save</Button>
             </div>
           </div>
         </div>

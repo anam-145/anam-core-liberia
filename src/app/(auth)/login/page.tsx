@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [progressMsg, setProgressMsg] = useState('로그인 처리 중입니다...');
+  const [progressMsg, setProgressMsg] = useState('Processing login...');
   const [blockExit, setBlockExit] = useState(false);
   const [progressDone, setProgressDone] = useState(false);
 
@@ -54,17 +54,15 @@ export default function LoginPage() {
       const heavy = !sys.initialized || pre.needsActivation;
       if (heavy) {
         setProgressMsg(
-          pre.needsActivation
-            ? '초기 설정을 진행 중입니다. 잠시만 기다려 주세요...'
-            : '시스템 초기 설정을 진행 중입니다...',
+          pre.needsActivation ? 'Initial setup in progress. Please wait...' : 'System initialization in progress...',
         );
         setShowProgress(true);
         setBlockExit(true);
       } else {
         timer = setTimeout(() => {
-          setProgressMsg('로그인 처리 중입니다...');
+          setProgressMsg('Processing login...');
           setShowProgress(true);
-          setTimeout(() => setProgressMsg('초기 설정을 진행 중입니다. 잠시만 기다려 주세요...'), 2500);
+          setTimeout(() => setProgressMsg('Initial setup in progress. Please wait...'), 2500);
         }, 500);
       }
 
@@ -89,7 +87,7 @@ export default function LoginPage() {
       if (data.activated) {
         // Show success state in modal instead of alert
         if (timer) clearTimeout(timer);
-        setProgressMsg('초기 설정이 완료되었습니다. 지갑/DID/VC가 준비되었습니다.');
+        setProgressMsg('Initial setup completed. Wallet/DID/VC are ready.');
         setProgressDone(true);
         setShowProgress(true);
         setBlockExit(false);
@@ -124,10 +122,10 @@ export default function LoginPage() {
       <Card>
         <ProgressModal
           open={showProgress}
-          title={progressDone ? '완료' : '처리 중입니다'}
+          title={progressDone ? 'Complete' : 'Processing'}
           message={progressMsg}
           done={progressDone}
-          confirmText="확인"
+          confirmText="Confirm"
           onConfirm={() => {
             setShowProgress(false);
             setProgressDone(false);
@@ -191,7 +189,7 @@ export default function LoginPage() {
                 onClick={() => router.push('/admin-signup')}
                 style={{ fontSize: 13 }}
               >
-                신규 관리자 신청
+                Apply as New Admin
               </button>
             </div>
           </CardFooter>
