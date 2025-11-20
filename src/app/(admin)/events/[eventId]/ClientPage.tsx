@@ -98,8 +98,7 @@ export default function ClientPage({ params }: Props) {
     description: '',
   };
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const formatDate = (iso: string) => new Date(iso).toISOString().slice(0, 10) + ' UTC';
 
   const statusBadge = (status: EventStatus) => {
     const map: Record<EventStatus, string> = {
@@ -429,7 +428,9 @@ export default function ClientPage({ params }: Props) {
                         </div>
                       </td>
                       <td style={{ fontSize: 13 }}>{r.eventRole}</td>
-                      <td style={{ fontSize: 13, color: 'var(--muted)' }}>{new Date(r.assignedAt).toLocaleString()}</td>
+                      <td style={{ fontSize: 13, color: 'var(--muted)' }}>
+                        {new Date(r.assignedAt).toISOString().replace('T', ' ').replace('Z', ' UTC')}
+                      </td>
                       <td>
                         <div style={{ minWidth: 180 }}>
                           <Button

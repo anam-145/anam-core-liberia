@@ -118,11 +118,11 @@ export default function DashboardClient() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    try {
+      return new Date(dateString).toISOString().slice(0, 10) + ' UTC';
+    } catch {
+      return '-';
+    }
   };
 
   const calculateDays = (start: string, end: string) => {

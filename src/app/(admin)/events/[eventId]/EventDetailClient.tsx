@@ -22,9 +22,9 @@ function SimpleModal({ children, onClose, className }: SimpleModalProps) {
 }
 
 function formatLocalDateYmd(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -496,7 +496,9 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-gray-600">
-                            {participant.assignedAt ? new Date(participant.assignedAt).toLocaleString() : '-'}
+                            {participant.assignedAt
+                              ? new Date(participant.assignedAt).toISOString().replace('T', ' ').replace('Z', ' UTC')
+                              : '-'}
                           </span>
                         </td>
                       </tr>
@@ -620,10 +622,10 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                             const participant = participants.find((p) => p.userId === checkin.userId);
                             const when = checkin.checkedInAt ? new Date(checkin.checkedInAt) : null;
                             const timeLabel = when
-                              ? when.toLocaleTimeString(undefined, {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
+                              ? `${String(when.getUTCHours()).padStart(2, '0')}:${String(when.getUTCMinutes()).padStart(
+                                  2,
+                                  '0',
+                                )} UTC`
                               : '-';
 
                             const paymentForCheckin = paymentsForDate.find(

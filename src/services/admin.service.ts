@@ -901,12 +901,18 @@ class AdminService {
 
     const eventCheckinRepository = AppDataSource.getRepository(EventCheckin);
 
-    // Check for existing check-in
+    // Check for existing check-in on the same day (per-event, per-day uniqueness)
     const existing = await eventCheckinRepository.findOne({
       where: { eventId: data.eventId, userId: data.userId },
+      order: { checkedInAt: 'DESC' },
     });
     if (existing) {
-      throw new Error('User already checked in for this event');
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+      const existingDay = Math.floor(existing.checkedInAt.getTime() / MS_PER_DAY);
+      const todayDay = Math.floor(Date.now() / MS_PER_DAY);
+      if (existingDay === todayDay) {
+        throw new Error('User already checked in for this event today');
+      }
     }
 
     const checkin = eventCheckinRepository.create({

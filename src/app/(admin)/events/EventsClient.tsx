@@ -84,8 +84,7 @@ export default function EventsClient() {
 
   const isEmpty = !loading && !error && filtered.length === 0;
 
-  const formatDate = (iso?: string) =>
-    iso ? new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+  const formatDate = (iso?: string) => (iso ? new Date(iso).toISOString().slice(0, 10) + ' UTC' : '-');
 
   const statusBadge = (statusRaw: string) => {
     const status = (statusRaw || '').toUpperCase() as KnownStatus;

@@ -75,7 +75,7 @@ export default function UsersClient() {
   const formatDate = (iso?: string | null) => {
     if (!iso) return '-';
     try {
-      return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      return new Date(iso).toISOString().slice(0, 10) + ' UTC';
     } catch {
       return '-';
     }

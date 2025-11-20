@@ -123,11 +123,11 @@ export default function AdminsClient() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    try {
+      return new Date(dateString).toISOString().slice(0, 10) + ' UTC';
+    } catch {
+      return '-';
+    }
   };
 
   const [pendingAction, setPendingAction] = useState<'suspend' | 'activate' | 'revoke' | null>(null);

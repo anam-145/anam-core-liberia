@@ -22,6 +22,7 @@ export default function CheckinsClient() {
   const [ussdPin, setUssdPin] = useState('');
   const [paperPin, setPaperPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [paperPayload, setPaperPayload] = useState<unknown | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<{
     id: number;
     userId: string;
@@ -74,6 +75,7 @@ export default function CheckinsClient() {
     setMethod(null);
     setUssdPin('');
     setPaperPin('');
+    setPaperPayload(null);
     setVerifiedUser(null);
   }
 
@@ -81,6 +83,7 @@ export default function CheckinsClient() {
     setMethod(null);
     setUssdPin('');
     setPaperPin('');
+    setPaperPayload(null);
     setVerifiedUser(null);
   }
 
@@ -142,44 +145,57 @@ export default function CheckinsClient() {
       return;
     }
 
-    if (!paperPin) {
-      // eslint-disable-next-line no-alert
-      alert('Please enter voucher password');
-      return;
-    }
-
     if (submitting) return;
-
-    console.log('[CHECKINS] handlePaperVerify:start', {
-      eventId: selectedEvent.eventId,
-      paperPinLength: paperPin.length,
-    });
 
     setSubmitting(true);
     try {
-      const qrData = await scanQRCode();
-      console.log('[CHECKINS] handlePaperVerify:qrData', qrData);
-      if (!qrData) return;
+      // Step 0: If QR has not been scanned yet, scan first and store payload
+      if (!paperPayload) {
+        console.log('[CHECKINS] handlePaperVerify:scan-start', {
+          eventId: selectedEvent.eventId,
+        });
+        const qrData = await scanQRCode();
+        console.log('[CHECKINS] handlePaperVerify:qrData', qrData);
+        if (!qrData) return;
 
-      let payload: unknown;
-      try {
-        payload = JSON.parse(qrData);
-      } catch (error) {
-        console.error('QR payload JSON parsing failed:', error);
+        let payload: unknown;
+        try {
+          payload = JSON.parse(qrData);
+        } catch (error) {
+          console.error('QR payload JSON parsing failed:', error);
+          // eslint-disable-next-line no-alert
+          alert('Invalid QR data');
+          return;
+        }
+        console.log('[CHECKINS] handlePaperVerify:parsedPayload', payload);
+        setPaperPayload(payload);
+        // 안내만 하고 여기서 종료 → 사용자가 비밀번호를 입력한 뒤 다시 Check-in 버튼을 눌러 검증 진행
         // eslint-disable-next-line no-alert
-        alert('Invalid QR data');
+        alert('QR scanned successfully. Please enter voucher password and press Check-in again.');
         return;
       }
-      console.log('[CHECKINS] handlePaperVerify:parsedPayload', payload);
 
-      // Step 1: Call Paper Voucher verification API
+      // Step 1: Require password after QR is scanned
+      if (!paperPin) {
+        // eslint-disable-next-line no-alert
+        alert('Please enter voucher password');
+        return;
+      }
+
+      console.log('[CHECKINS] handlePaperVerify:verify-start', {
+        eventId: selectedEvent.eventId,
+        hasPayload: !!paperPayload,
+        paperPinLength: paperPin.length,
+      });
+
+      // Step 2: Call Paper Voucher verification API
       const verifyRes = await fetch(
         `/api/admin/events/${encodeURIComponent(selectedEvent.eventId)}/checkins/paper-voucher/verify`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            payload,
+            payload: paperPayload,
             password: paperPin,
           }),
         },
@@ -285,7 +301,13 @@ export default function CheckinsClient() {
   const formatDateRange = (start: string, end: string) => {
     const startDate = new Date(start);
     const endDate = new Date(end);
-    return `${startDate.getFullYear()}.${String(startDate.getMonth() + 1).padStart(2, '0')}.${String(startDate.getDate()).padStart(2, '0')} - ${endDate.getFullYear()}.${String(endDate.getMonth() + 1).padStart(2, '0')}.${String(endDate.getDate()).padStart(2, '0')}`;
+    const sYear = startDate.getUTCFullYear();
+    const sMonth = String(startDate.getUTCMonth() + 1).padStart(2, '0');
+    const sDay = String(startDate.getUTCDate()).padStart(2, '0');
+    const eYear = endDate.getUTCFullYear();
+    const eMonth = String(endDate.getUTCMonth() + 1).padStart(2, '0');
+    const eDay = String(endDate.getUTCDate()).padStart(2, '0');
+    return `${sYear}.${sMonth}.${sDay} - ${eYear}.${eMonth}.${eDay} UTC`;
   };
 
   // Status badge color
@@ -461,17 +483,27 @@ export default function CheckinsClient() {
               <div className="py-2">
                 {!verifiedUser && (
                   <div className="grid gap-3">
-                    <Input
-                      label="Voucher Password"
-                      type="password"
-                      placeholder="Enter numbers only"
-                      value={paperPin}
-                      onChange={(e) => setPaperPin(e.target.value)}
-                      inputMode="numeric"
-                    />
-                    <p className="text-xs text-gray-500">
-                      After entering the password, scan the QR code on the paper voucher to verify the participant.
-                    </p>
+                    {!paperPayload && (
+                      <p className="text-xs text-gray-500">
+                        Tap &quot;Check-in&quot; to scan the QR code on the paper voucher. After scanning, you&apos;ll
+                        be asked to enter the voucher password.
+                      </p>
+                    )}
+                    {paperPayload && (
+                      <>
+                        <Input
+                          label="Voucher Password"
+                          type="password"
+                          placeholder="Enter numbers only"
+                          value={paperPin}
+                          onChange={(e) => setPaperPin(e.target.value)}
+                          inputMode="numeric"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Enter the voucher password and tap &quot;Check-in&quot; again to verify the participant.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
 
