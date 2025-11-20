@@ -10,6 +10,8 @@ import { User } from '@/server/db/entities/User';
 import { Admin, AdminRole } from '@/server/db/entities/Admin';
 import { blockchainService } from '@/services/blockchain.service';
 import { getSystemAdminWallet } from '@/services/system-init.service';
+import { getVPSessionService } from '@/services/vp-session.memory.service';
+import { createDID } from '@/utils/crypto/did';
 
 /**
  * POST /api/admin/events/[eventId]/checkins/approve
@@ -17,6 +19,7 @@ import { getSystemAdminWallet } from '@/services/system-init.service';
  *
  * Request Body:
  * - userId: User UUID
+ * - sessionId?: string (optional, for AnamWallet check-in polling)
  *
  * Response:
  * - checkin: EventCheckin object
@@ -108,6 +111,29 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
       checkedInByAdminId: session.adminId,
       checkinTxHash: onChainTxHash,
     });
+
+    // 6) AnamWallet 체크인인 경우 VP 세션 상태 업데이트 (polling용)
+    if (body.sessionId && typeof body.sessionId === 'string') {
+      try {
+        const vpSessionService = getVPSessionService();
+        const userDID = user.walletAddress ? createDID('user', user.walletAddress) : '';
+        vpSessionService.updateStatus(body.sessionId, 'verified', {
+          eventName: event.name,
+          userName: user.name,
+          userDID,
+        });
+        console.log('[checkins/approve] VP session status updated to verified', {
+          sessionId: body.sessionId,
+          userId: body.userId,
+        });
+      } catch (sessionError) {
+        // Non-critical error - session might have expired or been consumed
+        console.warn('[checkins/approve] Failed to update VP session status', {
+          sessionId: body.sessionId,
+          error: sessionError instanceof Error ? sessionError.message : 'Unknown error',
+        });
+      }
+    }
 
     return apiOk({ checkin, onChainTxHash }, 201);
   } catch (error) {

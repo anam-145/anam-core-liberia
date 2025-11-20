@@ -363,11 +363,12 @@ export async function signVP(vp: VerifiablePresentation, holderPrivateKey: strin
   // Create a copy for signing (proof without signature)
   const vpForSigning = {
     ...vp,
-    proof: {
-      ...vp.proof,
-      jws: undefined,
-    },
+    proof: vp.proof ? { ...vp.proof } : undefined,
   };
+  if (vpForSigning.proof) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    delete vpForSigning.proof.jws;
+  }
 
   // Serialize VP for signing using canonical JSON
   const message = canonicalStringify(vpForSigning);
@@ -429,11 +430,12 @@ export function verifyVPSignature(vp: VerifiablePresentation, holderAddress: str
     // Create VP copy for verification
     const vpForVerification = {
       ...vp,
-      proof: {
-        ...vp.proof,
-        jws: undefined,
-      },
+      proof: vp.proof ? { ...vp.proof } : undefined,
     };
+    if (vpForVerification.proof) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete vpForVerification.proof.jws;
+    }
 
     // Recreate the signed message using canonical JSON
     const message = canonicalStringify(vpForVerification);

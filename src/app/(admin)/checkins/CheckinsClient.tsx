@@ -23,6 +23,7 @@ export default function CheckinsClient() {
   const [paperPin, setPaperPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [paperPayload, setPaperPayload] = useState<unknown | null>(null);
+  const [anamSessionId, setAnamSessionId] = useState<string>('');
   const [verifiedUser, setVerifiedUser] = useState<{
     id: number;
     userId: string;
@@ -76,6 +77,7 @@ export default function CheckinsClient() {
     setUssdPin('');
     setPaperPin('');
     setPaperPayload(null);
+    setAnamSessionId('');
     setVerifiedUser(null);
   }
 
@@ -84,6 +86,7 @@ export default function CheckinsClient() {
     setUssdPin('');
     setPaperPin('');
     setPaperPayload(null);
+    setAnamSessionId('');
     setVerifiedUser(null);
   }
 
@@ -289,8 +292,153 @@ export default function CheckinsClient() {
     }
   }
 
+  async function handleAnamWalletVerify() {
+    if (!selectedEvent) {
+      // eslint-disable-next-line no-alert
+      alert('Please select an event first');
+      return;
+    }
+
+    if (submitting) return;
+
+    setSubmitting(true);
+    try {
+      console.log('[CHECKINS] handleAnamWalletVerify:scan-start', {
+        eventId: selectedEvent.eventId,
+      });
+
+      // Scan QR code to get sessionId
+      const qrData = await scanQRCode();
+      console.log('[CHECKINS] handleAnamWalletVerify:qrData', qrData);
+      if (!qrData) return;
+
+      // Parse sessionId from QR
+      let sessionId: string;
+      try {
+        // Try parsing as JSON first (in case it's wrapped)
+        const parsed = JSON.parse(qrData);
+        sessionId = typeof parsed === 'string' ? parsed : parsed.sessionId || qrData;
+      } catch {
+        // If not JSON, treat as plain sessionId
+        sessionId = qrData.trim();
+      }
+
+      if (!sessionId || sessionId.length < 10) {
+        // eslint-disable-next-line no-alert
+        alert('Invalid QR code: sessionId too short');
+        return;
+      }
+
+      console.log('[CHECKINS] handleAnamWalletVerify:verify-start', {
+        eventId: selectedEvent.eventId,
+        sessionId,
+      });
+
+      // Call AnamWallet verification API
+      const verifyRes = await fetch(
+        `/api/admin/events/${encodeURIComponent(selectedEvent.eventId)}/checkins/anamwallet/verify`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        },
+      );
+
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      console.log('[CHECKINS] handleAnamWalletVerify:verifyResponse', {
+        status: verifyRes.status,
+        ok: verifyRes.ok,
+        data: verifyData,
+      });
+
+      if (!verifyRes.ok) {
+        console.error('[CHECKINS] handleAnamWalletVerify:verifyError', {
+          status: verifyRes.status,
+          data: verifyData,
+        });
+        // eslint-disable-next-line no-alert
+        alert(verifyData?.error || 'Error occurred during verification');
+        return;
+      }
+
+      if (!verifyData?.valid) {
+        console.warn('[CHECKINS] handleAnamWalletVerify:verifyInvalid', verifyData);
+        // eslint-disable-next-line no-alert
+        alert(verifyData?.reason || 'Verification failed');
+        return;
+      }
+
+      const userId: string | undefined = verifyData.userId;
+      if (!userId) {
+        // eslint-disable-next-line no-alert
+        alert('No userId in verification result');
+        return;
+      }
+
+      const userInfo = verifyData.user as {
+        id: number;
+        userId: string;
+        name: string;
+        walletAddress: string | null;
+        did?: string | null;
+        kycFacePath?: string | null;
+      };
+      console.log('[CHECKINS] handleAnamWalletVerify:verifiedUser', userInfo);
+      setAnamSessionId(sessionId);
+      setVerifiedUser(userInfo);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleAnamWalletApprove() {
+    if (!selectedEvent || !verifiedUser) {
+      // eslint-disable-next-line no-alert
+      alert('Please complete verification first');
+      return;
+    }
+
+    if (submitting) return;
+
+    setSubmitting(true);
+    setModalMode('idle');
+    setModalMsg('Processing check-in. Please wait...');
+    setModalDone(false);
+    setModalOpen(true);
+
+    try {
+      const approveRes = await fetch(
+        `/api/admin/events/${encodeURIComponent(selectedEvent.eventId)}/checkins/approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: verifiedUser.userId,
+            sessionId: anamSessionId, // For polling - updates VP session status
+          }),
+        },
+      );
+
+      const approveData = await approveRes.json().catch(() => ({}));
+      if (!approveRes.ok) {
+        const msg: string = approveData?.error || 'Error occurred during check-in approval';
+        setModalMode('error');
+        setModalMsg(`Check-in approval failed: ${msg}`);
+        setModalDone(true);
+        return;
+      }
+
+      setModalMode('success');
+      setModalMsg('Check-in completed');
+      setModalDone(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   // Determine header title
   const getHeaderTitle = () => {
+    if (method === 'ANAMWALLET') return 'AnamWallet Check-in';
     if (method === 'USSD') return 'USSD Check-in';
     if (method === 'PAPER') return 'Paper Voucher Check-in';
     if (selectedEvent) return selectedEvent.name;
@@ -418,9 +566,7 @@ export default function CheckinsClient() {
                   <button
                     type="button"
                     className="w-full flex items-center gap-3 p-4 border rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
-                    onClick={() => {
-                      // TODO: Connect phone API (AnamWallet)
-                    }}
+                    onClick={() => setMethod('ANAMWALLET')}
                     aria-label="AnamWallet Check-in"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -479,6 +625,62 @@ export default function CheckinsClient() {
               </div>
             )}
 
+            {method === 'ANAMWALLET' && (
+              <div className="py-2">
+                {!verifiedUser && (
+                  <div className="grid gap-3">
+                    <p className="text-xs text-gray-500">
+                      Tap &quot;Check-in&quot; to scan the QR code displayed on the participant&apos;s AnamWallet app.
+                    </p>
+                  </div>
+                )}
+
+                {verifiedUser && (
+                  <div className="grid gap-4">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                      {verifiedUser.kycFacePath ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/admin/files?path=${encodeURIComponent(verifiedUser.kycFacePath)}`}
+                          alt="Participant"
+                          className="w-20 h-20 sm:w-16 sm:h-16 rounded-full object-cover border border-[var(--line)]"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 sm:w-16 sm:h-16 rounded-full bg-gray-100 border border-[var(--line)] grid place-items-center text-xs text-gray-400">
+                          NO PHOTO
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 w-full">
+                        <div className="font-semibold text-base text-center sm:text-left mb-2">{verifiedUser.name}</div>
+                        <div className="space-y-2 text-xs text-gray-600">
+                          {verifiedUser.did && (
+                            <div>
+                              <div className="font-semibold mb-1">Participant DID</div>
+                              <div className="mt-0.5 p-2 bg-gray-50 border border-[var(--line)] rounded break-all text-[11px] leading-snug">
+                                {verifiedUser.did}
+                              </div>
+                            </div>
+                          )}
+                          {verifiedUser.walletAddress && (
+                            <div>
+                              <div className="font-semibold mb-1">Wallet Address</div>
+                              <div className="mt-0.5 p-2 bg-gray-50 border border-[var(--line)] rounded break-all text-[11px] leading-snug">
+                                {verifiedUser.walletAddress}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 text-center sm:text-left">
+                      Verify that the participant information above is correct, then approve check-in with the button
+                      below.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {method === 'PAPER' && (
               <div className="py-2">
                 {!verifiedUser && (
@@ -489,7 +691,7 @@ export default function CheckinsClient() {
                         be asked to enter the voucher password.
                       </p>
                     )}
-                    {paperPayload && (
+                    {!!paperPayload && (
                       <>
                         <Input
                           label="Voucher Password"
@@ -560,6 +762,14 @@ export default function CheckinsClient() {
               </Button>
               <Button
                 onClick={() => {
+                  if (method === 'ANAMWALLET') {
+                    if (verifiedUser) {
+                      void handleAnamWalletApprove();
+                    } else {
+                      void handleAnamWalletVerify();
+                    }
+                    return;
+                  }
                   if (method === 'PAPER') {
                     if (verifiedUser) {
                       void handlePaperApprove();
@@ -568,7 +778,7 @@ export default function CheckinsClient() {
                     }
                     return;
                   }
-                  // TODO: Integrate USSD/AnamWallet check-in API
+                  // TODO: Integrate USSD check-in API
                 }}
                 disabled={submitting}
               >

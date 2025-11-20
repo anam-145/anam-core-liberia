@@ -12,6 +12,18 @@ interface Props {
   params: { eventId: string };
 }
 
+type EventDetail = {
+  eventId: string;
+  name: string;
+  status: EventStatus;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  description?: string | null;
+  derivedStatus?: EventStatus;
+  isActive?: boolean;
+};
+
 export default function ClientPage({ params }: Props) {
   const eventId = params.eventId;
   const [tab, setTab] = useState<'overview' | 'staff' | 'participants' | 'checkins' | 'payments'>('overview');
@@ -53,6 +65,8 @@ export default function ClientPage({ params }: Props) {
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressMsg, setProgressMsg] = useState('Processing...');
   const [progressDone, setProgressDone] = useState(false);
+  const [event, setEvent] = useState<EventDetail | null>(null);
+  const [eventError, setEventError] = useState('');
 
   // ESC to close modal
   useEffect(() => {
@@ -87,18 +101,12 @@ export default function ClientPage({ params }: Props) {
     })();
   }, [showAddStaff, eventId]);
 
-  // Mock skeleton data (static)
-  const event = {
-    eventId: params.eventId,
-    name: 'Workshop 2025',
-    status: 'PENDING' as EventStatus,
-    startDate: '2025-12-01',
-    endDate: '2025-12-02',
-    createdAt: '2025-11-10T00:00:00Z',
-    description: '',
+  const formatDate = (iso?: string | null) => {
+    if (!iso) return '-';
+    const parsed = new Date(iso);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toISOString().slice(0, 10) + ' UTC';
   };
-
-  const formatDate = (iso: string) => new Date(iso).toISOString().slice(0, 10) + ' UTC';
 
   const statusBadge = (status: EventStatus) => {
     const map: Record<EventStatus, string> = {
@@ -111,15 +119,24 @@ export default function ClientPage({ params }: Props) {
 
   // Load event active state
   useEffect(() => {
+    setEvent(null);
+    setEventError('');
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch(`/api/admin/events/${eventId}`, { cache: 'no-store' });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error();
-        if (!cancelled) setEventActive(Boolean(data?.event?.isActive));
+        if (!res.ok) throw new Error(data?.error || 'Failed to load event');
+        if (!cancelled) {
+          const ev = data?.event as EventDetail;
+          setEvent(ev);
+          setEventActive(Boolean(ev?.isActive));
+        }
       } catch {
-        if (!cancelled) setEventActive(null);
+        if (!cancelled) {
+          setEventActive(null);
+          setEventError('Failed to load event details.');
+        }
       }
     })();
     return () => {
@@ -208,6 +225,16 @@ export default function ClientPage({ params }: Props) {
 
   // (Role change UI removed)
 
+  const derivedStatus = (event?.derivedStatus || event?.status || 'PENDING') as EventStatus;
+
+  if (!event && eventError) {
+    return (
+      <div className="max-w-screen-2xl mx-auto">
+        <div className="text-red-600 text-sm mt-4">{eventError}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-screen-2xl mx-auto">
       <ProgressModal
@@ -226,15 +253,15 @@ export default function ClientPage({ params }: Props) {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">{event.name}</h1>
+              <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">{event?.name || 'Event'}</h1>
               <span
-                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${statusBadge(event.status)}`}
+                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${statusBadge(derivedStatus)}`}
               >
-                {event.status}
+                {derivedStatus}
               </span>
             </div>
             <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
-              ID: {event.eventId} · {formatDate(event.startDate)} ~ {formatDate(event.endDate)}
+              ID: {event?.eventId || '-'} · {formatDate(event?.startDate)} ~ {formatDate(event?.endDate)}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -280,14 +307,14 @@ export default function ClientPage({ params }: Props) {
               <div className="card__header">Details</div>
               <div className="card__body">
                 <div className="space-y-3 text-sm text-[var(--muted)]">
-                  <div>Event ID: {event.eventId}</div>
+                  <div>Event ID: {event?.eventId || '-'}</div>
                   <div>
-                    Period: {formatDate(event.startDate)} ~ {formatDate(event.endDate)}
+                    Period: {formatDate(event?.startDate)} ~ {formatDate(event?.endDate)}
                   </div>
-                  <div>Created At: {formatDate(event.createdAt)}</div>
+                  <div>Created At: {formatDate(event?.createdAt)}</div>
                   <div>
                     Description:{' '}
-                    {event.description ? (
+                    {event?.description ? (
                       <span className="text-[var(--text)]">{event.description}</span>
                     ) : (
                       <span>-</span>
@@ -445,7 +472,7 @@ export default function ClientPage({ params }: Props) {
                                 list.map((x) => (x.adminId === r.adminId ? { ...x, updating: true } : x)),
                               );
                               try {
-                                const res = await fetch(`/api/admin/events/${event.eventId}/staff/${r.adminId}`, {
+                                const res = await fetch(`/api/admin/events/${eventId}/staff/${r.adminId}`, {
                                   method: 'DELETE',
                                 });
                                 const data = await res.json().catch(() => ({}));
@@ -502,7 +529,7 @@ export default function ClientPage({ params }: Props) {
                             list.map((x) => (x.adminId === r.adminId ? { ...x, updating: true } : x)),
                           );
                           try {
-                            const res = await fetch(`/api/admin/events/${event.eventId}/staff/${r.adminId}`, {
+                            const res = await fetch(`/api/admin/events/${eventId}/staff/${r.adminId}`, {
                               method: 'DELETE',
                             });
                             const data = await res.json().catch(() => ({}));
@@ -838,7 +865,7 @@ export default function ClientPage({ params }: Props) {
                         setProgressDone(false);
                         setProgressOpen(true);
 
-                        const res = await fetch(`/api/admin/events/${event.eventId}/staff`, {
+                        const res = await fetch(`/api/admin/events/${eventId}/staff`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ adminId: selectedAdminId, eventRole: addStaffRole }),
@@ -870,6 +897,9 @@ export default function ClientPage({ params }: Props) {
                                 assignedAt: (data?.staff?.assignedAt as string) || new Date().toISOString(),
                               },
                             ]);
+                            if (addStaffRole === 'APPROVER') {
+                              setHasApprover(true);
+                            }
                           }
                           setSelectedAdminId('');
                           setProgressMsg('Staff assignment completed.');

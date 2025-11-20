@@ -28,6 +28,17 @@ function formatLocalDateYmd(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+function toUtcMidnight(dateLike: Date | string): Date {
+  let d: Date;
+  if (typeof dateLike === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateLike)) {
+    // Date-only strings are interpreted as local time by JS Date; force UTC
+    d = new Date(`${dateLike}T00:00:00Z`);
+  } else {
+    d = typeof dateLike === 'string' ? new Date(dateLike) : new Date(dateLike);
+  }
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
 interface ParticipantData {
   id: number;
   userId: string;
@@ -79,6 +90,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   const [progressMsg, setProgressMsg] = useState('Processing...');
   const [progressDone, setProgressDone] = useState(false);
   const [progressContext, setProgressContext] = useState<'register' | 'payment' | null>(null);
+  const [participantsRefreshKey, setParticipantsRefreshKey] = useState(0);
   const [eventInfo, setEventInfo] = useState<{
     name: string;
     startDate: string;
@@ -133,24 +145,36 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
           const data = (await res.json().catch(() => ({}))) as { event?: Record<string, unknown> };
           const e = data.event;
           if (e && !cancelled) {
-            const start = new Date(String(e.startDate));
-            const end = new Date(String(e.endDate));
-            const today = new Date();
-            const startDay = new Date(start);
-            startDay.setHours(0, 0, 0, 0);
-            const endDay = new Date(end);
-            endDay.setHours(0, 0, 0, 0);
-            const t = new Date(today);
-            t.setHours(0, 0, 0, 0);
+            const start = toUtcMidnight(String(e.startDate));
+            const end = toUtcMidnight(String(e.endDate));
+            const todayUtc = toUtcMidnight(new Date());
             const MS_PER_DAY = 24 * 60 * 60 * 1000;
-            const totalDays = Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1);
-            let idx = Math.floor((t.getTime() - startDay.getTime()) / MS_PER_DAY);
+            const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+            let idx = Math.floor((todayUtc.getTime() - start.getTime()) / MS_PER_DAY);
             if (idx < 0) idx = 0;
             if (idx > totalDays - 1) idx = totalDays - 1;
             const currentDay = idx + 1;
             const startStr = formatLocalDateYmd(start);
             const endStr = formatLocalDateYmd(end);
-            const selectedStr = formatLocalDateYmd(t);
+            const selectedStr = formatLocalDateYmd(todayUtc);
+            console.log(
+              '[EventDetailClient][UTC calc][admin fetch]',
+              JSON.stringify(
+                {
+                  startRaw: e.startDate,
+                  endRaw: e.endDate,
+                  startUtc: start.toISOString(),
+                  endUtc: end.toISOString(),
+                  todayUtc: todayUtc.toISOString(),
+                  totalDays,
+                  idx,
+                  currentDay,
+                  selectedStr,
+                },
+                null,
+                2,
+              ),
+            );
             setEventInfo({
               name: String(e.name ?? ''),
               startDate: startStr,
@@ -175,24 +199,36 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
         const match = (data.events ?? []).find((e) => String(e.eventId) === eventId);
         if (!match || cancelled) return;
 
-        const start = new Date(String(match.startDate));
-        const end = new Date(String(match.endDate));
-        const today = new Date();
-        const startDay = new Date(start);
-        startDay.setHours(0, 0, 0, 0);
-        const endDay = new Date(end);
-        endDay.setHours(0, 0, 0, 0);
-        const t = new Date(today);
-        t.setHours(0, 0, 0, 0);
+        const start = toUtcMidnight(String(match.startDate));
+        const end = toUtcMidnight(String(match.endDate));
+        const todayUtc = toUtcMidnight(new Date());
         const MS_PER_DAY = 24 * 60 * 60 * 1000;
-        const totalDays = Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / MS_PER_DAY) + 1);
-        let idx = Math.floor((t.getTime() - startDay.getTime()) / MS_PER_DAY);
+        const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+        let idx = Math.floor((todayUtc.getTime() - start.getTime()) / MS_PER_DAY);
         if (idx < 0) idx = 0;
         if (idx > totalDays - 1) idx = totalDays - 1;
         const currentDay = idx + 1;
         const startStr = formatLocalDateYmd(start);
         const endStr = formatLocalDateYmd(end);
-        const selectedStr = formatLocalDateYmd(t);
+        const selectedStr = formatLocalDateYmd(todayUtc);
+        console.log(
+          '[EventDetailClient][UTC calc][staff fallback]',
+          JSON.stringify(
+            {
+              startRaw: match.startDate,
+              endRaw: match.endDate,
+              startUtc: start.toISOString(),
+              endUtc: end.toISOString(),
+              todayUtc: todayUtc.toISOString(),
+              totalDays,
+              idx,
+              currentDay,
+              selectedStr,
+            },
+            null,
+            2,
+          ),
+        );
 
         setEventInfo({
           name: String(match.name ?? ''),
@@ -244,7 +280,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, participantsRefreshKey]);
 
   // Load check-ins and payments (shared by Participants tab + DSA Payments tab)
   useEffect(() => {
@@ -313,8 +349,27 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   }, [eventId, paymentsRefreshKey]);
 
   // Calculate statistics
-  const effectiveDateStr = selectedDate || formatLocalDateYmd(new Date());
-  const dateCheckins = checkins.filter((c) => c.checkedInAt && String(c.checkedInAt).slice(0, 10) === effectiveDateStr);
+  const effectiveDateStr = selectedDate || formatLocalDateYmd(toUtcMidnight(new Date()));
+  const startUtc = eventInfo.startDate ? toUtcMidnight(eventInfo.startDate) : null;
+  const effectiveDateUtc = toUtcMidnight(effectiveDateStr);
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const derivedDay =
+    startUtc && effectiveDateUtc
+      ? Math.min(
+          Math.max(1, Math.floor((effectiveDateUtc.getTime() - startUtc.getTime()) / MS_PER_DAY) + 1),
+          Math.max(
+            1,
+            Math.floor(
+              (toUtcMidnight(eventInfo.endDate || effectiveDateStr).getTime() - startUtc.getTime()) / MS_PER_DAY,
+            ) + 1,
+          ),
+        )
+      : null;
+  const dateCheckins = checkins.filter((c) => {
+    if (!c.checkedInAt) return false;
+    const ciDate = formatLocalDateYmd(toUtcMidnight(c.checkedInAt));
+    return ciDate === effectiveDateStr;
+  });
   const paymentsForDate = payments.filter((p) => p.paidAt && String(p.paidAt).slice(0, 10) === effectiveDateStr);
   const paidUserIdsForDate = new Set(paymentsForDate.map((p) => p.userId));
   const presentCount = new Set(dateCheckins.map((c) => c.userId)).size;
@@ -341,10 +396,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   // Attendance helper: build UTC date list for event (per day)
   const eventDates: string[] = (() => {
     if (!eventInfo.startDate || !eventInfo.endDate) return [];
-    const start = new Date(eventInfo.startDate);
-    const end = new Date(eventInfo.endDate);
-    start.setUTCHours(0, 0, 0, 0);
-    end.setUTCHours(0, 0, 0, 0);
+    const start = toUtcMidnight(eventInfo.startDate);
+    const end = toUtcMidnight(eventInfo.endDate);
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
     const dates: string[] = [];
@@ -358,20 +411,19 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
   const todayIdx = (() => {
     if (!eventInfo.startDate || !eventInfo.endDate) return -1;
     if (!eventDates.length) return -1;
-    const todayStr = formatLocalDateYmd(new Date());
+    const todayStr = formatLocalDateYmd(toUtcMidnight(new Date()));
     return eventDates.indexOf(todayStr);
   })();
 
   const computeAttendance = (participant: ParticipantData): Array<boolean | null> => {
     if (!eventDates.length) return [];
-    const result: Array<boolean | null> = [];
-    for (const date of eventDates) {
-      const hasCheckin = checkins.some(
-        (c) => c.userId === participant.userId && String(c.checkedInAt).slice(0, 10) === date,
-      );
-      result.push(hasCheckin ? true : false);
-    }
-    return result;
+    return eventDates.map((date) => {
+      const hasCheckin = checkins.some((c) => {
+        const ciDate = formatLocalDateYmd(toUtcMidnight(c.checkedInAt));
+        return c.userId === participant.userId && ciDate === date;
+      });
+      return hasCheckin ? true : false;
+    });
   };
 
   return (
@@ -420,7 +472,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
           </div>
           <div className="flex items-center gap-3">
             <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">
-              <span className="text-sm">Day {eventInfo.currentDay}</span>
+              <span className="text-sm">Day {derivedDay ?? eventInfo.currentDay}</span>
             </div>
           </div>
         </div>
@@ -537,9 +589,9 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                                 </div>
                               );
                             }
-                            const daysDone = todayIdx >= 0 && todayIdx < att.length ? todayIdx + 1 : att.length;
-                            const presentCount = att.slice(0, daysDone).filter((v) => v === true).length;
-                            const pct = daysDone > 0 ? Math.round((presentCount / daysDone) * 100) : 0;
+                            const totalDays = att.length;
+                            const presentCount = att.filter((v) => v === true).length;
+                            const pct = totalDays > 0 ? Math.round((presentCount / totalDays) * 100) : 0;
                             return (
                               <div className="min-w-[200px]">
                                 <div className="flex flex-wrap gap-1 mb-2">
@@ -565,7 +617,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                                   />
                                 </div>
                                 <div className="text-[11px] text-gray-500 mt-1">
-                                  {presentCount}/{daysDone}일 ({pct}%)
+                                  {presentCount}/{totalDays} days ({pct}%)
                                 </div>
                               </div>
                             );
@@ -606,12 +658,9 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                     >
                       {(() => {
                         const options: JSX.Element[] = [];
-                        const start = new Date(eventInfo.startDate);
-                        const end = new Date(eventInfo.endDate);
-                        start.setHours(0, 0, 0, 0);
-                        end.setHours(0, 0, 0, 0);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
+                        const start = toUtcMidnight(eventInfo.startDate);
+                        const end = toUtcMidnight(eventInfo.endDate);
+                        const today = toUtcMidnight(new Date());
                         const MS_PER_DAY = 24 * 60 * 60 * 1000;
                         const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
                         for (let i = 0; i < totalDays; i += 1) {
@@ -695,7 +744,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                         {!isLoadingPayments && !paymentsError && dateCheckins.length === 0 && (
                           <tr>
                             <td className="px-3 py-4 text-center text-xs text-gray-500" colSpan={4}>
-                              해당 날짜에 체크인한 참가자가 없습니다.
+                              No check-ins on this date.
                             </td>
                           </tr>
                         )}
@@ -942,11 +991,31 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                       participant: (data as { participant?: unknown }).participant,
                       onChainTxHash: (data as { onChainTxHash?: string }).onChainTxHash,
                     });
+                    // Optimistic add to participant list so the UI updates without a full refresh
+                    const assignedAt =
+                      ((data as { participant?: { assignedAt?: string } }).participant?.assignedAt as string) ||
+                      new Date().toISOString();
+                    const matchedUser = userList.find((u) => u.userId === selectedUserId);
+                    setParticipants((prev) => [
+                      ...prev,
+                      {
+                        id: Date.now(), // temporary local id
+                        userId: selectedUserId,
+                        userDid: null,
+                        adminDid: null,
+                        name: matchedUser?.name || selectedUserId,
+                        assignedAt,
+                        isActive: true,
+                        assignedByAdminId: undefined,
+                      },
+                    ]);
                     // On success, switch the progress modal to the completed state
                     setProgressMsg('Participant registration completed.');
                     setProgressDone(true);
                     setSelectedUserId('');
                     setAddUserQuery('');
+                    // Refresh participants from server to ensure DID/name fields are populated
+                    setParticipantsRefreshKey((k) => k + 1);
                   } catch (e) {
                     setRegisterError(e instanceof Error ? e.message : 'Failed to register participant.');
                     console.error('[EventDetailClient] Participant registration error', e);
