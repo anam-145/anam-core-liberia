@@ -22,6 +22,7 @@ export default function DashboardClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
+  const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
 
   // Use Zustand store for session management (already loaded by AdminShell)
   const { role } = useSessionStore();
@@ -132,6 +133,55 @@ export default function DashboardClient() {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return diffDays;
   };
+
+  // Load participant counts per event (simple aggregate for dashboard gauge)
+  useEffect(() => {
+    let cancelled = false;
+    if (events.length === 0) {
+      setParticipantCounts({});
+      return;
+    }
+
+    (async () => {
+      try {
+        const entries = await Promise.all(
+          events.map(async (event) => {
+            try {
+              const res = await fetch(`/api/admin/events/${event.eventId}/participants`, { cache: 'no-store' });
+              const data = (await res.json().catch(() => ({}))) as {
+                participants?: Array<unknown>;
+              };
+              if (!res.ok) {
+                console.error('[Dashboard] Failed to load participants for event', event.eventId, data);
+                return [event.eventId, 0] as const;
+              }
+              const participants = data.participants ?? [];
+              return [event.eventId, participants.length] as const;
+            } catch (e) {
+              console.error('[Dashboard] Error loading participants for event', event.eventId, e);
+              return [event.eventId, 0] as const;
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        const map: Record<string, number> = {};
+        for (const [eventId, count] of entries) {
+          map[eventId] = count;
+        }
+        setParticipantCounts(map);
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[Dashboard] Unexpected error loading participant counts', e);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [events]);
 
   const getDerivedStatus = (e: ApiEvent): 'PENDING' | 'ONGOING' | 'COMPLETED' => {
     if (e.derivedStatus) return e.derivedStatus;
@@ -268,17 +318,35 @@ export default function DashboardClient() {
                 <div>
                   <div className="flex justify-between items-center mb-2 text-sm">
                     <span className="text-[var(--muted)]">Participants</span>
-                    <span className="font-medium">
-                      {0} / {event.maxParticipants}
-                    </span>
+                    {(() => {
+                      const registered = participantCounts[event.eventId] ?? 0;
+                      return (
+                        <span className="font-medium">
+                          {registered} / {event.maxParticipants}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-[var(--brand)] h-2 rounded-full transition-all"
-                      style={{ width: `${Math.round((0 / (event.maxParticipants || 1)) * 100)}%` }}
+                      style={{
+                        width: `${(() => {
+                          const registered = participantCounts[event.eventId] ?? 0;
+                          if (!event.maxParticipants) return 0;
+                          return Math.round((registered / event.maxParticipants) * 100);
+                        })()}%`,
+                      }}
                     />
                   </div>
-                  <div className="text-xs text-[var(--muted)] mt-1">0% registered</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">
+                    {(() => {
+                      const registered = participantCounts[event.eventId] ?? 0;
+                      if (!event.maxParticipants) return '0% registered';
+                      const pct = Math.round((registered / event.maxParticipants) * 100);
+                      return `${pct}% registered`;
+                    })()}
+                  </div>
                 </div>
 
                 <div className="mt-4 pt-4 border-t">

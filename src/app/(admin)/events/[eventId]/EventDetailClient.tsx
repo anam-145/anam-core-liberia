@@ -246,10 +246,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     };
   }, [eventId]);
 
-  // Load check-ins and payments when DSA Payments 탭이 활성화되면 호출
+  // Load check-ins and payments (shared by Participants tab + DSA Payments tab)
   useEffect(() => {
-    if (activeTab !== 'payment') return;
-
     let cancelled = false;
     const load = async () => {
       setIsLoadingPayments(true);
@@ -312,7 +310,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
     return () => {
       cancelled = true;
     };
-  }, [activeTab, eventId, paymentsRefreshKey]);
+  }, [eventId, paymentsRefreshKey]);
 
   // Calculate statistics
   const effectiveDateStr = selectedDate || formatLocalDateYmd(new Date());
@@ -339,6 +337,42 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
 
   // Participants list (no additional filtering for now)
   const filteredParticipants = participants;
+
+  // Attendance helper: build UTC date list for event (per day)
+  const eventDates: string[] = (() => {
+    if (!eventInfo.startDate || !eventInfo.endDate) return [];
+    const start = new Date(eventInfo.startDate);
+    const end = new Date(eventInfo.endDate);
+    start.setUTCHours(0, 0, 0, 0);
+    end.setUTCHours(0, 0, 0, 0);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+    const dates: string[] = [];
+    for (let i = 0; i < totalDays; i += 1) {
+      const d = new Date(start.getTime() + i * MS_PER_DAY);
+      dates.push(formatLocalDateYmd(d)); // YYYY-MM-DD (UTC)
+    }
+    return dates;
+  })();
+
+  const todayIdx = (() => {
+    if (!eventInfo.startDate || !eventInfo.endDate) return -1;
+    if (!eventDates.length) return -1;
+    const todayStr = formatLocalDateYmd(new Date());
+    return eventDates.indexOf(todayStr);
+  })();
+
+  const computeAttendance = (participant: ParticipantData): Array<boolean | null> => {
+    if (!eventDates.length) return [];
+    const result: Array<boolean | null> = [];
+    for (const date of eventDates) {
+      const hasCheckin = checkins.some(
+        (c) => c.userId === participant.userId && String(c.checkedInAt).slice(0, 10) === date,
+      );
+      result.push(hasCheckin ? true : false);
+    }
+    return result;
+  };
 
   return (
     <div className="max-w-screen-2xl mx-auto">
@@ -463,7 +497,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
 
               {/* Search field removed */}
 
-              {/* Participants Table (participant management: shows basic registration info) */}
+              {/* Participants Table (registration info + attendance/DSA overview) */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
@@ -475,9 +509,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
                         Registering admin DID
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
-                        Registration time
-                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">출석</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">총 DSA</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -494,12 +527,62 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                         <td className="px-4 py-3 align-top">
                           <span className="text-xs font-mono text-gray-700">{participant.adminDid ?? '-'}</span>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-gray-600">
-                            {participant.assignedAt
-                              ? new Date(participant.assignedAt).toISOString().replace('T', ' ').replace('Z', ' UTC')
-                              : '-'}
-                          </span>
+                        <td className="px-4 py-3 align-top">
+                          {(() => {
+                            const att = computeAttendance(participant);
+                            if (!att.length) {
+                              return (
+                                <div className="text-xs text-gray-400">
+                                  No schedule/attendance information available for this event.
+                                </div>
+                              );
+                            }
+                            const daysDone = todayIdx >= 0 && todayIdx < att.length ? todayIdx + 1 : att.length;
+                            const presentCount = att.slice(0, daysDone).filter((v) => v === true).length;
+                            const pct = daysDone > 0 ? Math.round((presentCount / daysDone) * 100) : 0;
+                            return (
+                              <div className="min-w-[200px]">
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {att.map((v, idx) => {
+                                    const isToday = idx === todayIdx;
+                                    const cls =
+                                      v === true ? 'bg-green-500' : v === false ? 'bg-gray-300' : 'bg-gray-100';
+                                    return (
+                                      <span
+                                        key={`${participant.userId}-${idx}`}
+                                        className={`inline-block w-2.5 h-2.5 rounded-full ${cls} ${
+                                          isToday ? 'ring-1 ring-gray-400' : ''
+                                        }`}
+                                        title={eventDates[idx]}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className="bg-[var(--brand)] h-2 rounded-full transition-all"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <div className="text-[11px] text-gray-500 mt-1">
+                                  {presentCount}/{daysDone}일 ({pct}%)
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {(() => {
+                            // Sum all DSA payments for this participant (across all days)
+                            const total = payments
+                              .filter((p) => p.userId === participant.userId)
+                              .reduce((sum, p) => {
+                                const n = Number(p.amount || 0);
+                                if (!Number.isFinite(n)) return sum;
+                                return sum + n;
+                              }, 0);
+                            return <div className="font-medium text-sm">${total.toFixed(2)}</div>;
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -628,7 +711,7 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                                 )} UTC`
                               : '-';
 
-                            const paymentForCheckin = paymentsForDate.find(
+                            const paymentForCheckin = payments.find(
                               (p) =>
                                 (p.checkinId && checkin.checkinId && p.checkinId === checkin.checkinId) ||
                                 (!p.checkinId && p.userId === checkin.userId),

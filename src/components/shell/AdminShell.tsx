@@ -10,6 +10,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const router = useRouter();
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [utcNow, setUtcNow] = React.useState<string>('');
 
   // Use Zustand store for session management
   const { role, isLoaded: sessionLoaded, fetchSession } = useSessionStore();
@@ -41,6 +42,23 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   React.useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  // Update UTC clock every second
+  React.useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(now.getUTCDate()).padStart(2, '0');
+      const hours = String(now.getUTCHours()).padStart(2, '0');
+      const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+      setUtcNow(`${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`);
+    };
+    update();
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -148,6 +166,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
           <div style={{ fontWeight: 700 }}>Admin Dashboard</div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+            {utcNow && (
+              <div className="hidden md:flex items-center text-xs text-[var(--muted)] gap-2 px-2 py-1 rounded bg-gray-50 border border-[var(--line)]">
+                <span className="font-semibold text-gray-700">UTC</span>
+                <span className="font-mono tracking-tight">{utcNow}</span>
+              </div>
+            )}
             {sessionLoaded && (
               <div className="badge badge--brand">{role === 'SYSTEM_ADMIN' ? 'System Admin' : 'Staff'}</div>
             )}
