@@ -26,7 +26,7 @@ type EventDetail = {
 
 export default function ClientPage({ params }: Props) {
   const eventId = params.eventId;
-  const [tab, setTab] = useState<'overview' | 'staff' | 'participants' | 'checkins' | 'payments'>('overview');
+  const [tab, setTab] = useState<'overview' | 'staff'>('overview');
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [addStaffRole, setAddStaffRole] = useState<'APPROVER' | 'VERIFIER'>('VERIFIER');
   const [addStaffQuery, setAddStaffQuery] = useState('');
@@ -280,9 +280,10 @@ export default function ClientPage({ params }: Props) {
               [
                 ['overview', 'Overview'],
                 ['staff', 'Staff'],
-                ['participants', 'Participants'],
-                ['checkins', 'Check-ins'],
-                ['payments', 'Payments'],
+                // Temporarily hidden (no data yet)
+                // ['participants', 'Participants'],
+                // ['checkins', 'Check-ins'],
+                // ['payments', 'Payments'],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -558,6 +559,8 @@ export default function ClientPage({ params }: Props) {
         </div>
       )}
 
+      {/* Temporarily hidden tabs - Participants, Check-ins, Payments (no data yet) */}
+      {/*
       {tab === 'participants' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -714,6 +717,7 @@ export default function ClientPage({ params }: Props) {
           </div>
         </div>
       )}
+      */}
 
       {/* Add Staff Modal (skeleton) */}
       {showAddStaff && (
