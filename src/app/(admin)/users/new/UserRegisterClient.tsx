@@ -1,14 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import ProgressModal from '@/components/ui/ProgressModal';
 
+// AnamWallet API 타입 정의
+declare global {
+  interface Window {
+    anam?: {
+      captureAndUploadSelfie: (optionsJson: string) => void;
+      scanQRCode: (optionsJson: string) => void;
+    };
+  }
+}
+
 export default function UserRegisterClient() {
   const router = useRouter();
   const [registrationType, setRegistrationType] = useState<string>('ANAMWALLET'); // Default: AnamWallet
-  const [showCameraModal, setShowCameraModal] = useState(false);
 
   // Participant registration form state (includes sample data for development)
   const [formData, setFormData] = useState({
@@ -28,6 +37,11 @@ export default function UserRegisterClient() {
   const [kycDocument, setKycDocument] = useState<File | null>(null);
   const [kycFace, setKycFace] = useState<File | null>(null);
 
+  // Camera upload state (임시 경로 저장)
+  const [uploadedDocPath, setUploadedDocPath] = useState<string | null>(null);
+  const [uploadedFacePath, setUploadedFacePath] = useState<string | null>(null);
+  const [currentCameraTarget, setCurrentCameraTarget] = useState<'doc' | 'face' | null>(null);
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,6 +50,187 @@ export default function UserRegisterClient() {
   const [showProgress, setShowProgress] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressDone, setProgressDone] = useState(false);
+
+  // AnamWallet 카메라 API 연결
+  useEffect(() => {
+    /**
+     * photoCaptured 이벤트 리스너
+     * 카메라 촬영 완료 시 서버 응답을 받아 처리
+     * - 성공 시: 경로 저장 + 에러 제거 + 기존 파일 선택 무시
+     * - 실패 시: 에러 메시지 표시
+     */
+    const handlePhotoCaptured = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        success: boolean;
+        serverResponse?: {
+          success: boolean;
+          path: string;
+          url: string;
+          filename: string;
+          fileSize: number;
+        };
+        error?: string;
+      }>;
+
+      if (customEvent.detail.success && customEvent.detail.serverResponse) {
+        const { path } = customEvent.detail.serverResponse;
+        console.log('✅ 사진 업로드 성공:', customEvent.detail.serverResponse);
+
+        // 현재 타겟에 따라 경로 저장 (기존 파일 선택은 자동으로 무시됨)
+        if (currentCameraTarget === 'doc') {
+          setUploadedDocPath(path);
+          setKycDocument(null); // 기존 파일 선택 초기화
+          setFieldErrors((prev) => ({ ...prev, kycDocument: '' })); // 에러 제거
+          console.log('📄 ID Document 경로 저장:', path);
+        } else if (currentCameraTarget === 'face') {
+          setUploadedFacePath(path);
+          setKycFace(null); // 기존 파일 선택 초기화
+          setFieldErrors((prev) => ({ ...prev, kycFace: '' })); // 에러 제거
+          console.log('📸 Face Photo 경로 저장:', path);
+        }
+
+        // 타겟 초기화
+        setCurrentCameraTarget(null);
+      } else {
+        console.error('❌ 사진 업로드 실패:', customEvent.detail.error);
+        alert(`사진 업로드 실패: ${customEvent.detail.error}`);
+        setCurrentCameraTarget(null);
+      }
+    };
+
+    window.addEventListener('photoCaptured', handlePhotoCaptured);
+
+    // 클린업
+    return () => {
+      window.removeEventListener('photoCaptured', handlePhotoCaptured);
+    };
+  }, [currentCameraTarget]);
+
+  /**
+   * 카메라 촬영 함수 (타겟 구분)
+   * @param target - 'doc' (ID Document) 또는 'face' (Face Photo)
+   *
+   * 흐름:
+   * 1. AnamWallet API 연결 확인
+   * 2. 타겟 설정 (이벤트 리스너에서 사용)
+   * 3. 네이티브 카메라 실행
+   * 4. 촬영 완료 시 photoCaptured 이벤트 발생
+   * 5. 이벤트 리스너에서 경로 저장 + 기존 파일 선택 초기화
+   */
+  const handleCameraCapture = (target: 'doc' | 'face') => {
+    // AnamWallet API 연결 확인
+    if (!window.anam?.captureAndUploadSelfie) {
+      alert('❌ 디바이스가 연결되지 않았습니다.\n\nAnamWallet 앱에서 접속해주세요.');
+      console.error('AnamWallet API가 사용 불가능합니다.');
+      return;
+    }
+
+    console.log(`📷 카메라 촬영 시작... (타겟: ${target === 'doc' ? 'ID Document' : 'Face Photo'})`);
+
+    // 타겟 설정 (이벤트 리스너에서 사용)
+    setCurrentCameraTarget(target);
+
+    try {
+      // 업로드 옵션
+      const options = {
+        uploadUrl: `${window.location.origin}/api/admin/files`, // 임시 업로드 경로
+        title: target === 'doc' ? 'ID Document Photo' : 'Face Photo',
+        description: target === 'doc' ? 'Take a photo of your ID document' : 'Take a selfie',
+      };
+
+      // API 호출 (네이티브 카메라 실행)
+      window.anam.captureAndUploadSelfie(JSON.stringify(options));
+    } catch (error) {
+      console.error('카메라 API 호출 실패:', error);
+      alert('카메라 실행 중 오류가 발생했습니다.');
+      setCurrentCameraTarget(null);
+    }
+  };
+
+  /**
+   * QR 스캔 함수 (Wallet Address 스캔)
+   * 이더리움 주소 QR 코드를 스캔하여 walletAddress 필드에 자동 입력
+   *
+   * 흐름:
+   * 1. AnamWallet scanQRCode API 연결 확인
+   * 2. qrScanned 이벤트 리스너 등록 (Promise 방식)
+   * 3. QR 스캔 실행
+   * 4. 스캔 성공 시 이더리움 주소 형식 검증
+   * 5. 검증 통과 시 walletAddress 필드에 자동 입력 (기존 값 덮어쓰기)
+   */
+  const handleQRScan = async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    // AnamWallet scanQRCode API 확인
+    const w = window as unknown as { anam?: { scanQRCode?: (optionsJson: string) => void } };
+    const anam = w.anam;
+    if (!anam || typeof anam.scanQRCode !== 'function') {
+      // eslint-disable-next-line no-alert
+      alert('No connected device');
+      return;
+    }
+
+    console.log('🔍 QR 스캔 시작...');
+
+    // qrScanned 이벤트 리스너 등록 (Promise 방식)
+    const qrData = await new Promise<string | null>((resolve) => {
+      const handler = (event: Event) => {
+        window.removeEventListener('qrScanned', handler as EventListener);
+        const custom = event as CustomEvent<{ success: boolean; data?: string; error?: string }>;
+
+        if (custom.detail?.success && custom.detail.data) {
+          console.log('✅ QR 스캔 성공:', custom.detail.data);
+          resolve(custom.detail.data);
+        } else {
+          const msg = custom.detail?.error || 'Unknown error';
+          console.error('❌ QR 스캔 실패:', msg);
+          // eslint-disable-next-line no-alert
+          alert(`QR scan failed: ${msg}`);
+          resolve(null);
+        }
+      };
+
+      window.addEventListener('qrScanned', handler as EventListener);
+
+      try {
+        // scanQRCode API 호출
+        anam.scanQRCode!(
+          JSON.stringify({
+            title: 'Scan Wallet Address QR',
+            description: "Scan the participant's wallet address QR code",
+          }),
+        );
+      } catch (error) {
+        window.removeEventListener('qrScanned', handler as EventListener);
+        console.error('Error calling scanQRCode:', error);
+        // eslint-disable-next-line no-alert
+        alert('Cannot run QR scanner');
+        resolve(null);
+      }
+    });
+
+    // QR 스캔 결과 처리
+    if (!qrData) {
+      return; // 스캔 실패 또는 취소
+    }
+
+    // 이더리움 주소 형식 검증 (0x로 시작하는 40자 hex)
+    if (qrData && qrData.match(/^0x[a-fA-F0-9]{40}$/)) {
+      // 기존 입력값 무조건 덮어쓰기
+      setFormData({ ...formData, walletAddress: qrData });
+      // 에러 제거
+      if (fieldErrors.walletAddress) {
+        setFieldErrors({ ...fieldErrors, walletAddress: '' });
+      }
+      console.log('✅ Wallet address imported:', qrData);
+    } else {
+      console.log('❌ Invalid Ethereum address format:', qrData);
+      // eslint-disable-next-line no-alert
+      alert('Invalid address format');
+    }
+  };
 
   // Form validation
   const validateForm = () => {
@@ -101,30 +296,28 @@ export default function UserRegisterClient() {
       errors.password = 'Password must be at least 4 characters';
     }
 
-    // File validation
-    if (!kycDocument) {
+    // File validation (카메라 업로드 또는 파일 선택 중 하나는 필수)
+    if (!kycDocument && !uploadedDocPath) {
       errors.kycDocument = 'Please upload ID document';
-    } else {
-      // File type validation
+    } else if (kycDocument) {
+      // 파일 선택 시 타입/크기 검증
       const allowedDocTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
       if (!allowedDocTypes.includes(kycDocument.type)) {
         errors.kycDocument = 'Only PDF, JPG, PNG, HEIC, WebP files are allowed';
       }
-      // File size validation (10MB)
       if (kycDocument.size > 10 * 1024 * 1024) {
         errors.kycDocument = 'File size cannot exceed 10MB';
       }
     }
 
-    if (!kycFace) {
+    if (!kycFace && !uploadedFacePath) {
       errors.kycFace = 'Please upload face photo';
-    } else {
-      // File type validation (images only)
+    } else if (kycFace) {
+      // 파일 선택 시 타입/크기 검증
       const allowedImageTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
       if (!allowedImageTypes.includes(kycFace.type)) {
         errors.kycFace = 'Only JPG, PNG, HEIC, WebP files are allowed';
       }
-      // File size validation (10MB)
       if (kycFace.size > 10 * 1024 * 1024) {
         errors.kycFace = 'File size cannot exceed 10MB';
       }
@@ -140,6 +333,10 @@ export default function UserRegisterClient() {
 
     if (!validateForm()) {
       setError('Please fill in all required fields');
+      // 에러 발생 시 폼 하단(에러 박스)으로 스크롤 + alert 표시
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      // eslint-disable-next-line no-alert
+      alert('Please fill in all required fields');
       return;
     }
 
@@ -176,9 +373,23 @@ export default function UserRegisterClient() {
       if (formData.password) submitData.append('password', formData.password);
       if (formData.kycType) submitData.append('kycType', formData.kycType);
 
-      // Add files
-      if (kycDocument) submitData.append('kycDocument', kycDocument);
-      if (kycFace) submitData.append('kycFace', kycFace);
+      // Add files (카메라 업로드 경로 또는 파일)
+      // 우선순위: 카메라 경로 > 파일 선택 (최신 선택이 우선)
+      if (uploadedDocPath) {
+        // 카메라로 촬영한 파일 경로 전달 (서버에서 temp → kyc로 복사)
+        submitData.append('kycDocumentPath', uploadedDocPath);
+      } else if (kycDocument) {
+        // 파일 선택으로 업로드 (서버에서 직접 저장)
+        submitData.append('kycDocument', kycDocument);
+      }
+
+      if (uploadedFacePath) {
+        // 카메라로 촬영한 파일 경로 전달 (서버에서 temp → kyc로 복사)
+        submitData.append('kycFacePath', uploadedFacePath);
+      } else if (kycFace) {
+        // 파일 선택으로 업로드 (서버에서 직접 저장)
+        submitData.append('kycFace', kycFace);
+      }
 
       // API call (Content-Type is automatically set for multipart/form-data)
       const res = await fetch('/api/admin/users', {
@@ -257,6 +468,8 @@ export default function UserRegisterClient() {
     setRegistrationType('ANAMWALLET');
     setKycDocument(null);
     setKycFace(null);
+    setUploadedDocPath(null); // 카메라 업로드 경로 초기화
+    setUploadedFacePath(null); // 카메라 업로드 경로 초기화
     setFieldErrors({});
     setError('');
   };
@@ -266,8 +479,6 @@ export default function UserRegisterClient() {
       <h1 className="text-2xl font-bold mb-6">User Registration</h1>
 
       <form onSubmit={handleRegisterSubmit} className="bg-white rounded-lg shadow p-6">
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">{error}</div>}
-
         <div className="space-y-4">
           {/* Required Information */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -428,67 +639,141 @@ export default function UserRegisterClient() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">ID Document Copy *</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,.pdf"
-                      className="input flex-1 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setKycDocument(file);
-                        if (fieldErrors.kycDocument) setFieldErrors({ ...fieldErrors, kycDocument: '' });
-                      }}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="icon-btn h-11 w-11"
-                      aria-label="Open camera"
-                      onClick={() => setShowCameraModal(true)}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/icons/camera.svg" alt="" width={24} height={24} />
-                    </button>
+                  {/* 라벨과 카메라 버튼을 한 줄에 배치 */}
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-medium">ID Document *</label>
+                    {/* 카메라 버튼: 모바일에서만 표시 (라벨 오른쪽 배치) */}
+                    {!uploadedDocPath && (
+                      <button
+                        type="button"
+                        className="icon-btn p-2 lg:hidden"
+                        aria-label="Open camera"
+                        onClick={() => handleCameraCapture('doc')}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/icons/camera.svg" alt="" width={20} height={20} />
+                      </button>
+                    )}
                   </div>
-                  {kycDocument && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      Selected file: {kycDocument.name} ({(kycDocument.size / 1024).toFixed(1)} KB)
-                    </p>
+
+                  {uploadedDocPath ? (
+                    // 카메라 업로드 완료 상태
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-sm text-green-700 font-medium">Uploaded</span>
+                      <button
+                        type="button"
+                        className="ml-auto text-xs text-green-600 hover:text-green-800 underline"
+                        onClick={() => {
+                          setUploadedDocPath(null);
+                          setKycDocument(null);
+                        }}
+                      >
+                        Retake
+                      </button>
+                    </div>
+                  ) : (
+                    // 파일 업로드 대기 상태 (데스크탑에서만 input 표시)
+                    <>
+                      {/* 파일 input: 데스크탑에서만 표시 */}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,.pdf"
+                        className="input hidden lg:block w-full file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setKycDocument(file);
+
+                          // 파일 선택 시 카메라 경로 초기화 (최신 선택 우선)
+                          if (file) {
+                            setUploadedDocPath(null);
+                          }
+
+                          if (fieldErrors.kycDocument) setFieldErrors({ ...fieldErrors, kycDocument: '' });
+                        }}
+                        // required 제거: hidden input의 브라우저 validation 방지, validateForm()에서 검증
+                      />
+                      {/* 파일 정보: 데스크탑에서만 표시 (파일 선택 시) */}
+                      {kycDocument && (
+                        <p className="hidden lg:block text-xs text-gray-600 mt-1">
+                          Selected file: {kycDocument.name} ({(kycDocument.size / 1024).toFixed(1)} KB)
+                        </p>
+                      )}
+                      {fieldErrors.kycDocument && (
+                        <p className="text-red-500 text-xs mt-1">{fieldErrors.kycDocument}</p>
+                      )}
+                    </>
                   )}
-                  {fieldErrors.kycDocument && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycDocument}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Face Photo *</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png"
-                      className="input flex-1 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setKycFace(file);
-                        if (fieldErrors.kycFace) setFieldErrors({ ...fieldErrors, kycFace: '' });
-                      }}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="icon-btn h-11 w-11"
-                      aria-label="Open camera"
-                      onClick={() => setShowCameraModal(true)}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/icons/camera.svg" alt="" width={24} height={24} />
-                    </button>
+                  {/* 라벨과 카메라 버튼을 한 줄에 배치 */}
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-medium">Face Photo *</label>
+                    {/* 카메라 버튼: 모바일에서만 표시 (라벨 오른쪽 배치) */}
+                    {!uploadedFacePath && (
+                      <button
+                        type="button"
+                        className="icon-btn p-2 lg:hidden"
+                        aria-label="Open camera"
+                        onClick={() => handleCameraCapture('face')}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/icons/camera.svg" alt="" width={20} height={20} />
+                      </button>
+                    )}
                   </div>
-                  {kycFace && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      Selected file: {kycFace.name} ({(kycFace.size / 1024).toFixed(1)} KB)
-                    </p>
+
+                  {uploadedFacePath ? (
+                    // 카메라 업로드 완료 상태
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-sm text-green-700 font-medium">Uploaded</span>
+                      <button
+                        type="button"
+                        className="ml-auto text-xs text-green-600 hover:text-green-800 underline"
+                        onClick={() => {
+                          setUploadedFacePath(null);
+                          setKycFace(null);
+                        }}
+                      >
+                        Retake
+                      </button>
+                    </div>
+                  ) : (
+                    // 파일 업로드 대기 상태 (데스크탑에서만 input 표시)
+                    <>
+                      {/* 파일 input: 데스크탑에서만 표시 */}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        className="input hidden lg:block w-full file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setKycFace(file);
+
+                          // 파일 선택 시 카메라 경로 초기화 (최신 선택 우선)
+                          if (file) {
+                            setUploadedFacePath(null);
+                          }
+
+                          if (fieldErrors.kycFace) setFieldErrors({ ...fieldErrors, kycFace: '' });
+                        }}
+                        // required 제거: hidden input의 브라우저 validation 방지, validateForm()에서 검증
+                      />
+                      {/* 파일 정보: 데스크탑에서만 표시 (파일 선택 시) */}
+                      {kycFace && (
+                        <p className="hidden lg:block text-xs text-gray-600 mt-1">
+                          Selected file: {kycFace.name} ({(kycFace.size / 1024).toFixed(1)} KB)
+                        </p>
+                      )}
+                      {fieldErrors.kycFace && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycFace}</p>}
+                    </>
                   )}
-                  {fieldErrors.kycFace && <p className="text-red-500 text-xs mt-1">{fieldErrors.kycFace}</p>}
                 </div>
               </div>
             </div>
@@ -534,12 +819,7 @@ export default function UserRegisterClient() {
                   }}
                   required
                 />
-                <button
-                  type="button"
-                  className="icon-btn h-11 w-11"
-                  aria-label="Scan QR"
-                  onClick={() => setShowCameraModal(true)}
-                >
+                <button type="button" className="icon-btn h-11 w-11" aria-label="Scan QR" onClick={handleQRScan}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/icons/camera.svg" alt="" width={24} height={24} />
                 </button>
@@ -573,6 +853,9 @@ export default function UserRegisterClient() {
             </div>
           )}
 
+          {/* Error message - displayed above buttons */}
+          {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">{error}</div>}
+
           <div className="flex gap-3 justify-end pt-4 border-t">
             <Button
               type="button"
@@ -591,8 +874,8 @@ export default function UserRegisterClient() {
         </div>
       </form>
 
-      {/* Camera Modal */}
-      {showCameraModal && (
+      {/* Camera Modal - 주석처리: AnamWallet API로 대체됨 */}
+      {/* {showCameraModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-lg w-full p-6">
             <h3 className="text-lg font-semibold mb-4">Camera</h3>
@@ -607,7 +890,7 @@ export default function UserRegisterClient() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Progress Modal for Registration */}
       <ProgressModal
