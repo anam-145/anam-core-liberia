@@ -142,6 +142,8 @@ export async function POST(request: NextRequest) {
       return apiError('Transaction failed', 500, 'INTERNAL_ERROR');
     }
 
+    console.log(`✅ Transfer completed: ${phoneNumber} → ${toPhoneNumber} (${amount} USDC, tx: ${tx.hash})`);
+
     return apiOk({
       success: true,
       txHash: tx.hash,

@@ -123,14 +123,17 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     // 파일 찾기 (field name이 'file', 'photo', 또는 다른 이름일 수 있음)
-    let uploadedFile: File | null = null;
+    // Note: Node.js 환경에서는 File 대신 Blob을 체크해야 함
+    let uploadedFile: Blob | null = null;
+    let uploadedFileName = '';
     let fieldName = '';
 
     for (const [key, value] of formData.entries()) {
-      if (value instanceof File) {
+      if (value instanceof Blob && typeof (value as { name?: string }).name === 'string') {
         uploadedFile = value;
+        uploadedFileName = (value as { name: string }).name;
         fieldName = key;
-        console.log(`📁 파일 발견: field="${fieldName}", name="${uploadedFile.name}", size=${uploadedFile.size}`);
+        console.log(`📁 파일 발견: field="${fieldName}", name="${uploadedFileName}", size=${uploadedFile.size}`);
         break;
       }
     }
@@ -142,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     // 파일 정보
     const fileSize = uploadedFile.size;
-    const originalName = uploadedFile.name;
+    const originalName = uploadedFileName;
     const ext = path.extname(originalName).toLowerCase();
 
     // 파일 타입 검증

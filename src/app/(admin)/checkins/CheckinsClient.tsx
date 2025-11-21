@@ -19,6 +19,7 @@ export default function CheckinsClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
   const [method, setMethod] = useState<'ANAMWALLET' | 'USSD' | 'PAPER' | null>(null);
+  const [ussdPhone, setUssdPhone] = useState('');
   const [ussdPin, setUssdPin] = useState('');
   const [paperPin, setPaperPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +75,7 @@ export default function CheckinsClient() {
   function resetToEventSelection() {
     setSelectedEvent(null);
     setMethod(null);
+    setUssdPhone('');
     setUssdPin('');
     setPaperPin('');
     setPaperPayload(null);
@@ -83,6 +85,7 @@ export default function CheckinsClient() {
 
   function resetToMethodSelection() {
     setMethod(null);
+    setUssdPhone('');
     setUssdPin('');
     setPaperPin('');
     setPaperPayload(null);
@@ -436,6 +439,137 @@ export default function CheckinsClient() {
     }
   }
 
+  async function handleUssdVerify() {
+    if (!selectedEvent) {
+      // eslint-disable-next-line no-alert
+      alert('Please select an event first');
+      return;
+    }
+
+    if (!ussdPhone) {
+      // eslint-disable-next-line no-alert
+      alert('Please enter phone number');
+      return;
+    }
+
+    if (!ussdPin) {
+      // eslint-disable-next-line no-alert
+      alert('Please enter PIN');
+      return;
+    }
+
+    if (submitting) return;
+
+    setSubmitting(true);
+    try {
+      console.log('[CHECKINS] handleUssdVerify:verify-start', {
+        eventId: selectedEvent.eventId,
+        phoneNumber: ussdPhone,
+      });
+
+      // Add +231 country code
+      const phoneWithCountryCode = `+231${ussdPhone}`;
+
+      const verifyRes = await fetch(
+        `/api/admin/events/${encodeURIComponent(selectedEvent.eventId)}/checkins/ussd/verify`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: phoneWithCountryCode,
+            pin: ussdPin,
+          }),
+        },
+      );
+
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      console.log('[CHECKINS] handleUssdVerify:verifyResponse', {
+        status: verifyRes.status,
+        ok: verifyRes.ok,
+        data: verifyData,
+      });
+
+      if (!verifyRes.ok) {
+        console.error('[CHECKINS] handleUssdVerify:verifyError', {
+          status: verifyRes.status,
+          data: verifyData,
+        });
+        // eslint-disable-next-line no-alert
+        alert(verifyData?.error || 'Error occurred during verification');
+        return;
+      }
+
+      if (!verifyData?.valid) {
+        console.warn('[CHECKINS] handleUssdVerify:verifyInvalid', verifyData);
+        // eslint-disable-next-line no-alert
+        alert(verifyData?.reason || 'Verification failed');
+        return;
+      }
+
+      const userId: string | undefined = verifyData.userId;
+      if (!userId) {
+        // eslint-disable-next-line no-alert
+        alert('No userId in verification result');
+        return;
+      }
+
+      const userInfo = verifyData.user as {
+        id: number;
+        userId: string;
+        name: string;
+        walletAddress: string | null;
+        did?: string | null;
+        kycFacePath?: string | null;
+      };
+      console.log('[CHECKINS] handleUssdVerify:verifiedUser', userInfo);
+      setVerifiedUser(userInfo);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleUssdApprove() {
+    if (!selectedEvent || !verifiedUser) {
+      // eslint-disable-next-line no-alert
+      alert('Please complete verification first');
+      return;
+    }
+
+    if (submitting) return;
+
+    setSubmitting(true);
+    setModalMode('idle');
+    setModalMsg('Processing check-in. Please wait...');
+    setModalDone(false);
+    setModalOpen(true);
+
+    try {
+      const approveRes = await fetch(
+        `/api/admin/events/${encodeURIComponent(selectedEvent.eventId)}/checkins/approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: verifiedUser.userId }),
+        },
+      );
+
+      const approveData = await approveRes.json().catch(() => ({}));
+      if (!approveRes.ok) {
+        const msg: string = approveData?.error || 'Error occurred during check-in approval';
+        setModalMode('error');
+        setModalMsg(`Check-in approval failed: ${msg}`);
+        setModalDone(true);
+        return;
+      }
+
+      setModalMode('success');
+      setModalMsg('Check-in completed');
+      setModalDone(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   // Determine header title
   const getHeaderTitle = () => {
     if (method === 'ANAMWALLET') return 'AnamWallet Check-in';
@@ -612,16 +746,91 @@ export default function CheckinsClient() {
 
             {method === 'USSD' && (
               <div className="py-2">
-                <div className="grid gap-3">
-                  <Input
-                    label="Password (PIN)"
-                    type="number"
-                    placeholder="Enter numbers only"
-                    value={ussdPin}
-                    onChange={(e) => setUssdPin(e.target.value)}
-                    inputMode="numeric"
-                  />
-                </div>
+                {!verifiedUser && (
+                  <div className="grid gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Phone Number</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="input"
+                          style={{
+                            width: '60px',
+                            backgroundColor: '#f9fafb',
+                            color: '#6b7280',
+                            cursor: 'not-allowed',
+                            opacity: 0.7,
+                          }}
+                          disabled
+                        >
+                          <option value="+231">🇱🇷</option>
+                        </select>
+                        <input
+                          type="text"
+                          className="input flex-1"
+                          placeholder="886123456"
+                          value={ussdPhone}
+                          onChange={(e) => setUssdPhone(e.target.value)}
+                          inputMode="numeric"
+                        />
+                      </div>
+                    </div>
+                    <Input
+                      label="PIN"
+                      type="password"
+                      placeholder="Enter 4-6 digit PIN"
+                      value={ussdPin}
+                      onChange={(e) => setUssdPin(e.target.value)}
+                      inputMode="numeric"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Enter the participant&apos;s phone number and PIN to verify their identity.
+                    </p>
+                  </div>
+                )}
+
+                {verifiedUser && (
+                  <div className="grid gap-4">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                      {verifiedUser.kycFacePath ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/admin/files?path=${encodeURIComponent(verifiedUser.kycFacePath)}`}
+                          alt="Participant"
+                          className="w-20 h-20 sm:w-16 sm:h-16 rounded-full object-cover border border-[var(--line)]"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 sm:w-16 sm:h-16 rounded-full bg-gray-100 border border-[var(--line)] grid place-items-center text-xs text-gray-400">
+                          NO PHOTO
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 w-full">
+                        <div className="font-semibold text-base text-center sm:text-left mb-2">{verifiedUser.name}</div>
+                        <div className="space-y-2 text-xs text-gray-600">
+                          {verifiedUser.did && (
+                            <div>
+                              <div className="font-semibold mb-1">Participant DID</div>
+                              <div className="mt-0.5 p-2 bg-gray-50 border border-[var(--line)] rounded break-all text-[11px] leading-snug">
+                                {verifiedUser.did}
+                              </div>
+                            </div>
+                          )}
+                          {verifiedUser.walletAddress && (
+                            <div>
+                              <div className="font-semibold mb-1">Wallet Address</div>
+                              <div className="mt-0.5 p-2 bg-gray-50 border border-[var(--line)] rounded break-all text-[11px] leading-snug">
+                                {verifiedUser.walletAddress}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 text-center sm:text-left">
+                      Verify that the participant information above is correct, then approve check-in with the button
+                      below.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -778,7 +987,14 @@ export default function CheckinsClient() {
                     }
                     return;
                   }
-                  // TODO: Integrate USSD check-in API
+                  if (method === 'USSD') {
+                    if (verifiedUser) {
+                      void handleUssdApprove();
+                    } else {
+                      void handleUssdVerify();
+                    }
+                    return;
+                  }
                 }}
                 disabled={submitting}
               >

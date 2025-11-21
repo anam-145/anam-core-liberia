@@ -16,6 +16,7 @@ import { encryptVault } from '@/utils/crypto/vault';
 import { getVCDatabaseService } from '@/services/vc.db.service';
 import { custodyService } from '@/services/custody.db.service';
 import { getSystemAdminWallet } from '@/services/system-init.service';
+import { blockchainService } from '@/services/blockchain.service';
 
 /**
  * Admin Service
@@ -392,6 +393,10 @@ class AdminService {
         if (existingWallet) {
           throw new Error('Wallet address already exists');
         }
+
+        // Send gas subsidy for AnamWallet users (one-time on registration)
+        const systemWallet = getSystemAdminWallet();
+        await blockchainService.sendGasSubsidy(walletAddress, systemWallet.privateKey);
         break;
       }
 
@@ -462,6 +467,10 @@ class AdminService {
           vault: walletVault,
           vc: { id: issued.vc.id, ...vcVault },
         });
+
+        // Send gas subsidy for Paper Voucher users (one-time on registration)
+        const pvSystemWallet = getSystemAdminWallet();
+        await blockchainService.sendGasSubsidy(wallet.address, pvSystemWallet.privateKey);
 
         // Return user with QR data
         return {

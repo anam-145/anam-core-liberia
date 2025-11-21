@@ -68,7 +68,10 @@ export async function GET(request: NextRequest) {
     // Convert from 6 decimals to human readable
     const balance = (Number(balanceRaw) / 1_000_000).toFixed(2);
 
+    console.log(`✅ Balance checked: ${phoneNumber} → ${user.walletAddress} (${balance} USDC)`);
+
     return apiOk({
+      success: true,
       balance,
       walletAddress: user.walletAddress,
     });

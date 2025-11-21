@@ -1,6 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api-response';
 import { adminService } from '@/services/admin.service';
+import { getSystemAdminWallet } from '@/services/system-init.service';
+import { blockchainService } from '@/services/blockchain.service';
 
 /**
  * POST /api/ussd/activate
@@ -35,6 +37,12 @@ export async function POST(request: NextRequest) {
 
     // Activate USSD user with PIN
     const result = await adminService.activateUssdUserWithPin(phoneNumber, pin);
+
+    // Send gas subsidy for USSD users (one-time on activation)
+    if (result.walletAddress) {
+      const systemWallet = getSystemAdminWallet();
+      await blockchainService.sendGasSubsidy(result.walletAddress, systemWallet.privateKey);
+    }
 
     return apiOk({
       success: true,

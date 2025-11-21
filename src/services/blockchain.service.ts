@@ -810,6 +810,51 @@ class BlockchainService {
       return false;
     }
   }
+
+  /**
+   * Send gas subsidy (ETH) to a wallet address
+   *
+   * TODO: GAS SUBSIDY - CRITICAL
+   * This should be called ONLY ONCE per wallet during initial activation.
+   * Caller must ensure idempotency to prevent double-spending.
+   *
+   * @param toAddress - Recipient wallet address
+   * @param signerPrivateKey - Private key of the sender (System Admin)
+   * @returns Transaction hash or null if subsidy is disabled/failed
+   */
+  async sendGasSubsidy(toAddress: string, signerPrivateKey: string): Promise<string | null> {
+    const subsidyAmount = process.env.GAS_SUBSIDY_AMOUNT;
+
+    if (!subsidyAmount) {
+      console.log('[Blockchain] Gas subsidy disabled (GAS_SUBSIDY_AMOUNT not set)');
+      return null;
+    }
+
+    this.initialize();
+
+    if (!this.provider) {
+      console.error('[Blockchain] Cannot send gas subsidy: provider not initialized');
+      return null;
+    }
+
+    try {
+      const { parseEther } = await import('ethers');
+      const signer = this.getSigner(signerPrivateKey);
+
+      const tx = await signer.sendTransaction({
+        to: toAddress,
+        value: parseEther(subsidyAmount),
+      });
+      await tx.wait();
+
+      console.log(`✅ Gas subsidy sent: ${subsidyAmount} ETH → ${toAddress} (tx: ${tx.hash})`);
+      return tx.hash;
+    } catch (error) {
+      // Log but don't throw - gas subsidy is non-critical
+      console.error('⚠️ Gas subsidy failed:', error);
+      return null;
+    }
+  }
 }
 
 // Export singleton instance
