@@ -550,7 +550,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
               {/* Search field removed */}
 
               {/* Participants Table (registration info + attendance/DSA overview) */}
-              <div className="overflow-x-auto">
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
@@ -561,8 +562,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
                         Registering admin DID
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">출석</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">총 DSA</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Attendance</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Total DSA</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -641,6 +642,44 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                   </tbody>
                 </table>
               </div>
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-3">
+                {filteredParticipants.map((participant) => {
+                  const att = computeAttendance(participant);
+                  const totalDays = att.length;
+                  const presentCount = att.filter((v) => v === true).length;
+                  const pct = totalDays > 0 ? Math.round((presentCount / totalDays) * 100) : 0;
+                  const totalDSA = payments
+                    .filter((p) => p.userId === participant.userId)
+                    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                  return (
+                    <div key={participant.id} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="font-semibold">{participant.name}</div>
+                        <div className="font-medium text-sm">${totalDSA.toFixed(2)}</div>
+                      </div>
+                      <div className="text-[11px] font-mono text-[var(--muted)] break-all">
+                        {participant.userDid ?? '-'}
+                      </div>
+                      {att.length > 0 && (
+                        <div className="pt-2 border-t">
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {att.map((v, idx) => (
+                              <span
+                                key={idx}
+                                className={`w-2.5 h-2.5 rounded-full ${v === true ? 'bg-green-500' : v === false ? 'bg-gray-300' : 'bg-gray-100'}`}
+                              />
+                            ))}
+                          </div>
+                          <div className="text-[11px] text-[var(--muted)]">
+                            Attendance: {presentCount}/{totalDays} ({pct}%)
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -716,7 +755,8 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                   <h4 className="font-medium">Payment candidates</h4>
                 </div>
                 <div className="card__body">
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table */}
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50">
                         <tr>
@@ -844,6 +884,98 @@ export default function EventDetailClient({ eventId, onBack }: EventDetailClient
                           })}
                       </tbody>
                     </table>
+                  </div>
+                  {/* Mobile Cards */}
+                  <div className="lg:hidden space-y-3">
+                    {isLoadingPayments && (
+                      <div className="text-center text-xs text-gray-500 py-4">Loading payment candidates...</div>
+                    )}
+                    {!isLoadingPayments && paymentsError && (
+                      <div className="text-center text-xs text-red-500 py-4">{paymentsError}</div>
+                    )}
+                    {!isLoadingPayments && !paymentsError && dateCheckins.length === 0 && (
+                      <div className="text-center text-xs text-gray-500 py-4">No check-ins on this date.</div>
+                    )}
+                    {!isLoadingPayments &&
+                      !paymentsError &&
+                      dateCheckins.map((checkin) => {
+                        const participant = participants.find((p) => p.userId === checkin.userId);
+                        const when = checkin.checkedInAt ? new Date(checkin.checkedInAt) : null;
+                        const timeLabel = when
+                          ? `${String(when.getUTCHours()).padStart(2, '0')}:${String(when.getUTCMinutes()).padStart(2, '0')} UTC`
+                          : '-';
+                        const paymentForCheckin = payments.find(
+                          (p) =>
+                            (p.checkinId && checkin.checkinId && p.checkinId === checkin.checkinId) ||
+                            (!p.checkinId && p.userId === checkin.userId),
+                        );
+                        const isPaid = Boolean(paymentForCheckin);
+                        const canPay = Boolean(checkin.checkinId) && !isPaid;
+
+                        return (
+                          <div key={checkin.id} className="border rounded-lg p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <div className="font-medium">{participant?.name ?? checkin.userId}</div>
+                                <div className="text-[11px] text-[var(--muted)]">{timeLabel}</div>
+                              </div>
+                              {isPaid ? (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                                  PAID
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">
+                                  PENDING
+                                </span>
+                              )}
+                            </div>
+                            {canPay && (
+                              <Button
+                                size="sm"
+                                disabled={isLoadingPayments}
+                                onClick={async () => {
+                                  if (!checkin.checkinId) return;
+                                  try {
+                                    setIsLoadingPayments(true);
+                                    setPaymentsError('');
+                                    setProgressContext('payment');
+                                    setProgressMsg('Approving payment. Please wait...');
+                                    setProgressDone(false);
+                                    setProgressOpen(true);
+                                    const res = await fetch(`/api/admin/events/${eventId}/payments/approve`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ checkinId: checkin.checkinId }),
+                                    });
+                                    const data = await res.json().catch(() => ({}));
+                                    if (!res.ok) {
+                                      setPaymentsError(
+                                        (data as { error?: string })?.error || 'Failed to approve payment',
+                                      );
+                                      setProgressMsg(
+                                        (data as { error?: string })?.error || 'Failed to approve payment',
+                                      );
+                                      setProgressDone(true);
+                                      return;
+                                    }
+                                    setPaymentsRefreshKey((k) => k + 1);
+                                    setProgressMsg('Payment completed.');
+                                    setProgressDone(true);
+                                  } catch {
+                                    setPaymentsError('Unexpected error approving payment');
+                                    setProgressMsg('Unexpected error approving payment');
+                                    setProgressDone(true);
+                                  } finally {
+                                    setIsLoadingPayments(false);
+                                  }
+                                }}
+                              >
+                                Pay
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               </div>

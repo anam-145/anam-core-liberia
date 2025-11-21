@@ -122,7 +122,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!user) {
       return apiOk({
         valid: false,
-        reason: '사용자를 찾을 수 없습니다',
+        reason: 'User not found',
         checks,
       });
     }
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!participant) {
       return apiOk({
         valid: false,
-        reason: '이 이벤트 참가자가 아닙니다',
+        reason: 'Not a participant of this event',
         checks,
       });
     }
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
       checks.isPasswordCorrect = false;
       return apiOk({
         valid: false,
-        reason: '비밀번호가 올바르지 않습니다',
+        reason: 'Incorrect password',
         checks,
       });
     }
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
       checks.isWalletAddressMatched = false;
       return apiOk({
         valid: false,
-        reason: '지갑 주소 불일치',
+        reason: 'Wallet address mismatch',
         checks,
       });
     }
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     } catch {
       return apiOk({
         valid: false,
-        reason: 'VC 복호화에 실패했습니다',
+        reason: 'Failed to decrypt VC',
         checks,
       });
     }
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     } catch {
       return apiOk({
         valid: false,
-        reason: 'VC JSON 파싱에 실패했습니다',
+        reason: 'Failed to parse VC JSON',
         checks,
       });
     }
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!vc.id || vc.id !== payload.vc.id) {
       return apiOk({
         valid: false,
-        reason: 'VC ID가 QR 페이로드와 일치하지 않습니다',
+        reason: 'VC ID does not match QR payload',
         checks,
       });
     }
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!holderDid) {
       return apiOk({
         valid: false,
-        reason: 'VC credentialSubject.id (holder DID)가 없습니다',
+        reason: 'VC credentialSubject.id (holder DID) is missing',
         checks,
       });
     }
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!holderDoc) {
       return apiOk({
         valid: false,
-        reason: 'Holder DID Document를 찾을 수 없습니다',
+        reason: 'Holder DID Document not found',
         checks,
       });
     }
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!holderAddressFromDid) {
       return apiOk({
         valid: false,
-        reason: 'Holder DID Document에 wallet address가 없습니다',
+        reason: 'Wallet address not found in Holder DID Document',
         checks,
       });
     }
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (holderAddressFromDid.toLowerCase() !== derivedAddress.toLowerCase()) {
       return apiOk({
         valid: false,
-        reason: 'Holder DID와 지갑 주소가 일치하지 않습니다',
+        reason: 'Holder DID does not match wallet address',
         checks,
       });
     }
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!issuerDid) {
       return apiOk({
         valid: false,
-        reason: 'VC issuer DID가 없습니다',
+        reason: 'VC issuer DID is missing',
         checks,
       });
     }
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!issuerDoc) {
       return apiOk({
         valid: false,
-        reason: 'Issuer DID Document를 찾을 수 없습니다',
+        reason: 'Issuer DID Document not found',
         checks,
       });
     }
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!issuerAddress) {
       return apiOk({
         valid: false,
-        reason: 'Issuer DID Document에 wallet address가 없습니다',
+        reason: 'Wallet address not found in Issuer DID Document',
         checks,
       });
     }
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!isVCSignatureValid) {
       return apiOk({
         valid: false,
-        reason: 'VC issuer 서명이 올바르지 않습니다',
+        reason: 'VC issuer signature is invalid',
         checks,
       });
     }
@@ -288,10 +288,10 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
       const status = await vcService.getVCStatus(vc.id);
       const reason =
         status === 'REVOKED'
-          ? 'VC가 폐기되었습니다'
+          ? 'VC has been revoked'
           : status === 'SUSPENDED'
-            ? 'VC가 일시 정지 상태입니다'
-            : 'VC가 온체인에서 활성 상태가 아닙니다';
+            ? 'VC is suspended'
+            : 'VC is not active on-chain';
       return apiOk({
         valid: false,
         reason,
@@ -310,7 +310,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!checks.isWithinValidity) {
       return apiOk({
         valid: false,
-        reason: 'VC가 유효기간을 벗어났습니다',
+        reason: 'VC is outside validity period',
         checks,
       });
     }
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!isVPValid) {
       return apiOk({
         valid: false,
-        reason: 'VP 검증에 실패했습니다',
+        reason: 'VP verification failed',
         checks,
       });
     }

@@ -186,7 +186,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!user) {
       return apiOk({
         valid: false,
-        reason: '사용자를 찾을 수 없습니다',
+        reason: 'User not found',
         checks,
       });
     }
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (!participant) {
       return apiOk({
         valid: false,
-        reason: '이 이벤트 참가자가 아닙니다',
+        reason: 'Not a participant of this event',
         checks,
       });
     }
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest, { params }: { params: { eventId
     if (existingCheckin) {
       return apiOk({
         valid: false,
-        reason: '오늘 이미 체크인했습니다',
+        reason: 'Already checked in today',
         checks,
       });
     }

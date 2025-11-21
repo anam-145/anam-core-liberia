@@ -196,6 +196,7 @@ export async function GET(_request: NextRequest, { params }: { params: { eventId
         'u.is_active AS isActive',
         'd.did AS userDid',
         'a.did AS adminDid',
+        'a.full_name AS adminFullName',
       ])
       .where('p.event_id = :eventId', { eventId: params.eventId })
       .orderBy('p.assigned_at', 'DESC')

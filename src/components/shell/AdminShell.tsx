@@ -94,22 +94,26 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
         </div>
         <nav className="nav">
-          {/* Check-in */}
-          <Link
-            href="/checkins"
-            className={pathname?.startsWith('/checkins') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>Check-in</span>
-          </Link>
-          {/* Dashboard */}
-          <Link
-            href="/dashboard"
-            className={pathname?.startsWith('/dashboard') ? 'active' : ''}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>Dashboard</span>
-          </Link>
+          {/* Check-in (STAFF only) */}
+          {sessionLoaded && role === 'STAFF' && (
+            <Link
+              href="/checkins"
+              className={pathname?.startsWith('/checkins') ? 'active' : ''}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span>Check-in</span>
+            </Link>
+          )}
+          {/* Dashboard (STAFF only) */}
+          {sessionLoaded && role === 'STAFF' && (
+            <Link
+              href="/dashboard"
+              className={pathname?.startsWith('/dashboard') ? 'active' : ''}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span>Dashboard</span>
+            </Link>
+          )}
           {/* Users (accessible to both SYSTEM_ADMIN and STAFF) */}
           <Link
             href="/users"

@@ -93,7 +93,7 @@ export default function UserRegisterClient() {
         setCurrentCameraTarget(null);
       } else {
         console.error('❌ 사진 업로드 실패:', customEvent.detail.error);
-        alert(`사진 업로드 실패: ${customEvent.detail.error}`);
+        alert(`Photo upload failed: ${customEvent.detail.error}`);
         setCurrentCameraTarget(null);
       }
     };
@@ -120,7 +120,7 @@ export default function UserRegisterClient() {
   const handleCameraCapture = (target: 'doc' | 'face') => {
     // AnamWallet API 연결 확인
     if (!window.anam?.captureAndUploadSelfie) {
-      alert('❌ 디바이스가 연결되지 않았습니다.\n\nAnamWallet 앱에서 접속해주세요.');
+      alert('Device not connected.\n\nPlease access via the AnamWallet app.');
       console.error('AnamWallet API가 사용 불가능합니다.');
       return;
     }
@@ -142,7 +142,7 @@ export default function UserRegisterClient() {
       window.anam.captureAndUploadSelfie(JSON.stringify(options));
     } catch (error) {
       console.error('카메라 API 호출 실패:', error);
-      alert('카메라 실행 중 오류가 발생했습니다.');
+      alert('An error occurred while launching the camera.');
       setCurrentCameraTarget(null);
     }
   };

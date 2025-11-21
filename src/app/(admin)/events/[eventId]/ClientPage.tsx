@@ -6,6 +6,8 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import ProgressModal from '@/components/ui/ProgressModal';
 
+const BLOCK_EXPLORER_URL = process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || 'https://sepolia.basescan.org';
+
 type EventStatus = 'PENDING' | 'ONGOING' | 'COMPLETED';
 
 interface Props {
@@ -26,7 +28,7 @@ type EventDetail = {
 
 export default function ClientPage({ params }: Props) {
   const eventId = params.eventId;
-  const [tab, setTab] = useState<'overview' | 'staff'>('overview');
+  const [tab, setTab] = useState<'overview' | 'staff' | 'participants' | 'checkins' | 'payments'>('overview');
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [addStaffRole, setAddStaffRole] = useState<'APPROVER' | 'VERIFIER'>('VERIFIER');
   const [addStaffQuery, setAddStaffQuery] = useState('');
@@ -67,6 +69,98 @@ export default function ClientPage({ params }: Props) {
   const [progressDone, setProgressDone] = useState(false);
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [eventError, setEventError] = useState('');
+
+  // Participants state
+  const [participants, setParticipants] = useState<
+    Array<{
+      id: number;
+      userId: string;
+      name: string;
+      walletAddress: string | null;
+      userDid: string | null;
+      adminDid: string | null;
+      adminFullName: string | null;
+      assignedAt: string;
+      isActive: boolean;
+    }>
+  >([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState('');
+
+  // Checkins & Payments data
+  const [checkins, setCheckins] = useState<
+    Array<{
+      checkinId: string;
+      userId: string;
+      checkedInAt: string;
+      checkinTxHash: string | null;
+      userName: string | null;
+      userDid: string | null;
+      adminFullName: string | null;
+      adminDid: string | null;
+    }>
+  >([]);
+  const [checkinsLoading, setCheckinsLoading] = useState(false);
+  const [checkinsError, setCheckinsError] = useState('');
+
+  // Payments tab data
+  const [payments, setPayments] = useState<
+    Array<{
+      id: number;
+      userId: string;
+      amount: string;
+      paidAt: string;
+      paymentTxHash: string | null;
+      userName: string | null;
+      userDid: string | null;
+      adminFullName: string | null;
+      adminDid: string | null;
+    }>
+  >([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState('');
+
+  // Audit state
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditType, setAuditType] = useState<'checkins' | 'payments'>('checkins');
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditResult, setAuditResult] = useState<{
+    totalOnChain: number;
+    totalOffChain: number;
+    isValid: boolean;
+    discrepancies: Array<{
+      type: string;
+      txHash: string | null;
+      onChain: Record<string, unknown> | null;
+      offChain: Record<string, unknown> | null;
+    }>;
+  } | null>(null);
+  const [auditError, setAuditError] = useState('');
+  const [discrepancyTxHashes, setDiscrepancyTxHashes] = useState<Set<string>>(new Set());
+
+  const runAudit = async (type: 'checkins' | 'payments') => {
+    setAuditType(type);
+    setAuditOpen(true);
+    setAuditLoading(true);
+    setAuditError('');
+    setAuditResult(null);
+    try {
+      const res = await fetch(`/api/admin/events/${eventId}/audit/${type}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Audit failed');
+      setAuditResult(data);
+      // Store discrepancy txHashes for highlighting in table
+      const txSet = new Set<string>();
+      (data.discrepancies || []).forEach((d: { txHash?: string }) => {
+        if (d.txHash) txSet.add(d.txHash.toLowerCase());
+      });
+      setDiscrepancyTxHashes(txSet);
+    } catch (e) {
+      setAuditError(e instanceof Error ? e.message : 'An error occurred');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
 
   // ESC to close modal
   useEffect(() => {
@@ -182,6 +276,63 @@ export default function ClientPage({ params }: Props) {
     }
   }
 
+  // Load participants when participants tab active
+  useEffect(() => {
+    if (tab !== 'participants') return;
+    setParticipantsLoading(true);
+    setParticipantsError('');
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/events/${eventId}/participants`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to load participants');
+        setParticipants(data.participants || []);
+      } catch (e) {
+        setParticipantsError(e instanceof Error ? e.message : 'An error occurred');
+      } finally {
+        setParticipantsLoading(false);
+      }
+    })();
+  }, [tab, eventId]);
+
+  // Load checkins when checkins tab active
+  useEffect(() => {
+    if (tab !== 'checkins') return;
+    setCheckinsLoading(true);
+    setCheckinsError('');
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/events/${eventId}/checkins`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to load check-ins');
+        setCheckins(data.checkins || []);
+      } catch (e) {
+        setCheckinsError(e instanceof Error ? e.message : 'An error occurred');
+      } finally {
+        setCheckinsLoading(false);
+      }
+    })();
+  }, [tab, eventId]);
+
+  // Load payments when payments tab active
+  useEffect(() => {
+    if (tab !== 'payments') return;
+    setPaymentsLoading(true);
+    setPaymentsError('');
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/events/${eventId}/payments`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to load payments');
+        setPayments(data.payments || []);
+      } catch (e) {
+        setPaymentsError(e instanceof Error ? e.message : 'An error occurred');
+      } finally {
+        setPaymentsLoading(false);
+      }
+    })();
+  }, [tab, eventId]);
+
   // Load staff list when staff tab active
   useEffect(() => {
     if (tab !== 'staff') return;
@@ -226,6 +377,56 @@ export default function ClientPage({ params }: Props) {
   // (Role change UI removed)
 
   const derivedStatus = (event?.derivedStatus || event?.status || 'PENDING') as EventStatus;
+
+  // Helper: compute event dates array
+  const eventDates: string[] = (() => {
+    if (!event?.startDate || !event?.endDate) return [];
+    const start = new Date(event.startDate + 'T00:00:00Z');
+    const end = new Date(event.endDate + 'T00:00:00Z');
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+    const dates: string[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(start.getTime() + i * MS_PER_DAY);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    return dates;
+  })();
+
+  // Helper: format checkedInAt to YYYY-MM-DD (UTC)
+  const toDateStr = (iso: string) => {
+    const d = new Date(iso);
+    return d.toISOString().slice(0, 10);
+  };
+
+  // Day-by-day dot indicator (shows each day as a dot)
+  const DayDots = ({
+    dates,
+    activeDates,
+    activeColor,
+  }: {
+    dates: string[];
+    activeDates: Set<string>;
+    activeColor: string;
+  }) => {
+    const count = dates.filter((d) => activeDates.has(d)).length;
+    return (
+      <div className="flex items-center gap-1">
+        <div className="flex gap-0.5">
+          {dates.map((date, idx) => (
+            <span
+              key={idx}
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: activeDates.has(date) ? activeColor : '#e5e7eb' }}
+            />
+          ))}
+        </div>
+        <span className="text-[11px] text-[var(--muted)] ml-1">
+          {count}/{dates.length}
+        </span>
+      </div>
+    );
+  };
 
   if (!event && eventError) {
     return (
@@ -280,10 +481,9 @@ export default function ClientPage({ params }: Props) {
               [
                 ['overview', 'Overview'],
                 ['staff', 'Staff'],
-                // Temporarily hidden (no data yet)
-                // ['participants', 'Participants'],
-                // ['checkins', 'Check-ins'],
-                // ['payments', 'Payments'],
+                ['participants', 'Participants'],
+                ['checkins', 'Check-ins'],
+                ['payments', 'Payments'],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -329,7 +529,8 @@ export default function ClientPage({ params }: Props) {
             <div className="card">
               <div className="card__header">Roles & Permissions</div>
               <div className="card__body">
-                <div className="overflow-x-auto">
+                {/* Desktop Table */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="table min-w-[680px]">
                     <thead>
                       <tr>
@@ -366,6 +567,39 @@ export default function ClientPage({ params }: Props) {
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                {/* Mobile Cards */}
+                <div className="lg:hidden space-y-3">
+                  {[
+                    { fn: 'Event management', admin: true, approver: false, verifier: false },
+                    { fn: 'Register participants', admin: true, approver: true, verifier: true },
+                    { fn: 'Check-ins', admin: true, approver: true, verifier: true },
+                    { fn: 'Payment approval', admin: true, approver: true, verifier: false },
+                  ].map((row, idx) => (
+                    <div key={idx} className="p-3 border rounded-lg">
+                      <div className="font-medium text-sm mb-2">{row.fn}</div>
+                      <div className="grid grid-cols-3 gap-2 text-[12px]">
+                        <div className="text-center">
+                          <div className="text-[var(--muted)]">Admin</div>
+                          <div className={row.admin ? 'text-green-600' : 'text-[var(--muted)]'}>
+                            {row.admin ? '✓' : '-'}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[var(--muted)]">Approver</div>
+                          <div className={row.approver ? 'text-green-600' : 'text-[var(--muted)]'}>
+                            {row.approver ? '✓' : '-'}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[var(--muted)]">Verifier</div>
+                          <div className={row.verifier ? 'text-green-600' : 'text-[var(--muted)]'}>
+                            {row.verifier ? '✓' : '-'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -559,165 +793,575 @@ export default function ClientPage({ params }: Props) {
         </div>
       )}
 
-      {/* Temporarily hidden tabs - Participants, Check-ins, Payments (no data yet) */}
-      {/*
       {tab === 'participants' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Participants</h2>
+            <h2 className="text-lg font-semibold">Participants ({participants.length})</h2>
           </div>
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="table min-w-[820px]">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Wallet/DID</th>
-                  <th>KYC</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td>
-                      <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-4 w-48 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-6 w-24 bg-gray-100 rounded-full animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-8 w-32 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="lg:hidden space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="card">
-                <div className="card__body space-y-3">
-                  <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-4 w-56 bg-gray-100 rounded animate-pulse" />
-                  <div className="flex gap-2">
-                    <div className="h-6 w-24 bg-gray-100 rounded-full animate-pulse" />
-                    <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
-                  </div>
-                  <div className="h-8 w-32 bg-gray-100 rounded animate-pulse" />
-                </div>
+          {participantsError && (
+            <div className="text-[13px] p-3 rounded-lg border border-red-200 bg-red-50 text-red-700">
+              {participantsError}
+            </div>
+          )}
+          {participantsLoading ? (
+            <div className="text-center text-[var(--muted)] py-8">Loading...</div>
+          ) : (
+            <>
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="table min-w-[900px]">
+                  <thead>
+                    <tr>
+                      <th>Participant</th>
+                      <th>Registered By</th>
+                      <th>Registered At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participants.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="text-center text-[var(--muted)]">
+                          No participants registered yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      participants.map((p) => (
+                        <tr key={p.id}>
+                          <td>
+                            <div>
+                              <div className="font-semibold">{p.name}</div>
+                              <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                {p.userDid || p.walletAddress || '-'}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              <div className="font-medium">{p.adminFullName || '-'}</div>
+                              <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                {p.adminDid || '-'}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="text-[13px] text-[var(--muted)]">
+                            {new Date(p.assignedAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-3">
+                {participants.length === 0 ? (
+                  <div className="card">
+                    <div className="card__body text-center text-[var(--muted)]">No participants registered yet.</div>
+                  </div>
+                ) : (
+                  participants.map((p) => (
+                    <div key={p.id} className="card">
+                      <div className="card__body space-y-2">
+                        <div>
+                          <div className="font-semibold">{p.name}</div>
+                          <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                            {p.userDid || p.walletAddress || '-'}
+                          </div>
+                        </div>
+                        <div className="text-[12px] text-[var(--muted)] border-t pt-2">
+                          <div>
+                            <span className="font-medium">Registered by:</span> {p.adminFullName || '-'}
+                          </div>
+                          <div className="font-mono text-[11px] break-all">{p.adminDid || '-'}</div>
+                          <div className="mt-1">
+                            {new Date(p.assignedAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {tab === 'checkins' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Check-ins</h2>
+            <h2 className="text-lg font-semibold">Check-ins ({checkins.length})</h2>
+            <Button variant="secondary" size="sm" onClick={() => runAudit('checkins')}>
+              Audit
+            </Button>
           </div>
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="table min-w-[820px]">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Participant</th>
-                  <th>Verifier</th>
-                  <th>Method</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <tr key={i}>
-                    <td>
-                      <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="lg:hidden space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="card">
-                <div className="card__body space-y-3">
-                  <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
-                </div>
+          {checkinsError && (
+            <div className="text-[13px] p-3 rounded-lg border border-red-200 bg-red-50 text-red-700">
+              {checkinsError}
+            </div>
+          )}
+          {checkinsLoading ? (
+            <div className="text-center text-[var(--muted)] py-8">Loading...</div>
+          ) : (
+            <>
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="table min-w-[1100px]">
+                  <thead>
+                    <tr>
+                      <th>Participant</th>
+                      <th>Checked In By</th>
+                      <th>Attendance</th>
+                      <th>Checked In At</th>
+                      <th>Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checkins.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center text-[var(--muted)]">
+                          No check-ins recorded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      (() => {
+                        // Group checkins by userId to show attendance dots
+                        const userCheckinDates = new Map<string, Set<string>>();
+                        checkins.forEach((c) => {
+                          if (!userCheckinDates.has(c.userId)) {
+                            userCheckinDates.set(c.userId, new Set());
+                          }
+                          userCheckinDates.get(c.userId)!.add(toDateStr(c.checkedInAt));
+                        });
+
+                        return checkins.map((c) => {
+                          const hasDiscrepancy =
+                            c.checkinTxHash && discrepancyTxHashes.has(c.checkinTxHash.toLowerCase());
+                          return (
+                            <tr key={c.checkinId} className={hasDiscrepancy ? 'bg-red-50' : ''}>
+                              <td>
+                                <div>
+                                  <div className="font-semibold">{c.userName || '-'}</div>
+                                  <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                    {c.userDid || '-'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div>
+                                  <div className="font-medium">{c.adminFullName || '-'}</div>
+                                  <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                    {c.adminDid || '-'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <DayDots
+                                  dates={eventDates}
+                                  activeDates={userCheckinDates.get(c.userId) || new Set()}
+                                  activeColor="#22c55e"
+                                />
+                              </td>
+                              <td className="text-[13px] text-[var(--muted)]">
+                                {new Date(c.checkedInAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                              </td>
+                              <td>
+                                {c.checkinTxHash ? (
+                                  <a
+                                    href={`${BLOCK_EXPLORER_URL}/tx/${c.checkinTxHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn--sm btn--secondary"
+                                  >
+                                    View
+                                  </a>
+                                ) : (
+                                  <span className="text-[var(--muted)]">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-3">
+                {checkins.length === 0 ? (
+                  <div className="card">
+                    <div className="card__body text-center text-[var(--muted)]">No check-ins recorded yet.</div>
+                  </div>
+                ) : (
+                  (() => {
+                    const userCheckinDates = new Map<string, Set<string>>();
+                    checkins.forEach((c) => {
+                      if (!userCheckinDates.has(c.userId)) {
+                        userCheckinDates.set(c.userId, new Set());
+                      }
+                      userCheckinDates.get(c.userId)!.add(toDateStr(c.checkedInAt));
+                    });
+
+                    return checkins.map((c) => (
+                      <div key={c.checkinId} className="card">
+                        <div className="card__body space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold truncate">{c.userName || '-'}</div>
+                              <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                {c.userDid || '-'}
+                              </div>
+                            </div>
+                            {c.checkinTxHash && (
+                              <a
+                                href={`${BLOCK_EXPLORER_URL}/tx/${c.checkinTxHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn--sm btn--secondary flex-shrink-0"
+                              >
+                                Tx
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 py-1">
+                            <span className="text-[11px] text-[var(--muted)] w-16">Attendance</span>
+                            <DayDots
+                              dates={eventDates}
+                              activeDates={userCheckinDates.get(c.userId) || new Set()}
+                              activeColor="#22c55e"
+                            />
+                          </div>
+                          <div className="text-[12px] text-[var(--muted)] border-t pt-2">
+                            <div>
+                              <span className="font-medium">Checked in by:</span> {c.adminFullName || '-'}
+                            </div>
+                            <div className="font-mono text-[11px] break-all">{c.adminDid || '-'}</div>
+                            <div className="mt-1">
+                              {new Date(c.checkedInAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {tab === 'payments' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Payments</h2>
+            <h2 className="text-lg font-semibold">Payments ({payments.length})</h2>
+            <Button variant="secondary" size="sm" onClick={() => runAudit('payments')}>
+              Audit
+            </Button>
           </div>
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="table min-w-[820px]">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Participant</th>
-                  <th>Approver</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td>
-                      <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                    <td>
-                      <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="lg:hidden space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="card">
-                <div className="card__body space-y-3">
-                  <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
-                  <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
-                </div>
+          {paymentsError && (
+            <div className="text-[13px] p-3 rounded-lg border border-red-200 bg-red-50 text-red-700">
+              {paymentsError}
+            </div>
+          )}
+          {paymentsLoading ? (
+            <div className="text-center text-[var(--muted)] py-8">Loading...</div>
+          ) : (
+            <>
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="table min-w-[1100px]">
+                  <thead>
+                    <tr>
+                      <th>Participant</th>
+                      <th>Paid By</th>
+                      <th>Payments</th>
+                      <th>Paid At</th>
+                      <th>Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center text-[var(--muted)]">
+                          No payments recorded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      (() => {
+                        // Group payments by userId to show payment dots
+                        const userPaymentDates = new Map<string, Set<string>>();
+                        payments.forEach((p) => {
+                          if (!userPaymentDates.has(p.userId)) {
+                            userPaymentDates.set(p.userId, new Set());
+                          }
+                          userPaymentDates.get(p.userId)!.add(toDateStr(p.paidAt));
+                        });
+
+                        return payments.map((p) => {
+                          const hasDiscrepancy =
+                            p.paymentTxHash && discrepancyTxHashes.has(p.paymentTxHash.toLowerCase());
+                          return (
+                            <tr key={p.id} className={hasDiscrepancy ? 'bg-red-50' : ''}>
+                              <td>
+                                <div>
+                                  <div className="font-semibold">{p.userName || '-'}</div>
+                                  <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                    {p.userDid || '-'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div>
+                                  <div className="font-medium">{p.adminFullName || '-'}</div>
+                                  <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                    {p.adminDid || '-'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <DayDots
+                                  dates={eventDates}
+                                  activeDates={userPaymentDates.get(p.userId) || new Set()}
+                                  activeColor="#22c55e"
+                                />
+                              </td>
+                              <td className="text-[13px] text-[var(--muted)]">
+                                {new Date(p.paidAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                              </td>
+                              <td>
+                                {p.paymentTxHash ? (
+                                  <a
+                                    href={`${BLOCK_EXPLORER_URL}/tx/${p.paymentTxHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn--sm btn--secondary"
+                                  >
+                                    View
+                                  </a>
+                                ) : (
+                                  <span className="text-[var(--muted)]">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ))}
+
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-3">
+                {payments.length === 0 ? (
+                  <div className="card">
+                    <div className="card__body text-center text-[var(--muted)]">No payments recorded yet.</div>
+                  </div>
+                ) : (
+                  (() => {
+                    const userPaymentDates = new Map<string, Set<string>>();
+                    payments.forEach((p) => {
+                      if (!userPaymentDates.has(p.userId)) {
+                        userPaymentDates.set(p.userId, new Set());
+                      }
+                      userPaymentDates.get(p.userId)!.add(toDateStr(p.paidAt));
+                    });
+
+                    return payments.map((p) => (
+                      <div key={p.id} className="card">
+                        <div className="card__body space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold truncate">{p.userName || '-'}</div>
+                              <div className="text-[11px] text-[var(--muted)] font-mono break-all">
+                                {p.userDid || '-'}
+                              </div>
+                            </div>
+                            {p.paymentTxHash && (
+                              <a
+                                href={`${BLOCK_EXPLORER_URL}/tx/${p.paymentTxHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn--sm btn--secondary flex-shrink-0"
+                              >
+                                Tx
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 py-1">
+                            <span className="text-[11px] text-[var(--muted)] w-16">Payments</span>
+                            <DayDots
+                              dates={eventDates}
+                              activeDates={userPaymentDates.get(p.userId) || new Set()}
+                              activeColor="#22c55e"
+                            />
+                          </div>
+                          <div className="text-[12px] text-[var(--muted)] border-t pt-2">
+                            <div>
+                              <span className="font-medium">Paid by:</span> {p.adminFullName || '-'}
+                            </div>
+                            <div className="font-mono text-[11px] break-all">{p.adminDid || '-'}</div>
+                            <div className="mt-1">
+                              {new Date(p.paidAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Audit Modal */}
+      {auditOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40"
+          onClick={() => setAuditOpen(false)}
+        >
+          <div className="card w-full max-w-2xl max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="card__header flex justify-between items-center">
+              <span>Audit: {auditType === 'checkins' ? 'Check-ins' : 'Payments'}</span>
+              <button className="text-[var(--muted)] hover:text-[var(--text)]" onClick={() => setAuditOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="card__body">
+              {auditLoading && (
+                <div className="text-center py-8 text-[var(--muted)]">Auditing on-chain vs off-chain data...</div>
+              )}
+              {auditError && (
+                <div className="text-[13px] p-3 rounded-lg border border-red-200 bg-red-50 text-red-700">
+                  {auditError}
+                </div>
+              )}
+              {auditResult && (
+                <div className="space-y-4">
+                  {/* Summary */}
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{auditResult.totalOnChain}</div>
+                      <div className="text-[12px] text-[var(--muted)]">On-chain</div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{auditResult.totalOffChain}</div>
+                      <div className="text-[12px] text-[var(--muted)]">Off-chain (DB)</div>
+                    </div>
+                    <div className={`p-3 rounded-lg ${auditResult.isValid ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <div className={`text-2xl font-bold ${auditResult.isValid ? 'text-green-600' : 'text-red-600'}`}>
+                        {auditResult.isValid ? 'VALID' : auditResult.discrepancies.length}
+                      </div>
+                      <div className="text-[12px] text-[var(--muted)]">
+                        {auditResult.isValid ? 'No issues' : 'Discrepancies'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Discrepancies List */}
+                  {auditResult.discrepancies.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-red-600">Discrepancies Found:</h3>
+                      {auditResult.discrepancies.map((d, idx) => (
+                        <div key={idx} className="p-3 border border-red-200 bg-red-50 rounded-lg text-sm space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                                d.type === 'VERIFIER_MISMATCH' || d.type === 'APPROVER_MISMATCH'
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : d.type === 'MISSING_ON_CHAIN'
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {d.type.replace(/_/g, ' ')}
+                            </span>
+                            {d.txHash && (
+                              <a
+                                href={`${BLOCK_EXPLORER_URL}/tx/${d.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-blue-600 hover:underline font-mono"
+                              >
+                                {d.txHash.slice(0, 10)}...{d.txHash.slice(-8)}
+                              </a>
+                            )}
+                          </div>
+
+                          {d.onChain && (
+                            <div className="bg-white p-2 rounded border">
+                              <div className="text-[11px] font-semibold text-green-700 mb-1">On-chain:</div>
+                              <div className="text-[11px] font-mono text-[var(--muted)] break-all">
+                                {auditType === 'checkins' ? (
+                                  <>
+                                    Participant: {(d.onChain as { participant?: string }).participant}
+                                    <br />
+                                    Verifier: {(d.onChain as { verifier?: string }).verifier}
+                                  </>
+                                ) : (
+                                  <>
+                                    Participant: {(d.onChain as { participant?: string }).participant}
+                                    <br />
+                                    Approver: {(d.onChain as { approver?: string }).approver}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {d.offChain && (
+                            <div className="bg-white p-2 rounded border">
+                              <div className="text-[11px] font-semibold text-blue-700 mb-1">Off-chain (DB):</div>
+                              <div className="text-[11px] font-mono text-[var(--muted)] break-all">
+                                {auditType === 'checkins' ? (
+                                  <>
+                                    Participant: {(d.offChain as { participantName?: string }).participantName} (
+                                    {(d.offChain as { participantWallet?: string }).participantWallet})
+                                    <br />
+                                    Verifier: {(d.offChain as { verifierName?: string }).verifierName} (
+                                    {(d.offChain as { verifierWallet?: string }).verifierWallet})
+                                  </>
+                                ) : (
+                                  <>
+                                    Participant: {(d.offChain as { participantName?: string }).participantName} (
+                                    {(d.offChain as { participantWallet?: string }).participantWallet})
+                                    <br />
+                                    Approver: {(d.offChain as { approverName?: string }).approverName} (
+                                    {(d.offChain as { approverWallet?: string }).approverWallet})
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {auditResult.isValid && (
+                    <div className="text-center py-4 text-green-600">
+                      All on-chain records match off-chain database.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="card__footer flex justify-end">
+              <Button variant="secondary" onClick={() => setAuditOpen(false)}>
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}
-      */}
 
       {/* Add Staff Modal (skeleton) */}
       {showAddStaff && (
