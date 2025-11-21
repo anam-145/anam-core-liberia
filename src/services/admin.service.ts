@@ -533,6 +533,88 @@ class AdminService {
   }
 
   /**
+   * Activate USSD user with PIN (External USSD Service)
+   *
+   * Creates wallet, DID, VC, and custody for USSD user.
+   * Similar to Paper Voucher flow but triggered by external USSD service.
+   *
+   * @param phoneNumber - User's phone number
+   * @param pin - PIN for vault encryption (4-6 digits)
+   * @returns User with walletAddress
+   */
+  async activateUssdUserWithPin(phoneNumber: string, pin: string): Promise<User> {
+    await this.initialize();
+
+    const userRepository = AppDataSource.getRepository(User);
+
+    // Find user by phone number
+    const user = await userRepository.findOne({
+      where: { phoneNumber },
+    });
+
+    if (!user) {
+      throw new Error('User not found with this phone number');
+    }
+
+    // Check if user is USSD type
+    if (user.registrationType !== RegistrationType.USSD) {
+      throw new Error('User is not a USSD wallet type');
+    }
+
+    // Check if already active
+    if (user.ussdStatus === USSDStatus.ACTIVE) {
+      throw new Error('USSD is already active for this user');
+    }
+
+    // Check if PENDING
+    if (user.ussdStatus !== USSDStatus.PENDING) {
+      throw new Error('User USSD status is not PENDING');
+    }
+
+    // 1) Generate wallet
+    const wallet = generateWallet();
+
+    // 2) Issue KYC VC (this will also register DID on-chain)
+    const vcService = getVCDatabaseService();
+    const issuer = getSystemAdminWallet();
+    const issued = await vcService.issueVC({
+      walletAddress: wallet.address,
+      publicKeyHex: wallet.publicKey,
+      vcType: 'KYC',
+      data: {
+        name: user.name,
+        phoneNumber: user.phoneNumber || '',
+        nationality: user.nationality || '',
+        kycType: user.kycType || '',
+      },
+      issuerPrivateKey: issuer.privateKey,
+    });
+
+    // 3) Encrypt wallet mnemonic and VC JSON into vaults with PIN
+    const walletVault = encryptVault(wallet.mnemonic, pin);
+    const vcVault = encryptVault(JSON.stringify(issued.vc), pin);
+
+    // 4) Store custody with both vaults
+    await custodyService.createCustody({
+      userId: user.userId,
+      vault: walletVault,
+      vc: { id: issued.vc.id, ...vcVault },
+    });
+
+    // 5) Update user
+    user.walletAddress = wallet.address;
+    user.ussdStatus = USSDStatus.ACTIVE;
+    user.isActive = true;
+    user.hasCustodyWallet = true;
+
+    await userRepository.save(user);
+
+    console.log(`✅ USSD user activated: ${user.phoneNumber} → ${wallet.address}`);
+
+    return user;
+  }
+
+  /**
    * Update user profile
    */
   async updateUser(

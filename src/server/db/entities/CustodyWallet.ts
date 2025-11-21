@@ -1,16 +1,7 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  Index,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import type { Vault } from '@/utils/crypto/vault';
-import { User } from './User';
-import { Admin } from './Admin';
+// Note: ManyToOne relations removed to avoid TypeORM cyclic dependency issues in production
+// userId and adminId are stored as plain strings without ORM relations
 
 // Encrypted VC payload: VC JSON encrypted with AES-GCM + plain vc.id for indexing
 type EncryptedVC = Vault & { id: string };
@@ -51,16 +42,8 @@ export class CustodyWallet {
   @Index('UQ_custody_admin_id', { unique: true })
   adminId!: string | null;
 
-  // Relations (DB-level foreign keys)
-  @ManyToOne(() => User, { nullable: true, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id', referencedColumnName: 'userId' })
-  user?: User | null;
-
-  @ManyToOne(() => Admin, { nullable: true, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'admin_id', referencedColumnName: 'adminId' })
-  admin?: Admin | null;
-
-  // wallet_type removed — wallet type is managed at User/Admin level, not in custody
+  // Note: Relations removed to avoid TypeORM cyclic dependency issues
+  // Foreign key constraints should be managed at DB level if needed
 
   @Column({
     type: 'json',
