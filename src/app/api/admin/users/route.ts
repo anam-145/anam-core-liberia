@@ -10,6 +10,48 @@ import { randomUUID } from 'crypto';
 import { AppDataSource } from '@/server/db/datasource';
 import { User } from '@/server/db/entities/User';
 import { EventParticipant } from '@/server/db/entities/EventParticipant';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+/**
+ * Helper: Copy temp file to KYC storage
+ * /uploads/temp-uploads/abc.jpg → /uploads/kyc-documents/user_xxx/document_abc.jpg
+ */
+async function copyTempFileToKyc(tempPath: string, type: 'document' | 'face', userId: string): Promise<string> {
+  // 임시 파일 경로 검증
+  if (!tempPath.startsWith('/uploads/temp-uploads/')) {
+    throw new Error('Invalid temp file path');
+  }
+
+  // 절대 경로 변환
+  const tempAbsolutePath = path.join(process.cwd(), tempPath.substring(1)); // Remove leading /
+
+  // 파일 존재 확인
+  try {
+    await fs.access(tempAbsolutePath);
+  } catch {
+    throw new Error(`Temp file not found: ${tempPath}`);
+  }
+
+  // KYC 저장 경로 생성
+  const kycDir = path.join(process.cwd(), 'uploads', 'kyc-documents', userId);
+  await fs.mkdir(kycDir, { recursive: true });
+
+  // 파일 확장자 추출
+  const ext = path.extname(tempPath);
+  const targetFilename = `${type}_${randomUUID()}${ext}`;
+  const targetPath = path.join(kycDir, targetFilename);
+
+  // 파일 복사
+  await fs.copyFile(tempAbsolutePath, targetPath);
+
+  // 상대 경로 반환 (DB 저장용)
+  const relativePath = `/uploads/kyc-documents/${userId}/${targetFilename}`;
+
+  console.log(`📋 임시 파일 복사 완료: ${tempPath} → ${relativePath}`);
+
+  return relativePath;
+}
 
 /**
  * GET /api/admin/users
@@ -116,9 +158,19 @@ export async function POST(request: NextRequest) {
     const password = formData.get('password') ? String(formData.get('password')) : undefined;
     const kycType = formData.get('kycType') ? String(formData.get('kycType')) : undefined;
 
-    // Extract files
+    /**
+     * Extract files or paths (카메라 업로드)
+     *
+     * 두 가지 방식 지원:
+     * 1. kycDocument / kycFace: File 객체 (파일 선택)
+     * 2. kycDocumentPath / kycFacePath: string (카메라 촬영 → 임시 경로)
+     *
+     * 우선순위: 경로 > 파일 (최신 선택이 우선)
+     */
     const kycDocument = formData.get('kycDocument');
     const kycFace = formData.get('kycFace');
+    const kycDocumentPath = formData.get('kycDocumentPath') ? String(formData.get('kycDocumentPath')) : undefined;
+    const kycFacePath = formData.get('kycFacePath') ? String(formData.get('kycFacePath')) : undefined;
 
     const body = {
       name,
@@ -152,9 +204,9 @@ export async function POST(request: NextRequest) {
 
     // Map registration type to appropriate message
     const registrationMessages: Record<string, string> = {
-      ANAMWALLET: '사용자가 등록되었습니다. 앱에서 활성화를 진행해주세요.',
-      USSD: 'USSD 사용자가 등록되었습니다. PIN 설정을 기다리고 있습니다.',
-      PAPERVOUCHER: '종이 바우처 사용자가 등록되었습니다.',
+      ANAMWALLET: 'User registered. Please proceed with activation in the app.',
+      USSD: 'USSD user registered. Waiting for PIN setup.',
+      PAPERVOUCHER: 'Paper voucher user registered.',
     };
 
     // Paper Voucher requires password
@@ -162,35 +214,62 @@ export async function POST(request: NextRequest) {
       return apiError('Password is required for Paper Voucher', 400, 'VALIDATION_ERROR');
     }
 
-    // File validation
-    if (!(kycDocument instanceof File)) {
+    // File validation (파일 또는 경로 중 하나는 필수)
+    if (!(kycDocument instanceof File) && !kycDocumentPath) {
       return apiError('KYC document file is required', 400, 'VALIDATION_ERROR');
     }
-    if (!(kycFace instanceof File)) {
+    if (!(kycFace instanceof File) && !kycFacePath) {
       return apiError('KYC face photo is required', 400, 'VALIDATION_ERROR');
     }
 
     // Generate userId for file storage
     userId = `user_${randomUUID()}`;
 
-    // Save files
-    let kycDocumentPath: string;
-    let kycFacePath: string;
+    /**
+     * Save files
+     *
+     * 파일 처리 방식:
+     * 1. kycDocumentPath 있음 → copyTempFileToKyc (임시 파일 복사)
+     * 2. kycDocument 있음 → saveKycFile (직접 저장)
+     * 3. 둘 다 없음 → 에러
+     *
+     * 최종 경로: /uploads/kyc-documents/user_xxx/document_yyy.jpg
+     */
+    let finalKycDocumentPath: string;
+    let finalKycFacePath: string;
 
     try {
-      const docResult = await saveKycFile({
-        file: kycDocument,
-        type: 'document',
-        userId,
-      });
-      kycDocumentPath = docResult.path;
+      // ID Document 처리
+      if (kycDocumentPath) {
+        // 카메라로 촬영된 파일 복사 (temp → kyc)
+        finalKycDocumentPath = await copyTempFileToKyc(kycDocumentPath, 'document', userId);
+      } else if (kycDocument instanceof File) {
+        // 파일 선택으로 직접 업로드
+        const docResult = await saveKycFile({
+          file: kycDocument,
+          type: 'document',
+          userId,
+        });
+        finalKycDocumentPath = docResult.path;
+      } else {
+        throw new Error('No KYC document provided');
+      }
 
-      const faceResult = await saveKycFile({
-        file: kycFace,
-        type: 'face',
-        userId,
-      });
-      kycFacePath = faceResult.path;
+      // Face Photo 처리
+      if (kycFacePath) {
+        // 카메라로 촬영된 파일 복사 (temp → kyc)
+        finalKycFacePath = await copyTempFileToKyc(kycFacePath, 'face', userId);
+      } else if (kycFace instanceof File) {
+        // 파일 선택으로 직접 업로드
+        const faceResult = await saveKycFile({
+          file: kycFace,
+          type: 'face',
+          userId,
+        });
+        finalKycFacePath = faceResult.path;
+      } else {
+        throw new Error('No KYC face photo provided');
+      }
     } catch (error) {
       // Cleanup any saved files and folders
       if (userId) {
@@ -215,8 +294,8 @@ export async function POST(request: NextRequest) {
       password: body.registrationType === 'PAPERVOUCHER' ? body.password : undefined,
       registrationType: body.registrationType,
       kycType: body.kycType,
-      kycDocumentPath, // Add file paths
-      kycFacePath,
+      kycDocumentPath: finalKycDocumentPath, // 최종 파일 경로
+      kycFacePath: finalKycFacePath, // 최종 파일 경로
     };
 
     // Create user with appropriate registration type
@@ -228,7 +307,7 @@ export async function POST(request: NextRequest) {
         {
           user: result,
           qrData: result.qrData,
-          message: '종이 바우처 사용자가 등록되었습니다. QR 코드를 인쇄하여 전달하세요.',
+          message: 'Paper voucher user registered. Please print the QR code and deliver it.',
         },
         201,
       );
@@ -237,7 +316,7 @@ export async function POST(request: NextRequest) {
     return apiOk(
       {
         user: result,
-        message: registrationMessages[body.registrationType] || '사용자가 등록되었습니다.',
+        message: registrationMessages[body.registrationType] || 'User registered.',
       },
       201,
     );
@@ -253,23 +332,23 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error) {
       // Phone number duplicate
       if (error.message.includes('Phone number already exists')) {
-        return apiError('이미 등록된 전화번호입니다.', 409, 'CONFLICT', { field: 'phoneNumber' });
+        return apiError('Phone number already registered.', 409, 'CONFLICT', { field: 'phoneNumber' });
       }
 
       // Wallet address duplicate
       if (error.message.includes('Wallet address already exists')) {
-        return apiError('이미 등록된 지갑 주소입니다.', 409, 'CONFLICT', { field: 'walletAddress' });
+        return apiError('Wallet address already registered.', 409, 'CONFLICT', { field: 'walletAddress' });
       }
 
       // Database unique constraint errors (TypeORM)
       if (error.message.includes('Duplicate entry') || error.message.includes('Duplicate key')) {
         if (error.message.includes('phone_number')) {
-          return apiError('이미 등록된 전화번호입니다.', 409, 'CONFLICT', { field: 'phoneNumber' });
+          return apiError('Phone number already registered.', 409, 'CONFLICT', { field: 'phoneNumber' });
         }
         if (error.message.includes('wallet_address')) {
-          return apiError('이미 등록된 지갑 주소입니다.', 409, 'CONFLICT', { field: 'walletAddress' });
+          return apiError('Wallet address already registered.', 409, 'CONFLICT', { field: 'walletAddress' });
         }
-        return apiError('중복된 정보가 있습니다. 입력 정보를 확인해주세요.', 409, 'CONFLICT');
+        return apiError('Duplicate information found. Please check your input.', 409, 'CONFLICT');
       }
 
       // Other known errors
