@@ -215,10 +215,15 @@ export async function POST(request: NextRequest) {
     }
 
     // File validation (파일 또는 경로 중 하나는 필수)
-    if (!(kycDocument instanceof File) && !kycDocumentPath) {
+    // Note: Node.js 환경에서는 File 대신 Blob 체크
+    const isKycDocumentFile =
+      kycDocument instanceof Blob && typeof (kycDocument as { name?: string }).name === 'string';
+    const isKycFaceFile = kycFace instanceof Blob && typeof (kycFace as { name?: string }).name === 'string';
+
+    if (!isKycDocumentFile && !kycDocumentPath) {
       return apiError('KYC document file is required', 400, 'VALIDATION_ERROR');
     }
-    if (!(kycFace instanceof File) && !kycFacePath) {
+    if (!isKycFaceFile && !kycFacePath) {
       return apiError('KYC face photo is required', 400, 'VALIDATION_ERROR');
     }
 
@@ -243,10 +248,10 @@ export async function POST(request: NextRequest) {
       if (kycDocumentPath) {
         // 카메라로 촬영된 파일 복사 (temp → kyc)
         finalKycDocumentPath = await copyTempFileToKyc(kycDocumentPath, 'document', userId);
-      } else if (kycDocument instanceof File) {
+      } else if (isKycDocumentFile && kycDocument) {
         // 파일 선택으로 직접 업로드
         const docResult = await saveKycFile({
-          file: kycDocument,
+          file: kycDocument as Blob & { name: string },
           type: 'document',
           userId,
         });
@@ -259,10 +264,10 @@ export async function POST(request: NextRequest) {
       if (kycFacePath) {
         // 카메라로 촬영된 파일 복사 (temp → kyc)
         finalKycFacePath = await copyTempFileToKyc(kycFacePath, 'face', userId);
-      } else if (kycFace instanceof File) {
+      } else if (isKycFaceFile && kycFace) {
         // 파일 선택으로 직접 업로드
         const faceResult = await saveKycFile({
-          file: kycFace,
+          file: kycFace as Blob & { name: string },
           type: 'face',
           userId,
         });

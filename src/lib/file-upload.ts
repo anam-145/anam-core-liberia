@@ -19,8 +19,14 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 // 업로드 기본 디렉토리
 const UPLOAD_BASE_DIR = process.env.UPLOAD_BASE_DIR || 'uploads';
 
+// Node.js 환경 호환을 위해 File 대신 Blob 사용
+export interface FileWithName extends Blob {
+  name: string;
+  type: string;
+}
+
 export interface SaveFileOptions {
-  file: File;
+  file: FileWithName;
   type: 'document' | 'face';
   userId: string;
 }
@@ -110,7 +116,7 @@ function checkMagicNumber(buffer: Buffer, mimeType: string): void {
 /**
  * 파일 검증 (타입, 크기)
  */
-export function validateKycFile(file: File, type: 'document' | 'face'): void {
+export function validateKycFile(file: FileWithName, type: 'document' | 'face'): void {
   const allowedTypes = type === 'document' ? ALLOWED_DOCUMENT_TYPES : ALLOWED_FACE_TYPES;
 
   // MIME 타입 검증
