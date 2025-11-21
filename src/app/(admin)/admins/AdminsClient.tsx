@@ -364,16 +364,16 @@ export default function AdminsClient() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="admin-details-title"
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
           onClick={() => setShowDetails(false)}
         >
           <div
-            className="card w-full max-w-lg my-auto"
-            style={{ maxHeight: 'calc(100vh - 2rem)' }}
+            className="card w-full max-w-lg flex flex-col"
+            style={{ maxHeight: 'calc(100dvh - 2rem)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className="card__header"
+              className="card__header flex-shrink-0"
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
               <h2 id="admin-details-title" style={{ fontWeight: 800 }}>
@@ -383,7 +383,7 @@ export default function AdminsClient() {
                 ✕
               </button>
             </div>
-            <div className="card__body max-h-[calc(100vh-12rem)] overflow-y-auto">
+            <div className="card__body flex-1 overflow-y-auto min-h-0">
               {/* Basic Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <h3 className="font-semibold mb-3">Basic Information</h3>
@@ -480,7 +480,7 @@ export default function AdminsClient() {
               </div>
             </div>
             <div
-              className="card__footer"
+              className="card__footer flex-shrink-0"
               style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}
             >
               {/* System Admin has no destructive actions */}
