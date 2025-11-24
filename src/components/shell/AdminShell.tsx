@@ -94,6 +94,16 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
         </div>
         <nav className="nav">
+          {/* Treasury (SYSTEM_ADMIN only) - First menu item for System Admin */}
+          {sessionLoaded && role === 'SYSTEM_ADMIN' && (
+            <Link
+              href="/treasury"
+              className={pathname?.startsWith('/treasury') ? 'active' : ''}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span>Treasury</span>
+            </Link>
+          )}
           {/* Check-in (STAFF only) */}
           {sessionLoaded && role === 'STAFF' && (
             <Link
@@ -122,7 +132,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <span>Participants</span>
           </Link>
-          {/* SYSTEM_ADMIN only menu */}
+          {/* SYSTEM_ADMIN only menu - remaining items */}
           {sessionLoaded && role === 'SYSTEM_ADMIN' && (
             <>
               <Link

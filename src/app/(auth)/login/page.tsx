@@ -84,6 +84,9 @@ export default function LoginPage() {
         return;
       }
 
+      // Store role for later use (in case of activation)
+      sessionStorage.setItem('userRole', data.role);
+
       if (data.activated) {
         // Show success state in modal instead of alert
         if (timer) clearTimeout(timer);
@@ -95,8 +98,9 @@ export default function LoginPage() {
         return; // wait for user to confirm
       }
 
-      // Normal login without activation
-      router.push('/checkins');
+      // Normal login without activation - redirect based on role
+      const redirectPath = data.role === 'SYSTEM_ADMIN' ? '/treasury' : '/checkins';
+      router.push(redirectPath);
       if (timer) clearTimeout(timer);
       setShowProgress(false);
       setBlockExit(false);
@@ -129,7 +133,10 @@ export default function LoginPage() {
           onConfirm={() => {
             setShowProgress(false);
             setProgressDone(false);
-            router.push('/checkins');
+            // Redirect based on role after activation
+            const role = sessionStorage.getItem('userRole');
+            const redirectPath = role === 'SYSTEM_ADMIN' ? '/treasury' : '/checkins';
+            router.push(redirectPath);
           }}
         />
         <form onSubmit={handleSubmit}>
