@@ -11,14 +11,27 @@ interface BalanceInfo {
   walletAddress: string;
 }
 
+interface Transaction {
+  txHash: string;
+  from: string;
+  to: string;
+  value: string;
+  gasUsed?: string;
+  gasPrice?: string;
+  timestamp: string;
+  blockNumber: string;
+}
+
 export default function TreasuryPage() {
   const router = useRouter();
   const { role, isLoaded } = useSessionStore();
   const [loading, setLoading] = useState(true);
   const [balances, setBalances] = useState<BalanceInfo | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingHistory, setRefreshingHistory] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // Role check
   useEffect(() => {
@@ -26,6 +39,34 @@ export default function TreasuryPage() {
       router.push('/denied');
     }
   }, [isLoaded, role, router]);
+
+  // Fetch transaction history
+  const fetchTransactions = async () => {
+    setRefreshingHistory(true);
+    try {
+      // Add a minimum delay for better UX (prevents flashing)
+      const [res] = await Promise.all([
+        fetch('/api/admin/treasury/transactions?limit=10'),
+        new Promise((resolve) => setTimeout(resolve, 300)), // Minimum 300ms for smooth animation
+      ]);
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      const data = await res.json();
+
+      // Update wallet address if available
+      if (data.walletAddress && !balances?.walletAddress) {
+        setBalances((prev) => (prev ? { ...prev, walletAddress: data.walletAddress } : null));
+      }
+
+      setTransactions(data.transactions || []);
+    } catch (error) {
+      console.error('Failed to fetch transaction history:', error);
+    } finally {
+      setRefreshingHistory(false);
+    }
+  };
 
   // Fetch balances
   const fetchData = async () => {
@@ -79,7 +120,9 @@ export default function TreasuryPage() {
   useEffect(() => {
     if (isLoaded && role === 'SYSTEM_ADMIN') {
       fetchData();
+      fetchTransactions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, role]);
 
   const copyAddress = async () => {
@@ -125,6 +168,61 @@ export default function TreasuryPage() {
 
       {/* Main Content */}
       <div>
+        {/* Action Buttons - Moved to top */}
+        <div className="card mb-6">
+          <div className="p-6">
+            <div className="flex flex-wrap gap-4">
+              <button
+                onClick={fetchData}
+                disabled={refreshing}
+                className="px-6 py-3 bg-[#8a1e1e] text-white rounded-xl font-semibold flex items-center gap-2 hover:bg-[#7a1a1a] transition-all disabled:bg-gray-400"
+              >
+                <svg
+                  className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {refreshing ? 'Refreshing...' : 'Refresh Balance'}
+              </button>
+
+              <a
+                href={`${process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || 'https://basescan.org'}/address/${balances?.walletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold flex items-center gap-2 hover:bg-gray-50 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+                View on Explorer
+              </a>
+
+              <button
+                onClick={() => router.push('/events')}
+                className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold flex items-center gap-2 hover:bg-gray-50 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create Event
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Main Card */}
         <div className="card">
           <div className="flex flex-col lg:flex-row">
@@ -274,55 +372,263 @@ export default function TreasuryPage() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-4 justify-start mt-6">
-          <button
-            onClick={fetchData}
-            disabled={refreshing}
-            className="px-6 py-3 bg-white rounded-xl shadow-md hover:shadow-lg transition-all font-semibold flex items-center gap-3 hover:scale-105"
-          >
-            <svg
-              className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            {refreshing ? 'Refreshing...' : 'Refresh Balance'}
-          </button>
+        {/* USDC Transaction History */}
+        <div className="card mt-6">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-bold text-gray-900">USDC Transaction History</h3>
+                <button
+                  onClick={fetchTransactions}
+                  disabled={refreshingHistory}
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all flex items-center gap-1.5"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 ${refreshingHistory ? 'animate-spin' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
 
-          <a
-            href={`${process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL}/address/${balances?.walletAddress}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-3 bg-white rounded-xl shadow-md hover:shadow-lg transition-all font-semibold flex items-center gap-3 hover:scale-105"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-              />
-            </svg>
-            View on Explorer
-          </a>
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Direction
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      From
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      To
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Gas Fee
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Block
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Time
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      TX Hash
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  className={`divide-y divide-gray-200 ${refreshingHistory && transactions.length > 0 ? 'relative' : ''}`}
+                >
+                  {/* Overlay for existing data refresh */}
+                  {refreshingHistory && transactions.length > 0 && (
+                    <tr className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10">
+                      <td colSpan={8} className="h-full">
+                        <div className="flex items-center justify-center h-full">
+                          <div className="flex flex-col items-center gap-3 bg-white/90 px-6 py-4 rounded-xl shadow-lg">
+                            <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-[#8a1e1e]"></div>
+                            <span className="text-sm text-gray-700 font-medium">Updating transactions...</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
 
-          <button
-            onClick={() => router.push('/events')}
-            className="px-6 py-3 bg-white text-black rounded-xl shadow-md hover:shadow-lg transition-all font-semibold flex items-center gap-3 hover:scale-105 hover:bg-gray-50"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Create Event
-          </button>
+                  {/* Skeleton Rows for Initial Loading */}
+                  {refreshingHistory && transactions.length === 0 && (
+                    <>
+                      {[...Array(5)].map((_, index) => (
+                        <tr key={`skeleton-${index}`} className="animate-pulse">
+                          <td className="py-4 px-4">
+                            <div className="flex items-center">
+                              <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+                              <div className="ml-2 h-4 w-10 bg-gray-200 rounded"></div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-4 w-20 bg-gray-200 rounded"></div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-4 w-16 bg-gray-200 rounded"></div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-4 w-20 bg-gray-200 rounded"></div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="h-8 w-16 bg-gray-200 rounded-lg"></div>
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Actual Transactions */}
+                  {!refreshingHistory &&
+                    transactions.map((tx) => {
+                      // Use actual wallet address from balances
+                      const systemWallet = balances?.walletAddress;
+                      if (!systemWallet) return null;
+                      const isIncoming = tx.to.toLowerCase() === systemWallet.toLowerCase();
+                      // gasPrice is already in gwei from API
+                      const gasFee =
+                        tx.gasUsed && tx.gasPrice
+                          ? ((parseFloat(tx.gasUsed) * parseFloat(tx.gasPrice)) / 1000000000).toFixed(6)
+                          : '0';
+
+                      return (
+                        <tr key={tx.txHash} className="hover:bg-gray-50">
+                          <td className="py-4 px-4">
+                            <div className="flex items-center">
+                              {isIncoming ? (
+                                <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                  <svg
+                                    className="w-3 h-3 text-green-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={3}
+                                      d="M7 11l5-5m0 0l5 5m-5-5v12"
+                                    />
+                                  </svg>
+                                </div>
+                              ) : (
+                                <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                                  <svg
+                                    className="w-3 h-3 text-red-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={3}
+                                      d="M17 13l-5 5m0 0l-5-5m5 5V6"
+                                    />
+                                  </svg>
+                                </div>
+                              )}
+                              <span
+                                className={`ml-2 text-xs font-semibold ${isIncoming ? 'text-green-600' : 'text-red-600'}`}
+                              >
+                                {isIncoming ? 'IN' : 'OUT'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-xs text-gray-600 font-mono">
+                              {tx.from.slice(0, 6)}...{tx.from.slice(-4)}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-xs text-gray-600 font-mono">
+                              {tx.to.slice(0, 6)}...{tx.to.slice(-4)}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className={`text-sm font-bold ${isIncoming ? 'text-green-600' : 'text-red-600'}`}>
+                              {isIncoming ? '+' : '-'}
+                              {tx.value} USDC
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-xs text-gray-500">{gasFee} ETH</div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-xs text-gray-600 font-mono">{tx.blockNumber}</div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-xs text-gray-600">
+                              {new Date(tx.timestamp).toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <a
+                              href={`${process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || 'https://basescan.org'}/tx/${tx.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#8a1e1e] text-white text-xs font-semibold rounded-lg hover:bg-[#7a1a1a] transition-all"
+                            >
+                              View TX
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                />
+                              </svg>
+                            </a>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+
+              {/* Empty State - Only show when not loading and no data */}
+              {!refreshingHistory && transactions.length === 0 && (
+                <div className="text-center py-12">
+                  <svg
+                    className="mx-auto h-12 w-12 text-gray-400 mb-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p className="text-gray-500 font-medium">No USDC transactions found</p>
+                  <p className="text-sm text-gray-400 mt-1">Transactions will appear here once processed</p>
+                </div>
+              )}
+            </div>
+
+            {/* Info Note */}
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-700">
+                <strong>Note:</strong> This table shows only USDC token transfers. Gas fees are paid in ETH from the
+                sender&apos;s wallet.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
