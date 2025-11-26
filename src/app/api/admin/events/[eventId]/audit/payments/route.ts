@@ -31,9 +31,12 @@ export async function GET(_request: NextRequest, { params }: { params: { eventId
       return apiError('Event contract not deployed', 409, 'CONFLICT');
     }
 
-    // 2) Get on-chain logs - Use public RPC for audit (no block range limits)
-    const auditRpcUrl = process.env.AUDIT_RPC_URL || 'https://sepolia.base.org';
-    const provider = new ethers.JsonRpcProvider(auditRpcUrl);
+    // 2) Get on-chain logs
+    const rpcUrl = process.env.BASE_RPC_URL;
+    if (!rpcUrl) {
+      return apiError('Missing BASE_RPC_URL configuration', 500, 'INTERNAL_ERROR');
+    }
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     const iface = new ethers.Interface(LIBERIA_EVENT_ABI);
     const eventTopic = iface.getEvent('PaymentApproved')?.topicHash;
     if (!eventTopic) {

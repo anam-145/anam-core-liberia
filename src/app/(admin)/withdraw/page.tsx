@@ -1,10 +1,27 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSessionStore } from '@/stores/session.store';
 import QRCode from 'qrcode';
 import Image from 'next/image';
 import CameraIcon from '@/components/icons/Camera';
+
+interface PaperVoucherPayload {
+  address: string;
+  vault: {
+    ciphertext: string;
+    iv: string;
+    salt: string;
+    authTag: string;
+  };
+  vc: {
+    id: string;
+    ciphertext: string;
+    iv: string;
+    salt: string;
+    authTag: string;
+  };
+}
 
 interface WithdrawInfo {
   // USSD Service
@@ -29,6 +46,89 @@ export default function WithdrawPage() {
   const [walletQrUrl, setWalletQrUrl] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState<string>('');
   const [withdrawInfo, setWithdrawInfo] = useState<WithdrawInfo | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+
+  // QR Scanner function using WebView bridge (same pattern as CheckinsClient)
+  const scanQRCode = useCallback((): Promise<string | null> => {
+    if (typeof window === 'undefined') {
+      return Promise.resolve(null);
+    }
+
+    const w = window as unknown as { anam?: { scanQRCode?: (optionsJson: string) => void } };
+    const anam = w.anam;
+    if (!anam || typeof anam.scanQRCode !== 'function') {
+      // Not a smartphone environment / bridge not connected
+      // eslint-disable-next-line no-alert
+      alert('No connected device');
+      return Promise.resolve(null);
+    }
+
+    return new Promise<string | null>((resolve) => {
+      const handler = (event: Event) => {
+        window.removeEventListener('qrScanned', handler as EventListener);
+        const custom = event as CustomEvent<{ success: boolean; data?: string; error?: string }>;
+        if (custom.detail?.success && custom.detail.data) {
+          resolve(custom.detail.data);
+        } else {
+          const msg = custom.detail?.error || 'QR scan failed';
+          // eslint-disable-next-line no-alert
+          alert(`QR scan failed: ${msg}`);
+          resolve(null);
+        }
+      };
+
+      window.addEventListener('qrScanned', handler as EventListener);
+
+      try {
+        anam.scanQRCode!(
+          JSON.stringify({
+            title: 'Scan Paper Voucher',
+            description: 'Scan the Paper Voucher QR code to withdraw USDC',
+          }),
+        );
+      } catch (error) {
+        window.removeEventListener('qrScanned', handler as EventListener);
+        console.error('Error calling scanQRCode:', error);
+        // eslint-disable-next-line no-alert
+        alert('Cannot run QR scanner');
+        resolve(null);
+      }
+    });
+  }, []);
+
+  // Handle scan voucher button click
+  const handleScanVoucher = useCallback(async () => {
+    if (isScanning) return;
+
+    setIsScanning(true);
+    try {
+      const qrData = await scanQRCode();
+      if (!qrData) return;
+
+      // Parse QR data
+      let payload: PaperVoucherPayload;
+      try {
+        payload = JSON.parse(qrData) as PaperVoucherPayload;
+      } catch {
+        // eslint-disable-next-line no-alert
+        alert('Invalid QR data format');
+        return;
+      }
+
+      // Validate payload structure
+      if (!payload.address || !payload.vault?.ciphertext) {
+        // eslint-disable-next-line no-alert
+        alert('Invalid Paper Voucher QR code');
+        return;
+      }
+
+      // Store payload in sessionStorage and navigate to redeem page
+      sessionStorage.setItem('withdrawPayload', JSON.stringify(payload));
+      router.push('/withdraw/redeem');
+    } finally {
+      setIsScanning(false);
+    }
+  }, [isScanning, scanQRCode, router]);
 
   // Role check
   useEffect(() => {
@@ -269,14 +369,12 @@ export default function WithdrawPage() {
                 </div>
 
                 <button
-                  onClick={() => {
-                    // TODO: Implement scan functionality
-                    console.log('Scan voucher clicked');
-                  }}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-all hover:scale-105"
+                  onClick={handleScanVoucher}
+                  disabled={isScanning}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CameraIcon size={20} />
-                  <span className="font-semibold">Scan Voucher</span>
+                  <span className="font-semibold">{isScanning ? 'Scanning...' : 'Scan Voucher'}</span>
                 </button>
               </div>
             </div>
