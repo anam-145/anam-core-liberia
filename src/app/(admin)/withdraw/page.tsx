@@ -313,7 +313,7 @@ export default function WithdrawPage() {
               </li>
               <li className="flex gap-2">
                 <span className="font-bold text-gray-900">3.</span>
-                <span>We instantly convert USDC to USD at the current rate</span>
+                <span>We instantly convert USDC to USD</span>
               </li>
               <li className="flex gap-2">
                 <span className="font-bold text-gray-900">4.</span>
