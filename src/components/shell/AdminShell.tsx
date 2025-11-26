@@ -105,11 +105,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 <span>Treasury</span>
               </Link>
               <Link
-                href="/cashout"
-                className={pathname?.startsWith('/cashout') ? 'active' : ''}
+                href="/withdraw"
+                className={pathname?.startsWith('/withdraw') ? 'active' : ''}
                 onClick={() => setSidebarOpen(false)}
               >
-                <span>Cash-Out Service</span>
+                <span>Mobile Money</span>
               </Link>
             </>
           )}

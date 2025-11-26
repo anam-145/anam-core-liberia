@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
 import Image from 'next/image';
 import CameraIcon from '@/components/icons/Camera';
 
-interface CashOutInfo {
+interface WithdrawInfo {
   // USSD Service
   ussdPhoneNumber: string;
   ussdServiceCode: string;
@@ -22,13 +22,13 @@ interface CashOutInfo {
   network: string;
 }
 
-export default function CashOutPage() {
+export default function WithdrawPage() {
   const router = useRouter();
   const { role, isLoaded } = useSessionStore();
   const [loading, setLoading] = useState(true);
   const [walletQrUrl, setWalletQrUrl] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState<string>('');
-  const [cashOutInfo, setCashOutInfo] = useState<CashOutInfo | null>(null);
+  const [withdrawInfo, setWithdrawInfo] = useState<WithdrawInfo | null>(null);
 
   // Role check
   useEffect(() => {
@@ -37,18 +37,18 @@ export default function CashOutPage() {
     }
   }, [isLoaded, role, router]);
 
-  // Fetch cash-out info from API
+  // Fetch withdraw info from API
   useEffect(() => {
-    const fetchCashOutInfo = async () => {
+    const fetchWithdrawInfo = async () => {
       if (!isLoaded || role !== 'SYSTEM_ADMIN') return;
 
       try {
-        const res = await fetch('/api/admin/cashout/info');
+        const res = await fetch('/api/admin/withdraw/info');
         if (!res.ok) {
-          throw new Error('Failed to fetch cash-out info');
+          throw new Error('Failed to fetch withdraw info');
         }
         const data = await res.json();
-        setCashOutInfo({
+        setWithdrawInfo({
           ussdPhoneNumber: data.phoneNumber || '0886-123-456',
           ussdServiceCode: '*123#',
           walletServiceEndpoint: data.walletAddress || '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0',
@@ -57,26 +57,26 @@ export default function CashOutPage() {
           network: 'base',
         });
       } catch (error) {
-        console.error('Failed to fetch cash-out info:', error);
+        console.error('Failed to fetch withdraw info:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCashOutInfo();
+    fetchWithdrawInfo();
   }, [isLoaded, role]);
 
   // Generate QR codes for different services
   useEffect(() => {
     const generateQRs = async () => {
-      if (!cashOutInfo) return;
+      if (!withdrawInfo) return;
 
       try {
         // AnamWallet QR - For smartphone users
         const walletData = JSON.stringify({
-          type: 'ANAM_WALLET_CASHOUT',
-          endpoint: cashOutInfo.walletServiceEndpoint,
-          network: cashOutInfo.network,
+          type: 'ANAM_WALLET_WITHDRAW',
+          endpoint: withdrawInfo.walletServiceEndpoint,
+          network: withdrawInfo.network,
           instruction: 'Scan and enter recipient phone number',
         });
 
@@ -97,7 +97,7 @@ export default function CashOutPage() {
     };
 
     generateQRs();
-  }, [cashOutInfo]);
+  }, [withdrawInfo]);
 
   const copyToClipboard = async (text: string, type: string) => {
     try {
@@ -120,7 +120,7 @@ export default function CashOutPage() {
   if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading cash-out services...</div>
+        <div className="text-gray-500">Loading withdraw services...</div>
       </div>
     );
   }
@@ -131,9 +131,9 @@ export default function CashOutPage() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Cash-Out Services</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Withdraw to Mobile Money</h1>
             <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
-              Multiple channels for converting USDC to USD mobile money
+              Multiple channels for withdrawing USDC to mobile money
             </p>
           </div>
         </div>
@@ -158,7 +158,7 @@ export default function CashOutPage() {
             <div className="bg-blue-50 rounded-xl p-6 mb-6 border-2 border-blue-200">
               <label className="block text-sm font-bold text-blue-900 mb-3">Step 1: Dial USSD Code</label>
               <div className="font-mono text-3xl font-bold text-blue-900 text-center mb-2">
-                {cashOutInfo?.ussdServiceCode}
+                {withdrawInfo?.ussdServiceCode}
               </div>
               <p className="text-xs text-blue-700 text-center">Start by dialing this code on your phone</p>
             </div>
@@ -168,11 +168,11 @@ export default function CashOutPage() {
               <label className="block text-sm font-bold text-gray-900 mb-2">Step 2: Send Money to Our Service</label>
               <div className="flex items-center gap-3">
                 <div className="flex-1">
-                  <div className="font-mono text-xl font-bold text-gray-900">{cashOutInfo?.ussdPhoneNumber}</div>
+                  <div className="font-mono text-xl font-bold text-gray-900">{withdrawInfo?.ussdPhoneNumber}</div>
                   <p className="text-xs text-gray-600 mt-1">Our service will convert and send to recipient</p>
                 </div>
                 <button
-                  onClick={() => copyToClipboard(cashOutInfo?.ussdPhoneNumber || '', 'ussd')}
+                  onClick={() => copyToClipboard(withdrawInfo?.ussdPhoneNumber || '', 'ussd')}
                   className="px-3 py-2 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-800"
                 >
                   {copySuccess === 'ussd' ? '✓' : 'Copy'}
@@ -185,7 +185,7 @@ export default function CashOutPage() {
               <h4 className="font-semibold text-gray-900 mb-2">In USSD Menu:</h4>
               <div className="flex gap-2">
                 <span className="text-blue-500 font-bold">3.</span>
-                <span className="text-gray-700">Select &quot;Cash Out&quot; option</span>
+                <span className="text-gray-700">Select &quot;Withdraw&quot; option</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-blue-500 font-bold">4.</span>
