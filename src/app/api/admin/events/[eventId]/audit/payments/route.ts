@@ -9,13 +9,26 @@ import { Admin } from '@/server/db/entities/Admin';
 import { adminService } from '@/services/admin.service';
 import { ethers } from 'ethers';
 
-const LIBERIA_EVENT_ABI = [
-  'event PaymentApproved(address indexed participant, address indexed approver, uint256 indexed day, uint256 amount)',
-];
+// PaymentApproved(address indexed participant, address indexed approver, uint256 indexed day, uint256 amount)
+const PAYMENT_APPROVED_TOPIC = ethers.id('PaymentApproved(address,address,uint256,uint256)');
+
+interface EtherscanLogEntry {
+  address: string;
+  topics: string[];
+  data: string;
+  blockNumber: string;
+  timeStamp: string;
+  gasPrice: string;
+  gasUsed: string;
+  logIndex: string;
+  transactionHash: string;
+  transactionIndex: string;
+}
 
 /**
  * GET /api/admin/events/[eventId]/audit/payments
  * Audit payments by comparing on-chain logs with off-chain DB
+ * Uses Basescan API for log queries (no block range limits)
  */
 export async function GET(_request: NextRequest, { params }: { params: { eventId: string } }) {
   const authCheck = await requireEventRole(params.eventId, [EventRole.APPROVER, EventRole.VERIFIER]);
@@ -31,48 +44,48 @@ export async function GET(_request: NextRequest, { params }: { params: { eventId
       return apiError('Event contract not deployed', 409, 'CONFLICT');
     }
 
-    // 2) Get on-chain logs
-    const rpcUrl = process.env.BASE_RPC_URL;
-    if (!rpcUrl) {
-      return apiError('Missing BASE_RPC_URL configuration', 500, 'INTERNAL_ERROR');
-    }
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const iface = new ethers.Interface(LIBERIA_EVENT_ABI);
-    const eventTopic = iface.getEvent('PaymentApproved')?.topicHash;
-    if (!eventTopic) {
-      return apiError('Failed to get event topic', 500, 'INTERNAL_ERROR');
+    // 2) Get on-chain logs via Etherscan V2 API (supports all chains with single API key)
+    const chainId = process.env.BASE_CHAIN_ID || '8453';
+    const etherscanApiKey = process.env.ETHERSCAN_API_KEY;
+    if (!etherscanApiKey) {
+      return apiError('Missing ETHERSCAN_API_KEY configuration', 500, 'INTERNAL_ERROR');
     }
 
-    // Query logs - estimate start block from event creation date to avoid querying from block 0
-    const latestBlock = await provider.getBlockNumber();
-    const eventCreatedAt = new Date(event.createdAt).getTime();
-    const now = Date.now();
-    const blockTime = 2000; // Base ~2s per block
-    const blocksAgo = Math.floor((now - eventCreatedAt) / blockTime);
-    const estimatedStartBlock = Math.max(0, latestBlock - blocksAgo - 10000); // Add buffer
+    const etherscanUrl = new URL('https://api.etherscan.io/v2/api');
+    etherscanUrl.searchParams.set('chainid', chainId);
+    etherscanUrl.searchParams.set('module', 'logs');
+    etherscanUrl.searchParams.set('action', 'getLogs');
+    etherscanUrl.searchParams.set('address', event.eventContractAddress);
+    etherscanUrl.searchParams.set('topic0', PAYMENT_APPROVED_TOPIC);
+    etherscanUrl.searchParams.set('fromBlock', '0');
+    etherscanUrl.searchParams.set('toBlock', 'latest');
+    etherscanUrl.searchParams.set('apikey', etherscanApiKey);
 
-    const logs: ethers.Log[] = [];
-    const CHUNK_SIZE = 2000; // Safe chunk size for most providers
+    const response = await fetch(etherscanUrl.toString());
+    const data = await response.json();
 
-    for (let fromBlock = estimatedStartBlock; fromBlock <= latestBlock; fromBlock += CHUNK_SIZE) {
-      const toBlock = Math.min(fromBlock + CHUNK_SIZE - 1, latestBlock);
-      const chunk = await provider.getLogs({
-        address: event.eventContractAddress,
-        topics: [eventTopic],
-        fromBlock,
-        toBlock,
-      });
-      logs.push(...chunk);
+    if (data.status !== '1' && data.message !== 'No records found') {
+      console.error('Etherscan V2 API error:', data);
+      return apiError(`Etherscan API error: ${data.message || 'Unknown error'}`, 500, 'INTERNAL_ERROR');
     }
+
+    const logs: EtherscanLogEntry[] = data.result || [];
 
     // Parse on-chain logs
     const onChainRecords = logs.map((log) => {
-      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      // Decode indexed parameters from topics
+      // topics[0] = event signature, topics[1] = participant, topics[2] = approver, topics[3] = day
+      // amount is in data (not indexed)
+      const participant = '0x' + log.topics[1]?.slice(26);
+      const approver = '0x' + log.topics[2]?.slice(26);
+      const day = parseInt(log.topics[3] || '0', 16);
+      const amount = BigInt(log.data || '0').toString();
+
       return {
-        participant: parsed?.args[0]?.toLowerCase() as string,
-        approver: parsed?.args[1]?.toLowerCase() as string,
-        day: Number(parsed?.args[2]),
-        amount: parsed?.args[3]?.toString() as string,
+        participant: participant.toLowerCase(),
+        approver: approver.toLowerCase(),
+        day,
+        amount,
         txHash: log.transactionHash,
       };
     });
