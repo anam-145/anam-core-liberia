@@ -264,12 +264,12 @@ export default function TreasuryPage() {
               </div>
 
               {/* Balances Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">USDC Balance</span>
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-xl sm:text-2xl font-bold text-gray-900 break-all">
                     {balances?.usdcBalance === '-' ? '-' : `$${balances?.usdcBalance || '0.00'}`}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">Available for events</div>
@@ -279,7 +279,7 @@ export default function TreasuryPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">ETH Balance</span>
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-xl sm:text-2xl font-bold text-gray-900 break-all">
                     {balances?.ethBalance === '-' ? '-' : balances?.ethBalance || '0.00'}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">For gas fees</div>
@@ -345,23 +345,24 @@ export default function TreasuryPage() {
               {/* Quick Steps */}
               <div className="bg-gray-50 rounded-xl p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">How to Fund</h3>
-                <div className="flex items-center justify-between gap-4">
+                {/* Mobile: vertical stack, Desktop: horizontal */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
                       1
                     </div>
                     <span className="text-sm text-gray-700">Scan QR or Copy Address</span>
                   </div>
-                  <div className="hidden sm:block h-0.5 flex-1 bg-gray-300" />
+                  <div className="hidden sm:block h-0.5 w-8 lg:flex-1 bg-gray-300 flex-shrink-0" />
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
                       2
                     </div>
                     <span className="text-sm text-gray-700">Send USDC from Binance</span>
                   </div>
-                  <div className="hidden sm:block h-0.5 flex-1 bg-gray-300" />
+                  <div className="hidden sm:block h-0.5 w-8 lg:flex-1 bg-gray-300 flex-shrink-0" />
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
                       3
                     </div>
                     <span className="text-sm text-gray-700">Funds Ready</span>
