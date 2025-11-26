@@ -71,17 +71,34 @@ export async function POST(request: NextRequest) {
       return apiError('Sender is not active', 400, 'VALIDATION_ERROR');
     }
 
-    // Find recipient
-    const recipient = await userRepository.findOne({
-      where: { phoneNumber: toPhoneNumber },
-    });
+    // Check if recipient is the withdraw service (skip DB lookup)
+    const withdrawServicePhone = process.env.WITHDRAW_SERVICE_PHONE;
+    const withdrawServiceWallet = process.env.WITHDRAW_SERVICE_WALLET;
 
-    if (!recipient) {
-      return apiError('Recipient not found', 404, 'NOT_FOUND');
-    }
+    let recipientWalletAddress: string;
 
-    if (!recipient.walletAddress) {
-      return apiError('Recipient wallet not found', 404, 'NOT_FOUND');
+    if (withdrawServicePhone && toPhoneNumber === withdrawServicePhone) {
+      // Withdraw service - skip DB check, use configured wallet
+      if (!withdrawServiceWallet) {
+        return apiError('Withdraw service not configured', 500, 'INTERNAL_ERROR');
+      }
+      recipientWalletAddress = withdrawServiceWallet;
+      console.log(`📤 Withdraw to service: ${toPhoneNumber} → ${withdrawServiceWallet}`);
+    } else {
+      // Regular transfer - find recipient in DB
+      const recipient = await userRepository.findOne({
+        where: { phoneNumber: toPhoneNumber },
+      });
+
+      if (!recipient) {
+        return apiError('Recipient not found', 404, 'NOT_FOUND');
+      }
+
+      if (!recipient.walletAddress) {
+        return apiError('Recipient wallet not found', 404, 'NOT_FOUND');
+      }
+
+      recipientWalletAddress = recipient.walletAddress;
     }
 
     // Get sender custody wallet
@@ -135,7 +152,7 @@ export async function POST(request: NextRequest) {
 
     // Execute transfer
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tx = await (usdcContract as any).transfer(recipient.walletAddress, amountBaseUnits);
+    const tx = await (usdcContract as any).transfer(recipientWalletAddress, amountBaseUnits);
     const receipt = await tx.wait();
 
     if (!receipt) {
@@ -148,7 +165,7 @@ export async function POST(request: NextRequest) {
       success: true,
       txHash: tx.hash,
       from: sender.walletAddress,
-      to: recipient.walletAddress,
+      to: recipientWalletAddress,
       amount: amount,
     });
   } catch (error) {

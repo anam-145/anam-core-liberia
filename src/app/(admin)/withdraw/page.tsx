@@ -72,14 +72,7 @@ export default function WithdrawPage() {
       if (!withdrawInfo) return;
 
       try {
-        // AnamWallet QR - For smartphone users
-        const walletData = JSON.stringify({
-          type: 'ANAM_WALLET_WITHDRAW',
-          endpoint: withdrawInfo.walletServiceEndpoint,
-          network: withdrawInfo.network,
-          instruction: 'Scan and enter recipient phone number',
-        });
-
+        // AnamWallet QR - Just the wallet address (plain text)
         const qrOptions = {
           width: 240,
           margin: 2,
@@ -89,7 +82,7 @@ export default function WithdrawPage() {
           },
         };
 
-        const walletQr = await QRCode.toDataURL(walletData, qrOptions);
+        const walletQr = await QRCode.toDataURL(withdrawInfo.walletServiceEndpoint, qrOptions);
         setWalletQrUrl(walletQr);
       } catch (error) {
         console.error('Failed to generate QR codes:', error);

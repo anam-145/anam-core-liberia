@@ -30,9 +30,13 @@ export async function GET() {
     // 2. Real-time exchange rate API
     // 3. Partner API for service availability
 
+    // Format phone number for display (e.g., +231886145145 → 886-145-145)
+    const rawPhone = process.env.WITHDRAW_SERVICE_PHONE || '+231886145145';
+    const displayPhone = rawPhone.replace('+231', '').replace(/(\d{3})(\d{3})(\d{3})/, '$1-$2-$3');
+
     const cashOutInfo = {
-      phoneNumber: process.env.CASHOUT_PHONE_NUMBER || '0886-123-456',
-      walletAddress: process.env.CASHOUT_WALLET_ADDRESS || '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0',
+      phoneNumber: displayPhone,
+      walletAddress: process.env.WITHDRAW_SERVICE_WALLET || '0x7e18A2F632c3ea170706922548586C5899183d79',
       exchangeRate: 195.5, // 1 USDC = 195.50 LRD (would fetch from oracle/API)
       serviceFee: 2.5, // 2.5% fee
       minimumAmount: 5, // 5 USDC minimum
