@@ -21,6 +21,7 @@ export type ErrorCode =
   | 'FORBIDDEN' // 403: 권한 없음
   | 'NOT_FOUND' // 404: 리소스 없음
   | 'CONFLICT' // 409: 중복/상태 충돌
+  | 'RATE_LIMIT' // 429: 요청 횟수 제한
   | 'INTERNAL_ERROR'; // 500: 서버 오류
 
 /**
