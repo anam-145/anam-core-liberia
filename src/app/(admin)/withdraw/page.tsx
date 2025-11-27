@@ -224,10 +224,8 @@ export default function WithdrawPage() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Withdraw to Mobile Money</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
-              Multiple channels for withdrawing USDC to mobile money
-            </p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Cash Out Service</h1>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">Convert USDC to mobile money or cash</p>
           </div>
         </div>
       </div>
@@ -346,7 +344,7 @@ export default function WithdrawPage() {
           </div>
         </div>
 
-        {/* 3. Paper Voucher ATM (Physical) */}
+        {/* 3. Paper Voucher (Cash Redemption) */}
         <div className="card">
           <div className="p-6">
             <div className="flex items-center gap-2 mb-4">
@@ -354,8 +352,8 @@ export default function WithdrawPage() {
                 3
               </div>
               <div>
-                <h3 className="font-bold text-gray-900">Paper Voucher ATM</h3>
-                <p className="text-xs text-gray-600">Digital Kiosk Service</p>
+                <h3 className="font-bold text-gray-900">Paper Voucher</h3>
+                <p className="text-xs text-gray-600">Cash Counter Service</p>
               </div>
             </div>
 
@@ -379,14 +377,14 @@ export default function WithdrawPage() {
               </div>
             </div>
 
-            {/* Digital Kiosk Process */}
+            {/* Cash Counter Process */}
             <div className="bg-purple-50 rounded-lg p-4 mb-4">
-              <div className="font-semibold text-sm text-purple-900 mb-2">Digital Kiosk Process</div>
+              <div className="font-semibold text-sm text-purple-900 mb-2">Cash Redemption Process</div>
               <ol className="space-y-1 text-sm text-purple-700">
-                <li>1. Scan paper voucher at kiosk</li>
-                <li>2. Enter your PIN</li>
+                <li>1. Scan participant&apos;s paper voucher</li>
+                <li>2. Participant enters their password</li>
                 <li>3. Enter amount to convert</li>
-                <li>4. Receive USD in your mobile money</li>
+                <li>4. Give cash to participant after verification</li>
               </ol>
             </div>
           </div>
@@ -396,37 +394,44 @@ export default function WithdrawPage() {
       {/* Common Information */}
       <div className="mt-8 card">
         <div className="p-6">
-          <h3 className="font-bold text-gray-900 mb-4">How do we send mobile money to you?</h3>
+          <h3 className="font-bold text-gray-900 mb-4">How does cash out work?</h3>
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <h4 className="font-semibold text-sm text-gray-900 mb-3">Our Unified Process</h4>
-            <ol className="space-y-2 text-sm text-gray-700">
-              <li className="flex gap-2">
-                <span className="font-bold text-gray-900">1.</span>
-                <span>You request to convert your USDC through any of the three channels above</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-gray-900">2.</span>
-                <span>Our system receives your USDC and verifies your identity</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-gray-900">3.</span>
-                <span>We instantly convert USDC to USD</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-gray-900">4.</span>
-                <span>We send USD directly to your registered mobile money account</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-gray-900">5.</span>
-                <span>You receive an SMS confirmation from your mobile money provider</span>
-              </li>
-            </ol>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            {/* Mobile Money Path */}
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-blue-900 mb-3 flex items-center gap-2">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs">
+                  1
+                </span>
+                USSD &amp; AnamWallet Users
+              </h4>
+              <ol className="space-y-2 text-sm text-blue-800">
+                <li>1. USDC is sent to our service wallet</li>
+                <li>2. We convert and send USD to your mobile money</li>
+                <li>3. You receive an SMS confirmation</li>
+              </ol>
+            </div>
+
+            {/* Cash Path */}
+            <div className="bg-purple-50 rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-purple-900 mb-3 flex items-center gap-2">
+                <span className="w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs">
+                  2
+                </span>
+                Paper Voucher Users
+              </h4>
+              <ol className="space-y-2 text-sm text-purple-800">
+                <li>1. Staff scans your paper voucher</li>
+                <li>2. USDC is verified on-chain</li>
+                <li>3. Receive cash at the counter</li>
+              </ol>
+            </div>
           </div>
 
           <div className="text-xs text-gray-600 space-y-1">
             <p>• All transfers are processed instantly (subject to network availability)</p>
-            <p>• Your mobile money number is linked to your workshop registration</p>
+            <p>• Mobile money users: Your phone number is linked to your workshop registration</p>
+            <p>• Paper voucher users: Bring your voucher to the cash-out counter</p>
           </div>
         </div>
       </div>

@@ -140,10 +140,8 @@ export default function RedeemVoucherPage() {
       <div className="mb-6 lg:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Paper Voucher Redemption</h1>
-            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">
-              Withdraw USDC from your paper voucher to mobile money
-            </p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text)]">Paper Voucher Cash Out</h1>
+            <p className="text-sm lg:text-base text-[var(--muted)] mt-1">Convert participant&apos;s USDC to cash</p>
           </div>
           <Button variant="secondary" onClick={handleClose}>
             ← Back to Withdraw
@@ -175,8 +173,8 @@ export default function RedeemVoucherPage() {
                     />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Withdraw to Mobile Money</h2>
-                <p className="text-sm text-gray-600 mt-1">Enter amount and password to complete withdrawal</p>
+                <h2 className="text-xl font-bold text-gray-900">Cash Out USDC</h2>
+                <p className="text-sm text-gray-600 mt-1">Enter amount and password to verify conversion</p>
               </div>
 
               {/* Wallet Address Info */}
@@ -218,8 +216,8 @@ export default function RedeemVoucherPage() {
 
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-xs text-amber-800">
-                  <strong>Note:</strong> USDC will be sent to our service wallet and converted to USD for your mobile
-                  money account.
+                  <strong>Note:</strong> USDC will be sent to our service wallet. After verification, give cash to the
+                  participant.
                 </p>
               </div>
             </div>
@@ -256,7 +254,7 @@ export default function RedeemVoucherPage() {
 
                   <div className="flex items-center text-sm opacity-50">
                     <div className="w-6 h-6 rounded-full border-2 border-gray-300 mr-3"></div>
-                    <span className="text-gray-500">Converting to mobile money...</span>
+                    <span className="text-gray-500">Verifying on-chain...</span>
                   </div>
                 </div>
               </div>
@@ -273,8 +271,10 @@ export default function RedeemVoucherPage() {
                   </svg>
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Withdrawal Successful!</h2>
-                <p className="text-sm text-gray-600 mb-6">${txResult.amount} USDC has been sent for conversion</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Conversion Verified!</h2>
+                <p className="text-sm text-gray-600 mb-6">
+                  ${txResult.amount} USDC has been converted. Please give cash to participant.
+                </p>
 
                 <div className="w-full space-y-3 bg-gray-50 rounded-lg p-4 mb-6">
                   <div className="flex justify-between text-sm">
@@ -307,7 +307,7 @@ export default function RedeemVoucherPage() {
                 </div>
 
                 <p className="text-xs text-gray-500 mb-4">
-                  You will receive an SMS when the mobile money transfer is complete.
+                  Transaction verified on-chain. Give the equivalent cash amount to the participant.
                 </p>
 
                 <Button onClick={handleClose} style={{ width: '100%' }}>
@@ -351,10 +351,10 @@ export default function RedeemVoucherPage() {
           <div className="mt-6 bg-gray-100 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">How it works:</h3>
             <ol className="space-y-1 text-xs text-gray-700">
-              <li>1. Enter the amount of USDC to withdraw</li>
-              <li>2. Enter your voucher password to authorize</li>
-              <li>3. USDC is sent to our service and converted to mobile money</li>
-              <li>4. You&apos;ll receive an SMS confirmation</li>
+              <li>1. Enter the amount of USDC to cash out</li>
+              <li>2. Participant enters their voucher password</li>
+              <li>3. USDC is sent to service wallet and verified on-chain</li>
+              <li>4. Give cash to participant after verification</li>
             </ol>
           </div>
         )}

@@ -109,7 +109,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 className={pathname?.startsWith('/withdraw') ? 'active' : ''}
                 onClick={() => setSidebarOpen(false)}
               >
-                <span>Mobile Money</span>
+                <span>Cash Out</span>
               </Link>
             </>
           )}
