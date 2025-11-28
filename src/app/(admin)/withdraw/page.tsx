@@ -276,7 +276,7 @@ export default function WithdrawPage() {
               <h4 className="font-semibold text-gray-900 mb-2">In USSD Menu:</h4>
               <div className="flex gap-2">
                 <span className="text-blue-500 font-bold">3.</span>
-                <span className="text-gray-700">Select &quot;Withdraw&quot; option</span>
+                <span className="text-gray-700">Select &quot;Transfer&quot; option</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-blue-500 font-bold">4.</span>
